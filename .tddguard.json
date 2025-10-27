@@ -1,0 +1,11 @@
+{
+  "coverage_threshold": 80,
+  "enforce_red_green_refactor": true,
+  "baby_steps_mode": true,
+  "max_attempts": 3,
+  "exclude_patterns": [
+    "tests/**",
+    "scripts/**",
+    ".claude/**"
+  ]
+}
