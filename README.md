@@ -1,6 +1,6 @@
 # LiquidationHeatmap
 
-[Short project description - 1-2 sentences]
+Calculate and visualize cryptocurrency liquidation levels from Binance futures data using DuckDB analytics and FastAPI REST endpoints. Leverages open-source models (py-liquidation-map) for battle-tested algorithms.
 
 ## Quick Start
 
@@ -8,21 +8,36 @@
 # Install dependencies
 uv sync
 
+# Ingest historical CSV data (example: Jan 2025)
+uv run python scripts/ingest_historical.py --start 2025-01-01 --end 2025-01-31
+
+# Run FastAPI server
+uv run uvicorn api.main:app --reload
+
+# Open visualization
+open http://localhost:8000/heatmap.html
+
 # Run tests
 uv run pytest
-
-# [Add project-specific quick start commands]
 ```
 
 ## Architecture
 
-[Brief architecture overview - see CLAUDE.md for details]
+**3-Layer Design**:
+1. **Data**: DuckDB (zero-copy CSV ingestion, fast analytics)
+2. **API**: FastAPI (REST endpoints) + Redis (pub/sub streaming)
+3. **Viz**: Plotly.js (interactive heatmaps)
 
-## Data
+See `CLAUDE.md` for detailed architecture and development workflow.
 
-- **Source**: `data/raw/` (symlinked to external data source)
-- **Processed**: `data/processed/` (DuckDB databases)
-- **Cache**: `data/cache/` (temporary cache files)
+## Data Sources
+
+- **Raw CSV**: `data/raw/BTCUSDT/` (symlinked to Binance historical data on 3TB-WDC)
+  - trades/, bookDepth/, fundingRate/, metrics/ (Open Interest)
+- **Processed**: `data/processed/*.duckdb` (analytics-optimized tables)
+- **Cache**: `data/cache/` (Redis snapshots, temporary files)
+
+**Note**: Raw data is read-only (symlinked). All analytics use DuckDB as single source of truth.
 
 ## Development
 
@@ -89,6 +104,20 @@ LiquidationHeatmap/
 4. Lint code with `ruff check .`
 5. Write clear commit messages (explain WHY, not just WHAT)
 
+## Key Features
+
+- ✅ **Zero-copy CSV ingestion**: DuckDB loads 10GB in ~5 seconds
+- ✅ **Binance liquidation formulas**: Leverage py-liquidation-map algorithms
+- ✅ **Real-time streaming**: Redis pub/sub (Nautilus pattern)
+- ✅ **Interactive heatmaps**: Plotly.js visualization (no build step)
+- ✅ **Test-Driven Development**: TDD guard enforces 80% coverage
+
+## References
+
+- [py-liquidation-map](https://github.com/aoki-h-jp/py-liquidation-map) - Liquidation clustering
+- [binance-liquidation-tracker](https://github.com/hgnx/binance-liquidation-tracker) - Real-time tracking
+- [Binance Liquidation Guide](https://www.binance.com/en/support/faq/liquidation) - Official formulas
+
 ## License
 
-[License information]
+MIT License

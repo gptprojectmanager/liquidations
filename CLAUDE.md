@@ -6,22 +6,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Add project description here
+**LiquidationHeatmap** calculates and visualizes cryptocurrency liquidation levels from Binance futures historical data. Uses DuckDB for fast CSV analytics, FastAPI for REST endpoints, and Redis pub/sub for real-time streaming. Leverages open-source models (py-liquidation-map) instead of reinventing algorithms.
 
 **Key Principles**:
 - KISS (Keep It Simple, Stupid) - Boring technology wins
 - YAGNI (You Ain't Gonna Need It) - Build for today, not hypothetical futures
-- Code Reuse First - Don't reinvent the wheel if >80% exists
+- Code Reuse First - Don't reinvent the wheel if >80% exists (py-liquidation-map formulas)
 - Test-Driven Development - Red-Green-Refactor discipline
 
 **🎯 Development Philosophy**:
 → The best code is no code. The second best is deleted code. The third best is simple code.
 
+**Data Sources**:
+- Binance historical CSV (3TB-WDC): trades, bookDepth, fundingRate, metrics (Open Interest)
+- Real-time WebSocket (future): Binance Futures liquidation stream
+- Target: BTC/USDT initially, expandable to other pairs
+
 ---
 
 ## Architecture
 
-Add architecture overview here
+**3-Layer Design** (KISS approach - no custom binary parsing):
+
+### Layer 1: Data Ingestion (DuckDB)
+- **Raw Storage**: `data/raw/` (symlinked to Binance CSV - read-only)
+- **Processed Storage**: `data/processed/*.duckdb` (analytics-optimized tables)
+- **Pipeline**: Zero-copy CSV ingestion via `COPY FROM` (10GB in ~5 seconds)
+- **Schema**: trades, liquidations, heatmap_cache (pre-computed aggregations)
+- **Responsible Agent**: `data-engineer`
+
+### Layer 2: Calculation & API (FastAPI + Redis)
+- **Liquidation Models**: Binance-specific formulas (leverage py-liquidation-map)
+  - Long liquidation: `entry_price * (1 - 1/leverage + maintenance_margin/leverage)`
+  - Short liquidation: `entry_price * (1 + 1/leverage - maintenance_margin/leverage)`
+- **Heatmap Generation**: Clustering algorithm from Open Interest + funding rates
+- **REST API**: FastAPI endpoints (`/liquidations/heatmap`, `/historical`)
+- **Streaming**: Redis pub/sub for real-time liquidation events (Nautilus pattern)
+- **Responsible Agent**: `quant-analyst`
+
+### Layer 3: Visualization (Plotly.js)
+- **Heatmap**: Plotly.js scatter plot (price levels vs liquidation density)
+- **Frontend**: Single HTML page (like UTXOracle - no build step)
+- **API Client**: Fetch API for REST endpoints
+- **Real-time**: WebSocket client for Redis pub/sub (future)
+
+**Data Flow**:
+```
+Binance CSV (3TB-WDC)
+  → DuckDB ingestion (scripts/ingest_historical.py)
+  → Liquidation calculation (src/models/liquidation.py)
+  → Heatmap clustering (src/models/heatmap.py)
+  → REST API (api/main.py)
+  → Plotly.js visualization (frontend/heatmap.html)
+```
 
 ### Tech Stack
 
@@ -234,7 +271,12 @@ def test_liquidation_calculation_returns_correct_price_when_leverage_10x():
 ### **Subagents** - Complex Reasoning
 Specialized agents for deep domain expertise and multi-step workflows.
 
-See .claude/agents/ directory for agent specifications
+| Agent | Responsibility | Key Tasks |
+|-------|---------------|-----------|
+| **data-engineer** | DuckDB ingestion, ETL pipelines | CSV → DuckDB, schema design, data quality checks |
+| **quant-analyst** | Liquidation models, heatmaps, backtesting | Formula implementation, clustering algorithms, strategy validation |
+
+**Full specs**: See `.claude/agents/` directory
 
 **Usage**: Invoke via Claude Code for complex implementation tasks.
 
@@ -299,6 +341,31 @@ Lightweight templates for repetitive operations with 60-83% token savings.
 
 ---
 
+## Known Models & References
+
+**Leverage existing open-source work** (KISS - don't reinvent):
+
+1. **py-liquidation-map** (GitHub: aoki-h-jp/py-liquidation-map)
+   - Liquidation clustering algorithm
+   - Heatmap visualization approach
+   - Supports Binance + Bybit data
+
+2. **binance-liquidation-tracker** (GitHub: hgnx/binance-liquidation-tracker)
+   - Real-time WebSocket tracking
+   - Forced liquidation monitoring
+
+3. **Coinglass formulas** (industry standard)
+   - Liquidation heatmap calculations
+   - Open Interest analysis
+
+4. **Binance Official Docs**
+   - Liquidation formula: https://www.binance.com/en/support/faq/liquidation
+   - Maintenance margin rates (varies by leverage)
+
+**Strategy**: Use py-liquidation-map formulas as reference implementation, adapt for DuckDB vectorized calculations.
+
+---
+
 ## License
 
-Add license information here
+MIT License (or specify alternative)
