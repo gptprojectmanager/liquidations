@@ -33,3 +33,29 @@ class TestDuckDBService:
             assert isinstance(funding_rate, Decimal)
             # Should be realistic funding rate (0.0001-0.0002 from sample data)
             assert Decimal("0.00001") < funding_rate < Decimal("0.001")
+
+    def test_no_duplicates_when_loading_same_csv_twice(self, tmp_path):
+        """Test that loading same CSV twice doesn't create duplicates."""
+        db_path = tmp_path / "test.duckdb"
+        
+        # Load data first time
+        with DuckDBService(str(db_path)) as db:
+            current_price1, oi1 = db.get_latest_open_interest("BTCUSDT")
+            
+            # Count rows
+            count1 = db.conn.execute(
+                "SELECT COUNT(*) FROM open_interest_history WHERE symbol = 'BTCUSDT'"
+            ).fetchone()[0]
+        
+        # Load data second time (should not duplicate)
+        with DuckDBService(str(db_path)) as db:
+            current_price2, oi2 = db.get_latest_open_interest("BTCUSDT")
+            
+            count2 = db.conn.execute(
+                "SELECT COUNT(*) FROM open_interest_history WHERE symbol = 'BTCUSDT'"
+            ).fetchone()[0]
+        
+        # Should have same count (no duplicates)
+        assert count1 == count2
+        # Values should be same (within precision tolerance)
+        assert abs(oi1 - oi2) < Decimal("0.01")

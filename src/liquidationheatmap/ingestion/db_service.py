@@ -79,27 +79,33 @@ class DuckDBService:
         if df.empty:
             return Decimal("67000.00"), Decimal("100000000.00")
 
-        # Create table if not exists
+        # Create table if not exists with UNIQUE constraint
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS open_interest_history (
                 id BIGINT PRIMARY KEY,
                 timestamp TIMESTAMP NOT NULL,
                 symbol VARCHAR(20) NOT NULL,
                 open_interest_value DECIMAL(20, 8) NOT NULL,
-                open_interest_contracts DECIMAL(20, 8)
+                open_interest_contracts DECIMAL(20, 8),
+                UNIQUE(timestamp, symbol)
             )
         """)
 
-        # Insert data (with auto-increment ID)
+        # Insert data with validation (INSERT OR IGNORE for duplicates)
+        # Validate: OI value > 0, symbol not empty
         self.conn.execute("""
-            INSERT INTO open_interest_history 
+            INSERT OR IGNORE INTO open_interest_history 
             SELECT 
-                row_number() OVER (ORDER BY timestamp) as id,
+                row_number() OVER (ORDER BY timestamp) + 
+                    COALESCE((SELECT MAX(id) FROM open_interest_history), 0) as id,
                 timestamp,
                 symbol,
                 open_interest_value,
                 open_interest_contracts
             FROM df
+            WHERE open_interest_value > 0
+              AND symbol IS NOT NULL
+              AND symbol != ''
         """)
 
         # Get latest
@@ -148,27 +154,33 @@ class DuckDBService:
         if df.empty:
             return Decimal("0.0001")
 
-        # Create table if not exists
+        # Create table if not exists with UNIQUE constraint
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS funding_rate_history (
                 id BIGINT PRIMARY KEY,
                 timestamp TIMESTAMP NOT NULL,
                 symbol VARCHAR(20) NOT NULL,
                 funding_rate DECIMAL(10, 8) NOT NULL,
-                mark_price DECIMAL(18, 2)
+                mark_price DECIMAL(18, 2),
+                UNIQUE(timestamp, symbol)
             )
         """)
 
-        # Insert
+        # Insert with validation (INSERT OR IGNORE for duplicates)
+        # Validate: funding rate within reasonable range (-1% to +1%), symbol not empty
         self.conn.execute("""
-            INSERT INTO funding_rate_history
+            INSERT OR IGNORE INTO funding_rate_history
             SELECT 
-                row_number() OVER (ORDER BY timestamp) as id,
+                row_number() OVER (ORDER BY timestamp) + 
+                    COALESCE((SELECT MAX(id) FROM funding_rate_history), 0) as id,
                 timestamp,
                 symbol,
                 funding_rate,
                 mark_price
             FROM df
+            WHERE funding_rate BETWEEN -0.01 AND 0.01
+              AND symbol IS NOT NULL
+              AND symbol != ''
         """)
 
         latest = df.iloc[-1]
