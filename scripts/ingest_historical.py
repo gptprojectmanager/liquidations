@@ -106,7 +106,8 @@ def ingest_open_interest(conn: duckdb.DuckDBPyConnection, symbol: str,
         # Filter by date range
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
-#        df = df[(df['timestamp'] >= start) & (df['timestamp'] <= end)]  # TEMP: Skipping date filter due to timezone issue
+        end = end.replace(hour=23, minute=59, second=59)  # Include entire day
+        df = df[(df['timestamp'] >= start) & (df['timestamp'] <= end)]
         
         if df.empty:
             logger.warning("No Open Interest data found in date range")
@@ -172,7 +173,8 @@ def ingest_funding_rate(conn: duckdb.DuckDBPyConnection, symbol: str,
         # Filter by date range
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
-#        df = df[(df['timestamp'] >= start) & (df['timestamp'] <= end)]  # TEMP: Skipping date filter due to timezone issue
+        end = end.replace(hour=23, minute=59, second=59)  # Include entire day
+        df = df[(df['timestamp'] >= start) & (df['timestamp'] <= end)]
         
         if df.empty:
             logger.warning("No Funding Rate data found in date range")

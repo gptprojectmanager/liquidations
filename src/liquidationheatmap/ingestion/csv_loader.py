@@ -61,6 +61,9 @@ def load_open_interest_csv(file_path: str, conn: Optional[duckdb.DuckDBPyConnect
         if df.empty:
             raise ValueError(f"CSV file is empty: {file_path}")
         
+        # Convert to timezone-naive for consistent date comparisons
+        df['timestamp'] = df['timestamp'].dt.tz_localize(None)
+
         # Validate required columns exist
         required_cols = {'timestamp', 'symbol', 'open_interest_value'}
         if not required_cols.issubset(df.columns):
@@ -127,6 +130,9 @@ def load_funding_rate_csv(file_path: str, conn: Optional[duckdb.DuckDBPyConnecti
         if df.empty:
             raise ValueError(f"CSV file is empty: {file_path}")
         
+        # Convert to timezone-naive for consistent date comparisons
+        df['timestamp'] = df['timestamp'].dt.tz_localize(None)
+
         # Validate required columns
         required_cols = {'timestamp', 'symbol', 'funding_rate'}
         if not required_cols.issubset(df.columns):
