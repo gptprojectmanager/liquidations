@@ -203,6 +203,44 @@ timestamp,symbol,fundingRate,markPrice
 
 ---
 
+### Table 5: `liquidation_history`
+
+**Purpose**: Historical liquidation events (actual occurred liquidations from Binance)
+
+**Schema**:
+```sql
+CREATE TABLE liquidation_history (
+    id BIGINT PRIMARY KEY,
+    timestamp TIMESTAMP NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    price DECIMAL(18, 2) NOT NULL,
+    quantity DECIMAL(18, 8) NOT NULL,
+    side VARCHAR(10) NOT NULL,  -- 'long' or 'short'
+    leverage INT
+);
+
+CREATE INDEX idx_liquidation_history_timestamp ON liquidation_history(timestamp);
+CREATE INDEX idx_liquidation_history_symbol ON liquidation_history(symbol);
+```
+
+**Data Source**: `data/raw/BTCUSDT/trades/` (filtered for liquidation events)
+
+**Note**: This table stores **actual historical liquidations** that occurred, used for:
+- Backtesting model accuracy
+- Validating predictions vs reality
+- Analyzing liquidation cascade patterns
+
+**Difference from `liquidation_levels`**:
+- `liquidation_levels` = **Predictions** (calculated from Open Interest)
+- `liquidation_history` = **Actual events** (observed from trade data)
+
+**Population Strategy**:
+- Phase 7 task: Ingest historical liquidation events from Binance CSV
+- Filter trades where `is_liquidation=true` flag present
+- Or identify liquidations by large volume + price spike pattern
+
+---
+
 ## Domain Models (Python)
 
 ### Model 1: `LiquidationLevel`
@@ -338,7 +376,7 @@ class AbstractLiquidationModel(ABC):
 **Implementations**:
 1. `BinanceStandardModel` (`src/models/binance_standard.py`)
 2. `FundingAdjustedModel` (`src/models/funding_adjusted.py`)
-3. `PyLiquidationMapModel` (`src/models/py_liquidation_map.py`)
+3. `py_liquidation_mapModel` (`src/models/py_liquidation_map.py`)
 4. `EnsembleModel` (`src/models/ensemble.py`)
 
 ---

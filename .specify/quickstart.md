@@ -500,7 +500,7 @@ git commit --no-verify
 
 ### Code Examples
 
-- **py-liquidation-map**: `examples/py_liquidation_map_mapping.py`
+- **py_liquidation_map**: `examples/py_liquidation_map_mapping.py`
 - **Binance Formula**: `examples/binance_liquidation_formula_reference.txt`
 - **Coinglass Viz**: `examples/coinglass_*.png`
 

@@ -54,7 +54,7 @@ Following UTXOracle pattern, **separate concerns**:
 │  │   └─ liquidation_price = entry * (1 ± 1/lev ± mmr/lev)  │
 │  ├─ Model B: Funding Rate Adjusted                          │
 │  │   └─ Adjust liquidation by funding rate pressure         │
-│  ├─ Model C: py-liquidation-map (external)                  │
+│  ├─ Model C: py_liquidation_map (external)                  │
 │  │   └─ Leverage existing clustering algorithm              │
 │  └─ Ensemble: Weighted average (A=0.5, B=0.3, C=0.2)        │
 │                                                              │
@@ -272,7 +272,7 @@ class FundingAdjustedModel(AbstractLiquidationModel):
         return base_liq
 ```
 
-### Model C: py-liquidation-map Integration
+### Model C: py_liquidation_map Integration
 
 **Leverage existing library** (Code Reuse First principle):
 
@@ -280,8 +280,8 @@ class FundingAdjustedModel(AbstractLiquidationModel):
 # src/liquidationheatmap/models/py_liquidation_map.py
 from py_liquidation_map import BinanceLiquidationCluster  # External library
 
-class PyLiquidationMapModel(AbstractLiquidationModel):
-    """Wrapper around py-liquidation-map library."""
+class py_liquidation_mapModel(AbstractLiquidationModel):
+    """Wrapper around py_liquidation_map library."""
 
     model_name = "py_liquidation_map"
 
@@ -316,7 +316,7 @@ class EnsembleModel(AbstractLiquidationModel):
         self.models = [
             (BinanceStandardModel(), 0.5),  # 50% weight
             (FundingAdjustedModel(), 0.3),  # 30% weight
-            (PyLiquidationMapModel(), 0.2)  # 20% weight
+            (py_liquidation_mapModel(), 0.2)  # 20% weight
         ]
         if weights:
             self.models = [(m, w) for (m, _), w in zip(self.models, weights)]
@@ -750,7 +750,7 @@ logger.info(
 
 ### External Libraries
 
-- ✅ **py-liquidation-map** (pip install py-liquidation-map) - Model C
+- ✅ **py_liquidation_map** (pip install py_liquidation_map) - Model C
 - ✅ **plotly** (already installed) - Visualization
 - ✅ **fastapi** (already installed) - API
 - ✅ **pandas** (already installed) - Data wrangling
@@ -761,7 +761,7 @@ logger.info(
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| py-liquidation-map unavailable | Medium | Low | Implement Model A+B first (80% value) |
+| py_liquidation_map unavailable | Medium | Low | Implement Model A+B first (80% value) |
 | DuckDB performance on large datasets | High | Medium | Pre-aggregate in heatmap_cache table |
 | Model accuracy <80% | Medium | Medium | Use ensemble + backtesting to tune weights |
 | Plotly.js limited customization | Low | Low | Fallback to lightweight Canvas if needed |
@@ -772,7 +772,7 @@ logger.info(
 
 - **Parent Spec**: `/media/sam/1TB/UTXOracle/specs/003-mempool-integration-refactor/spec.md`
 - **Coinglass Liquidation Heatmap**: https://www.coinglass.com/LiquidationData
-- **py-liquidation-map**: https://github.com/aoki-h-jp/py-liquidation-map
+- **py_liquidation_map**: https://github.com/aoki-h-jp/py_liquidation_map
 - **Binance Liquidation Formula**: https://www.binance.com/en/support/faq/liquidation
 - **Constitution**: `.specify/memory/constitution.md` (KISS, YAGNI, Code Reuse)
 

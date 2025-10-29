@@ -129,7 +129,7 @@ implement T015 → T019
 # Terminal 2: Funding Adjusted model
 implement T016
 
-# Terminal 3: PyLiquidationMap model
+# Terminal 3: py_liquidation_map model
 implement T017
 
 # Terminal 4: Ensemble tests
@@ -316,7 +316,7 @@ uv run pytest --cov=src --cov-report=html
 - **Developer Guide**: `CLAUDE.md` (architecture, TDD workflow)
 
 ### Code Examples
-- **py-liquidation-map**: `examples/py_liquidation_map_mapping.py`
+- **py_liquidation_map**: `examples/py_liquidation_map_mapping.py`
 - **Binance Formula**: `examples/binance_liquidation_formula_reference.txt`
 - **Visualization**: `examples/liquidations_chart_plot.py`
 - **Screenshots**: `examples/coinglass_*.png` (7 reference images)

@@ -111,7 +111,7 @@ Layer 1: Data (DuckDB)
 Layer 2: Models (AbstractLiquidationModel interface)
   ├─ Binance Standard (95% accuracy)
   ├─ Funding Adjusted (88% accuracy)
-  ├─ py-liquidation-map (85% accuracy)
+  ├─ py_liquidation_map (85% accuracy)
   └─ Ensemble (94% weighted average)
   └─ Agent: quant-analyst
 
@@ -181,7 +181,7 @@ Layer 4: Visualization (Plotly.js)
 - 3 models (not 10 variations)
 
 ✅ **Code Reuse**:
-- py-liquidation-map binning
+- py_liquidation_map binning
 - Binance official formula
 - Coinglass color scheme
 

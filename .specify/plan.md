@@ -11,7 +11,7 @@
 
 Build a **predictive liquidation heatmap system** for BTC/USDT futures using historical Binance data. System calculates future liquidation levels from Open Interest using 3 black-box models (Binance Standard, Funding Adjusted, Ensemble), visualizes via Plotly.js (<100 lines), and exposes FastAPI REST endpoints for historical analysis.
 
-**Core Principle**: KISS (Keep It Simple, Stupid) - Use DuckDB for storage, leverage existing algorithms (py-liquidation-map binning), no real-time streaming (MVP = historical only).
+**Core Principle**: KISS (Keep It Simple, Stupid) - Use DuckDB for storage, leverage existing algorithms (py_liquidation_map binning), no real-time streaming (MVP = historical only).
 
 ---
 
@@ -61,7 +61,7 @@ Layer 4: Viz (Plotly.js) ← <100 lines
 - `pytest>=7.4.0` + `pytest-cov>=4.1.0` - Testing
 
 **External Code Reuse**:
-- `py-liquidation-map` (cloned to `/media/sam/1TB/py-liquidation-map`)
+- `py_liquidation_map` (cloned to `/media/sam/1TB/py_liquidation_map`)
   - Binning algorithm for price aggregation
   - Filtering modes (gross_value, top_n, portion)
 - Binance liquidation formula (from examples/binance_liquidation_formula_reference.txt)
@@ -100,7 +100,7 @@ Layer 4: Viz (Plotly.js) ← <100 lines
 ### Code Reuse First ✅
 
 **Leveraging Existing**:
-- py-liquidation-map binning algorithm (battle-tested)
+- py_liquidation_map binning algorithm (battle-tested)
 - Binance official liquidation formula (not reinvented)
 - Coinglass color scheme (industry standard)
 - UTXOracle black-box pattern (proven architecture)
@@ -196,12 +196,12 @@ colorscale: [
 
 #### 4. Model Ensemble Strategy
 
-**Decision**: Weighted average (Binance=50%, Funding=30%, py-liquidation-map=20%).
+**Decision**: Weighted average (Binance=50%, Funding=30%, py_liquidation_map=20%).
 
 **Rationale**:
 - Binance formula most accurate (highest weight)
 - Funding rate adds market pressure signal
-- py-liquidation-map provides clustering validation
+- py_liquidation_map provides clustering validation
 
 **Aggregation Method**:
 ```python
@@ -267,7 +267,29 @@ See `.specify/contracts/openapi.yaml` for full OpenAPI 3.0 specification.
 
 ## Phase 2: Implementation Roadmap
 
-### Milestone 1: Data Layer (Week 1)
+### Phase 1: Setup (2 hours)
+
+**Agent**: All
+
+**Tasks**:
+1. ✅ Create feature branch `feature/001-liquidation-heatmap-mvp`
+2. ✅ Initialize DuckDB database file
+3. ✅ Create module structure `src/liquidationheatmap/{models,ingestion,api}/`
+4. ✅ Create database initialization script with SQL schema
+5. ✅ Create `.env` template file
+6. ✅ Add pytest shared fixtures in `conftest.py`
+
+**Deliverables**:
+- Project structure initialized
+- Database schema created
+- Configuration template ready
+- Test fixtures available
+
+**Reference**: tasks.md Phase 1 (T001-T006)
+
+---
+
+### Phase 2: Data Layer (Week 1)
 
 **Agent**: `data-engineer`
 
@@ -282,7 +304,7 @@ See `.specify/contracts/openapi.yaml` for full OpenAPI 3.0 specification.
 - `scripts/ingest_historical.py` (executable, documented)
 - Test coverage: 80%+
 
-### Milestone 2: Model Layer (Week 2)
+### Phase 3: Model Layer (Week 2)
 
 **Agent**: `quant-analyst`
 
@@ -298,7 +320,7 @@ See `.specify/contracts/openapi.yaml` for full OpenAPI 3.0 specification.
 - Model comparison script (`scripts/compare_models.py`)
 - Test coverage: 90%+ (critical business logic)
 
-### Milestone 3: API Layer (Week 3)
+### Phase 4: API Layer (Week 3)
 
 **Agent**: `quant-analyst` (FastAPI integration)
 
@@ -314,7 +336,7 @@ See `.specify/contracts/openapi.yaml` for full OpenAPI 3.0 specification.
 - OpenAPI docs at `/docs`
 - Test coverage: 85%+
 
-### Milestone 4: Visualization Layer (Week 4)
+### Phase 5: Visualization Layer (Week 4)
 
 **Agent**: `visualization-renderer`
 
@@ -330,9 +352,49 @@ See `.specify/contracts/openapi.yaml` for full OpenAPI 3.0 specification.
 - Total: <150 lines JavaScript (goal: <100)
 - Responsive design (mobile-friendly)
 
+### Phase 6: Model Comparison (Week 3-4)
+
+**Agent**: `quant-analyst`
+
+**Tasks**:
+1. ✅ Implement model comparison endpoint
+2. ✅ Create comparison dashboard UI
+3. ✅ Add backtesting scripts
+4. ✅ Tests: Accuracy validation
+
+**Deliverables**:
+- Side-by-side model comparison
+- Accuracy metrics (MAPE, confidence scores)
+- Backtesting results
+
+**Reference**: tasks.md Phase 5 (T036-T041)
+
 ---
 
-## Phase 3: Integration & Testing
+### Phase 7: Polish & Production (1 day)
+
+**Agent**: All
+
+**Tasks**:
+1. ✅ Add `liquidation_history` table (T046)
+2. ✅ Implement `/liquidations/history` endpoint (T047)
+3. ✅ Add retry logic with exponential backoff (T048)
+4. ✅ Configure structured logging (T049)
+5. ✅ Update documentation (T050)
+6. ✅ Final cleanup and verification (T051)
+
+**Deliverables**:
+- Historical liquidation data ingestion
+- Production-ready error handling
+- Structured logging configured
+- Documentation complete
+- Code linted and formatted (≥80% coverage)
+
+**Reference**: tasks.md Phase 7 (T046-T051)
+
+---
+
+## Integration & Testing Strategy
 
 ### Integration Tests
 
@@ -361,7 +423,7 @@ See `.specify/contracts/openapi.yaml` for full OpenAPI 3.0 specification.
 
 ---
 
-## Phase 4: Deployment & Documentation
+## Deployment & Documentation
 
 ### Deployment (Production-Ready)
 
@@ -423,7 +485,7 @@ See `.specify/contracts/openapi.yaml` for full OpenAPI 3.0 specification.
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| py-liquidation-map unavailable | Medium | Implement Model A+B first (80% value without external library) |
+| py_liquidation_map unavailable | Medium | Implement Model A+B first (80% value without external library) |
 | DuckDB performance issues | High | Pre-aggregate heatmap_cache table, add indexes |
 | Model accuracy <80% | Medium | Backtest vs actual liquidations, tune ensemble weights |
 | Plotly.js limited customization | Low | Fallback to simple matplotlib if needed |

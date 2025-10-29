@@ -11,7 +11,7 @@
 
 This document provides an actionable, dependency-ordered task list for implementing the Liquidation Heatmap System. Tasks are organized by user story priority to enable independent implementation and testing.
 
-**Total Tasks**: 47 tasks
+**Total Tasks**: 51 tasks
 **MVP Scope**: User Story 1 only (14 tasks, Week 1-2)
 **Full Feature**: All stories (4 weeks)
 
@@ -27,7 +27,7 @@ This document provides an actionable, dependency-ordered task list for implement
 | **Phase 4** | US2 (P1) | 8 tasks | visualization-renderer | 3 days |
 | **Phase 5** | US3 (P1) | 6 tasks | quant-analyst | 2 days |
 | **Phase 6** | US4 (P2) | 4 tasks | quant-analyst | Future |
-| **Phase 7** | Polish | 2 tasks | all | 1 day |
+| **Phase 7** | Polish | 6 tasks | all | 1 day |
 
 ---
 
@@ -189,7 +189,7 @@ Phase 7 (Polish)
   - Confidence: 0.80
 
 - [ ] T018 [US1] Implement `src/liquidationheatmap/models/ensemble.py`
-  - Weighted average: Binance=50%, Funding=30%, PyLiquidationMap=20%
+  - Weighted average: Binance=50%, Funding=30%, py_liquidation_map=20%
   - Aggregate by price bucket ($100 increments)
   - Calculate confidence from model agreement
   - Confidence: <0.7 if models disagree >5%
@@ -264,7 +264,7 @@ Phase 7 (Polish)
 - ✅ **MVP COMPLETE** - Can calculate and query liquidation levels
 
 **Parallel Opportunities**:
-- T016, T017 (Funding, PyLiquidationMap models) run parallel with T015
+- T016, T017 (Funding, py_liquidation_map models) run parallel with T015
 - T019, T020 (tests) run parallel with model implementations
 - T024 (Pydantic models) runs parallel with T023 (API endpoint)
 
@@ -392,7 +392,7 @@ Phase 7 (Polish)
 
 - [ ] T036 [US3] Implement `GET /liquidations/compare-models` endpoint in `api/main.py`
   - Query params: symbol
-  - Run all 3 models: Binance Standard, Funding Adjusted, py-liquidation-map
+  - Run all 3 models: Binance Standard, Funding Adjusted, py_liquidation_map
   - Return predictions side-by-side
   - Include avg_confidence per model
   - Response: `ModelComparisonResponse`
@@ -502,18 +502,49 @@ Phase 7 (Polish)
 
 **Tasks**:
 
-- [ ] T046 [P] Update documentation
+- [ ] T046 Add `liquidation_history` table to database schema
+  - Update `scripts/init_database.py` to create Table 5
+  - Schema: id, timestamp, symbol, price, quantity, side, leverage
+  - Indexes: timestamp, symbol
+  - Reference: `.specify/data-model.md` lines 206-240
+  - Note: Stores actual liquidation events (not predictions)
+
+- [ ] T047 Implement `GET /liquidations/history` endpoint in `api/main.py`
+  - Query params: symbol, start, end (datetime)
+  - Query DuckDB `liquidation_history` table
+  - Return Pydantic model: timestamp, symbol, price, quantity, side, leverage
+  - Reference: `.specify/contracts/openapi.yaml` (add endpoint spec)
+  - Note: Returns historical liquidation events for backtesting
+
+- [ ] T048 [P] Add retry logic with exponential backoff to API
+  - Implement decorator: `@retry(max_attempts=3, backoff=[1, 3, 9])`
+  - Apply to DuckDB query functions
+  - Log retry attempts with ERROR level
+  - Return HTTP 503 with `retry_after` header on final failure
+  - Reference: `.specify/spec.md` lines 692-695
+
+- [ ] T049 [P] Configure structured logging with `structlog`
+  - Install `structlog` via `uv add structlog`
+  - Configure in `src/liquidationheatmap/logging_config.py`
+  - Setup: JSON formatter, log levels, context processors
+  - Apply to all modules: models, ingestion, api
+  - Log file: `logs/liquidationheatmap.log`
+  - Reference: `.specify/spec.md` lines 714-720
+
+- [ ] T050 [P] Update documentation
   - README.md: Add usage examples, API endpoints, screenshots
   - .specify/quickstart.md: Add troubleshooting section
   - API docs: Verify OpenAPI spec matches implementation
+  - Document liquidation_history table and /history endpoint
 
-- [ ] T047 [P] Final cleanup and verification
+- [ ] T051 [P] Final cleanup and verification
   - Run linter: `uv run ruff check src/ --fix`
   - Run formatter: `uv run ruff format src/`
   - Run full test suite: `uv run pytest --cov=src --cov-report=html`
   - Verify test coverage ≥80%
   - Check for unused imports, dead code
   - Verify all TODOs resolved or documented
+  - Standardize model naming: use `py_liquidation_map` everywhere
 
 **Deliverables**:
 - ✅ Documentation complete
@@ -686,7 +717,7 @@ open htmlcov/index.html
 - **Dev Guide**: `CLAUDE.md`
 
 ### Code Examples
-- **py-liquidation-map**: `examples/py_liquidation_map_mapping.py`
+- **py_liquidation_map**: `examples/py_liquidation_map_mapping.py`
 - **Binance Formula**: `examples/binance_liquidation_formula_reference.txt`
 - **Coinglass Colors**: `examples/liquidations_chart_plot.py`
 

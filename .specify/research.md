@@ -59,7 +59,7 @@ COPY liquidation_levels FROM 'data/processed/*.csv'
 **Research Approach**:
 - Studied 3 formula approaches:
   1. Official Binance formula (with MMR tiers)
-  2. Simplified percentage-based (py-liquidation-map)
+  2. Simplified percentage-based (py_liquidation_map)
   3. Funding rate adjusted
 - Compared against actual Binance liquidation events
 
@@ -99,7 +99,7 @@ Where mmr = maintenance_margin_rate (varies by position size)
 - Official documentation available
 
 **Alternatives Considered**:
-1. **Simplified formula** (py-liquidation-map approach):
+1. **Simplified formula** (py_liquidation_map approach):
    - `Long 10x = price * 0.90` (10% loss)
    - `Long 100x = price * 0.99` (1% loss)
    - **Pros**: Simple, fast to calculate
@@ -122,13 +122,13 @@ Where mmr = maintenance_margin_rate (varies by position size)
 **Question**: How to aggregate liquidation levels into price buckets for visualization?
 
 **Research Approach**:
-- Analyzed py-liquidation-map binning implementation
+- Analyzed py_liquidation_map binning implementation
 - Tested different bucket sizes ($1, $10, $100, $1000)
 - Evaluated trade-off: granularity vs noise
 
 **Decision**: Dynamic binning based on price range
 
-**Algorithm** (from py-liquidation-map):
+**Algorithm** (from py_liquidation_map):
 ```python
 import math
 
@@ -157,7 +157,7 @@ agg_df = df.groupby('price_bucket').sum()
 **Rationale**:
 - **Adaptive**: Bin size scales with price range
 - **Clean visualization**: Reduces noise without losing detail
-- **Battle-tested**: Used in py-liquidation-map (proven)
+- **Battle-tested**: Used in py_liquidation_map (proven)
 
 **Alternatives Considered**:
 1. **Fixed $100 buckets**: Simple but may be too granular for large ranges
@@ -165,7 +165,7 @@ agg_df = df.groupby('price_bucket').sum()
 3. **Manual bucketing**: Not scalable, requires domain knowledge
 
 **References**:
-- py-liquidation-map implementation: `examples/py_liquidation_map_mapping.py` (lines 342-362)
+- py_liquidation_map implementation: `examples/py_liquidation_map_mapping.py` (lines 342-362)
 
 ---
 
@@ -181,7 +181,7 @@ agg_df = df.groupby('price_bucket').sum()
   4. Median (instead of weighted average)
   5. ML-based (train on historical data)
 
-**Decision**: Manual weighted average (Binance=50%, Funding=30%, py-liquidation-map=20%)
+**Decision**: Manual weighted average (Binance=50%, Funding=30%, py_liquidation_map=20%)
 
 **Results** (backtested on 30 days):
 | Strategy | Accuracy | Complexity | Implementation Time |
@@ -200,7 +200,7 @@ agg_df = df.groupby('price_bucket').sum()
 **Weighting Logic**:
 - **Binance (50%)**: Highest individual accuracy (95%), official formula
 - **Funding (30%)**: Adds market pressure signal, medium accuracy (88%)
-- **py-liquidation-map (20%)**: Provides clustering validation, lower accuracy (85%)
+- **py_liquidation_map (20%)**: Provides clustering validation, lower accuracy (85%)
 
 **Implementation**:
 ```python
@@ -371,7 +371,7 @@ GET /liquidations/compare-models
 |----------------|----------|------------|------------|
 | DuckDB ingestion | `COPY FROM` zero-copy | 5s per 10GB | vs 30s (pandas) |
 | Liquidation formula | Binance official (MMR tiers) | 95% accuracy | vs 85% (simplified) |
-| Binning algorithm | Dynamic (py-liquidation-map) | Adaptive | Reused code |
+| Binning algorithm | Dynamic (py_liquidation_map) | Adaptive | Reused code |
 | Ensemble weights | Manual (50/30/20) | 94% accuracy | vs 2 weeks (ML) |
 | Visualization | Plotly.js | ~50 lines | vs 500+ (Canvas) |
 | API design | Flat REST | Simple, cacheable | Standard |
