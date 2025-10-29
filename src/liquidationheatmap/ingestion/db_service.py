@@ -1,0 +1,188 @@
+"""DuckDB service for querying Open Interest and market data."""
+
+from decimal import Decimal
+from pathlib import Path
+from typing import Optional, Tuple
+
+import duckdb
+
+from .csv_loader import load_csv_glob, load_funding_rate_csv, load_open_interest_csv
+
+
+class DuckDBService:
+    """Service for managing DuckDB connection and queries."""
+
+    def __init__(self, db_path: str = "data/processed/liquidations.duckdb"):
+        """Initialize DuckDB service.
+
+        Args:
+            db_path: Path to DuckDB database file
+        """
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.conn = duckdb.connect(str(self.db_path))
+
+    def get_latest_open_interest(self, symbol: str = "BTCUSDT") -> Tuple[Decimal, Decimal]:
+        """Get latest Open Interest and current price for symbol.
+
+        Args:
+            symbol: Trading pair (default: BTCUSDT)
+
+        Returns:
+            Tuple of (current_price, open_interest_value)
+        """
+        # Try to query from database
+        try:
+            result = self.conn.execute(
+                """
+                SELECT 
+                    open_interest_value,
+                    timestamp
+                FROM open_interest_history
+                WHERE symbol = ?
+                ORDER BY timestamp DESC
+                LIMIT 1
+                """,
+                [symbol],
+            ).fetchone()
+
+            if result:
+                oi_value = Decimal(str(result[0]))
+                # Mock current price (TODO: fetch from markPrice klines or API)
+                current_price = Decimal("67000.00")
+                return current_price, oi_value
+        except duckdb.CatalogException:
+            # Table doesn't exist, load from CSV
+            pass
+
+        # If no data in DB, load from CSV and insert
+        return self._load_and_cache_data(symbol)
+
+    def _load_and_cache_data(self, symbol: str) -> Tuple[Decimal, Decimal]:
+        """Load data from CSV and cache in DuckDB.
+
+        Args:
+            symbol: Trading pair
+
+        Returns:
+            Tuple of (current_price, open_interest_value)
+        """
+        # Load from CSV
+        csv_pattern = f"data/raw/{symbol}/metrics/{symbol}-metrics-*.csv"
+        
+        try:
+            df = load_csv_glob(csv_pattern, conn=self.conn)
+        except FileNotFoundError:
+            # No data available, return defaults
+            return Decimal("67000.00"), Decimal("100000000.00")
+
+        if df.empty:
+            return Decimal("67000.00"), Decimal("100000000.00")
+
+        # Create table if not exists
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS open_interest_history (
+                id BIGINT PRIMARY KEY,
+                timestamp TIMESTAMP NOT NULL,
+                symbol VARCHAR(20) NOT NULL,
+                open_interest_value DECIMAL(20, 8) NOT NULL,
+                open_interest_contracts DECIMAL(20, 8)
+            )
+        """)
+
+        # Insert data (with auto-increment ID)
+        self.conn.execute("""
+            INSERT INTO open_interest_history 
+            SELECT 
+                row_number() OVER (ORDER BY timestamp) as id,
+                timestamp,
+                symbol,
+                open_interest_value,
+                open_interest_contracts
+            FROM df
+        """)
+
+        # Get latest
+        latest = df.iloc[-1]
+        oi_value = Decimal(str(latest['open_interest_value']))
+        current_price = Decimal("67000.00")  # Mock for now
+
+        return current_price, oi_value
+
+    def get_latest_funding_rate(self, symbol: str = "BTCUSDT") -> Decimal:
+        """Get latest funding rate for symbol.
+
+        Args:
+            symbol: Trading pair
+
+        Returns:
+            Current funding rate (e.g., 0.0001 for 0.01%)
+        """
+        # Try database first
+        try:
+            result = self.conn.execute(
+                """
+                SELECT funding_rate
+                FROM funding_rate_history
+                WHERE symbol = ?
+                ORDER BY timestamp DESC
+                LIMIT 1
+                """,
+                [symbol],
+            ).fetchone()
+
+            if result:
+                return Decimal(str(result[0]))
+        except duckdb.CatalogException:
+            # Table doesn't exist
+            pass
+
+        # Load from CSV
+        csv_pattern = f"data/raw/{symbol}/fundingRate/{symbol}-fundingRate-*.csv"
+        
+        try:
+            df = load_csv_glob(csv_pattern, loader_func=load_funding_rate_csv, conn=self.conn)
+        except FileNotFoundError:
+            return Decimal("0.0001")  # Default funding rate
+
+        if df.empty:
+            return Decimal("0.0001")
+
+        # Create table if not exists
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS funding_rate_history (
+                id BIGINT PRIMARY KEY,
+                timestamp TIMESTAMP NOT NULL,
+                symbol VARCHAR(20) NOT NULL,
+                funding_rate DECIMAL(10, 8) NOT NULL,
+                mark_price DECIMAL(18, 2)
+            )
+        """)
+
+        # Insert
+        self.conn.execute("""
+            INSERT INTO funding_rate_history
+            SELECT 
+                row_number() OVER (ORDER BY timestamp) as id,
+                timestamp,
+                symbol,
+                funding_rate,
+                mark_price
+            FROM df
+        """)
+
+        latest = df.iloc[-1]
+        return Decimal(str(latest['funding_rate']))
+
+    def close(self):
+        """Close database connection."""
+        if self.conn:
+            self.conn.close()
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.close()
