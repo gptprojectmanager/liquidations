@@ -1,5 +1,6 @@
 """CSV data loading utilities for Binance historical data."""
 
+import glob
 from pathlib import Path
 from typing import Optional
 
@@ -38,7 +39,8 @@ def load_open_interest_csv(file_path: str, conn: Optional[duckdb.DuckDBPyConnect
     try:
         # Use DuckDB's zero-copy CSV ingestion with AUTO_DETECT
         # Convert Binance timestamp (milliseconds) to datetime
-        df = conn.execute(f"""
+        try:
+            df = conn.execute(f"""
             SELECT
                 to_timestamp(timestamp / 1000) AS timestamp,
                 symbol,
@@ -46,11 +48,15 @@ def load_open_interest_csv(file_path: str, conn: Optional[duckdb.DuckDBPyConnect
                 CAST(sumOpenInterest AS DECIMAL(18, 8)) AS open_interest_contracts
             FROM read_csv(
                 '{file_path}',
-                AUTO_DETECT=true,
-                HEADER=true,
-                DELIMITER=','
+                auto_detect=true,
+                header=true,
+                delim=','
             )
         """).fetchdf()
+        except duckdb.BinderException as e:
+            if 'No function matches' in str(e):
+                raise ValueError(f"CSV file is empty or has invalid format: {file_path}")
+            raise ValueError(f"CSV missing required columns: {e}")
         
         if df.empty:
             raise ValueError(f"CSV file is empty: {file_path}")
@@ -99,19 +105,24 @@ def load_funding_rate_csv(file_path: str, conn: Optional[duckdb.DuckDBPyConnecti
     
     try:
         # Use DuckDB's zero-copy CSV ingestion
-        df = conn.execute(f"""
+        try:
+            df = conn.execute(f"""
             SELECT
-                to_timestamp(timestamp / 1000) AS timestamp,
-                symbol,
-                CAST(fundingRate AS DECIMAL(10, 8)) AS funding_rate,
-                CAST(markPrice AS DECIMAL(18, 2)) AS mark_price
+            to_timestamp(timestamp / 1000) AS timestamp,
+            symbol,
+            CAST(fundingRate AS DECIMAL(10, 8)) AS funding_rate,
+            CAST(markPrice AS DECIMAL(18, 2)) AS mark_price
             FROM read_csv(
-                '{file_path}',
-                AUTO_DETECT=true,
-                HEADER=true,
-                DELIMITER=','
+            '{file_path}',
+            auto_detect=true,
+            header=true,
+            delim=','
             )
-        """).fetchdf()
+            """).fetchdf()
+        except duckdb.BinderException as e:
+            if 'No function matches' in str(e):
+                raise ValueError(f"CSV file is empty or has invalid format: {file_path}")
+            raise ValueError(f"CSV missing required columns: {e}")
         
         if df.empty:
             raise ValueError(f"CSV file is empty: {file_path}")
@@ -146,7 +157,7 @@ def load_csv_glob(pattern: str, loader_func=load_open_interest_csv,
     Raises:
         FileNotFoundError: If no files match pattern
     """
-    files = sorted(Path().glob(pattern))
+    files = sorted(glob.glob(pattern))
     
     if not files:
         raise FileNotFoundError(f"No files found matching pattern: {pattern}")

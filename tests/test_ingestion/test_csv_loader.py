@@ -135,7 +135,7 @@ class TestLoadFundingRateCSV:
         assert len(df) == 2
         
         # Check funding rate values
-        assert abs(df['funding_rate'].iloc[0] - Decimal("0.0001")) < Decimal("0.00001")
+        assert abs(df['funding_rate'].iloc[0] - 0.0001) < 0.00001
     
     def test_load_funding_rate_handles_missing_file(self, temp_dir):
         """Test FileNotFoundError for missing funding rate file."""
