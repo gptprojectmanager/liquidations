@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from ..models.binance_standard import BinanceStandardModel
 from ..models.ensemble import EnsembleModel
+from ..ingestion.db_service import DuckDBService
 
 app = FastAPI(
     title="Liquidation Heatmap API",
@@ -18,6 +19,7 @@ app = FastAPI(
 
 class LiquidationResponse(BaseModel):
     """Response model for liquidations endpoint."""
+
     symbol: str
     model: str
     current_price: Decimal
@@ -54,9 +56,10 @@ async def get_liquidation_levels(
     Returns:
         LiquidationResponse with long and short liquidations
     """
-    # Mock data for now (TODO: fetch from DuckDB)
-    current_price = Decimal("67000.00")
-    open_interest = Decimal("100000000.00")  # 100M USDT
+    # Fetch real data from DuckDB
+    with DuckDBService() as db:
+        current_price, open_interest = db.get_latest_open_interest(symbol)
+        funding_rate = db.get_latest_funding_rate(symbol)
 
     # Select model
     if model == "ensemble":

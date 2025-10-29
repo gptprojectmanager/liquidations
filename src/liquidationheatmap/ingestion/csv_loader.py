@@ -44,8 +44,8 @@ def load_open_interest_csv(file_path: str, conn: Optional[duckdb.DuckDBPyConnect
             SELECT
                 to_timestamp(timestamp / 1000) AS timestamp,
                 symbol,
-                CAST(sumOpenInterestValue AS DECIMAL(18, 8)) AS open_interest_value,
-                CAST(sumOpenInterest AS DECIMAL(18, 8)) AS open_interest_contracts
+                CAST(sumOpenInterestValue AS DECIMAL(20, 8)) AS open_interest_value,
+                CAST(sumOpenInterest AS DECIMAL(20, 8)) AS open_interest_contracts
             FROM read_csv(
                 '{file_path}',
                 auto_detect=true,

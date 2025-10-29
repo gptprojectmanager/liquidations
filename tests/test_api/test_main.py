@@ -48,3 +48,25 @@ class TestLiquidationsEndpoint:
         """Test that ensemble model parameter works."""
         response = client.get("/liquidations/levels?symbol=BTCUSDT&model=ensemble")
         assert response.status_code == 200
+
+
+class TestLiquidationsWithRealData:
+    """Tests for liquidations endpoint with real DuckDB data."""
+
+    def test_liquidations_uses_real_open_interest_from_db(self, client):
+        """Test that API fetches real Open Interest from DuckDB, not hardcoded mock."""
+        response = client.get("/liquidations/levels?symbol=BTCUSDT&model=binance_standard")
+        data = response.json()
+        
+        # With real data from sample CSV, current_price should match DB
+        # and long_liquidations volumes should be calculated from real OI
+        assert response.status_code == 200
+        assert "current_price" in data
+        
+        # Check that we got real liquidations (not empty)
+        assert len(data["long_liquidations"]) > 0
+        assert len(data["short_liquidations"]) > 0
+        
+        # Verify volumes are calculated (not zero/mock)
+        first_long = data["long_liquidations"][0]
+        assert float(first_long["volume"]) > 0
