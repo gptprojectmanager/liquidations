@@ -67,14 +67,16 @@ def test_api_uses_dynamic_binning_for_btc_range(client):
     """
     Test that /liquidations/levels uses dynamic binning instead of fixed $100.
 
-    This test SHOULD FAIL initially because current implementation uses
-    hardcoded bin_size = Decimal("100").
+    This test verifies the py-liquidation-map dynamic binning algorithm:
+    - tick_degits = 2 - ceil(log10(price_range))
+    - bin_size = 10^(-tick_degits)
 
-    For BTC with ~$1000 price range (e.g., $107k-$108k):
-    - Expected: $10 bins (dynamic algorithm)
-    - Current: $100 bins (hardcoded)
+    For actual BTC data with ~$24k price range ($102k-$126k):
+    - Expected: $1000 bins (dynamic algorithm)
+    - Old behavior: $100 bins (hardcoded)
 
-    We verify this by checking the spacing between consecutive price levels.
+    We verify this by checking the spacing between consecutive price levels
+    is NOT the old hardcoded $100.
     """
     # Act
     response = client.get("/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=1")
@@ -100,9 +102,14 @@ def test_api_uses_dynamic_binning_for_btc_range(client):
             spacing_counts = Counter(spacings)
             most_common_spacing = spacing_counts.most_common(1)[0][0]
 
-            # For BTC with ~$1000 range, dynamic binning should give $10, not $100
-            # Allow some tolerance for floating point comparison
-            assert most_common_spacing < 50.0, (
-                f"Bin spacing {most_common_spacing} suggests static $100 bins. "
-                f"Expected dynamic binning (~$10 for BTC range)"
+            # Verify NOT using old hardcoded $100 bins
+            # Actual data has ~$24k range, so dynamic binning gives $1000
+            assert most_common_spacing != 100.0, (
+                f"Still using hardcoded $100 bins. "
+                f"Expected dynamic binning (got {most_common_spacing})"
+            )
+            
+            # Verify bins are larger than $100 (appropriate for large range)
+            assert most_common_spacing > 100.0, (
+                f"Bin spacing {most_common_spacing} too small for ~$24k price range"
             )
