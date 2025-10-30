@@ -219,7 +219,7 @@ class DuckDBService:
             pass
         
         # Load from CSV if not in DB
-        csv_path = f"/media/sam/3TB-WDC/binance-history-data-downloader/data/{symbol}/aggTrades/{symbol}-aggTrades-*.csv"
+        csv_path = f"/media/sam/3TB-WDC/binance-history-data-downloader/data/{symbol}/aggTrades/{symbol}-aggTrades-2025-10-*.csv"
         
         # Create table
         try:

@@ -56,6 +56,7 @@ class EnsembleModel(AbstractLiquidationModel):
         symbol: str = "BTCUSDT",
         leverage_tiers: List[int] = None,
         funding_rate: Decimal = Decimal("0"),
+        large_trades=None,
     ) -> List[LiquidationLevel]:
         """Calculate ensemble liquidations from weighted models.
 
@@ -78,11 +79,11 @@ class EnsembleModel(AbstractLiquidationModel):
         for model_name, model in self.models.items():
             if model_name == "funding_adjusted":
                 preds = model.calculate_liquidations(
-                    current_price, open_interest, symbol, leverage_tiers, funding_rate
+                    current_price, open_interest, symbol, leverage_tiers, funding_rate, large_trades=large_trades
                 )
             else:
                 preds = model.calculate_liquidations(
-                    current_price, open_interest, symbol, leverage_tiers
+                    current_price, open_interest, symbol, leverage_tiers, large_trades=large_trades
                 )
             all_predictions.append((model_name, preds))
 

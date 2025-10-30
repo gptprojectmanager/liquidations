@@ -30,6 +30,7 @@ class FundingAdjustedModel(BinanceStandardModel):
         symbol: str = "BTCUSDT",
         leverage_tiers: List[int] = None,
         funding_rate: Decimal = Decimal("0"),
+        large_trades=None,
     ) -> List[LiquidationLevel]:
         """Calculate liquidations with funding rate adjustments.
 
