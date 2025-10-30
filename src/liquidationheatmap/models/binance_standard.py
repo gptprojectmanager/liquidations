@@ -1,5 +1,6 @@
 """Binance Standard liquidation model with official MMR tiers."""
 
+import logging
 from datetime import datetime
 from decimal import Decimal
 from typing import List
@@ -67,9 +68,12 @@ class BinanceStandardModel(AbstractLiquidationModel):
         liquidations = []
         timestamp = datetime.now()
         mmr = self._get_mmr(open_interest)
+        logger = logging.getLogger(__name__)
+        logger.info(f"BinanceStandardModel: current_price={current_price}, OI={open_interest}, large_trades={'None' if large_trades is None else len(large_trades)}")
 
         # MODE 1: Use REAL trade data if provided (asymmetric, market-driven)
         if large_trades is not None and not large_trades.empty:
+            logger.info(f"MODE 1: Processing {len(large_trades)} real trades (buy: {len(large_trades[large_trades['side']=='buy'])}, sell: {len(large_trades[large_trades['side']=='sell'])})")
             for _, trade in large_trades.iterrows():
                 entry_price = Decimal(str(trade["price"]))
                 trade_volume = Decimal(str(trade["gross_value"]))
@@ -106,9 +110,11 @@ class BinanceStandardModel(AbstractLiquidationModel):
                                 )
                             )
 
+            logger.info(f"MODE 1 complete: {len(liquidations)} liquidations (long: {len([l for l in liquidations if l.side=='long'])}, short: {len([l for l in liquidations if l.side=='short'])})")
             return liquidations
 
         # MODE 2: Fallback to synthetic Gaussian binning (symmetric, for testing)
+        logger.info("MODE 2: Fallback to synthetic Gaussian binning")
         import numpy as np
 
         for leverage in leverage_tiers:

@@ -4,6 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Tuple
 
+import logging
 import duckdb
 
 from .csv_loader import load_csv_glob, load_funding_rate_csv
@@ -202,6 +203,9 @@ class DuckDBService:
     def get_large_trades(self, symbol: str = "BTCUSDT", min_gross_value: Decimal = Decimal("100000"), start_datetime: str = None, end_datetime: str = None):
         """Get large trades from aggTrades data."""
         import pandas as pd
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"get_large_trades called: symbol={symbol}, min_gross_value={min_gross_value}")
         
         # Try to query from DB first
         try:
@@ -214,12 +218,15 @@ class DuckDBService:
             """
             df = self.conn.execute(query, [symbol, float(min_gross_value)]).df()
             if not df.empty:
+                logger.info(f"Found {len(df)} trades in DB cache")
                 return df
-        except:
-            pass
+            logger.info("DB cache empty, loading from CSV")
+        except Exception as e:
+            logger.warning(f"DB query failed: {e}, loading from CSV")
         
         # Load from CSV if not in DB
         csv_path = f"/media/sam/3TB-WDC/binance-history-data-downloader/data/{symbol}/aggTrades/{symbol}-aggTrades-2025-10-*.csv"
+        logger.info(f"CSV pattern: {csv_path}")
         
         # Create table
         try:
@@ -227,39 +234,45 @@ class DuckDBService:
                 CREATE TABLE IF NOT EXISTS aggtrades_history (
                     timestamp TIMESTAMP,
                     symbol VARCHAR,
-                    price DECIMAL(18,8),
-                    quantity DECIMAL(18,8),
+                    price DOUBLE,
+                    quantity DOUBLE,
                     side VARCHAR,
-                    gross_value DECIMAL(20,2)
+                    gross_value DOUBLE
                 )
             """)
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Table creation skipped (may exist): {e}")
         
-        # Load data
+        # Load data using DOUBLE to avoid DECIMAL overflow
         try:
+            logger.info(f"Loading CSV files matching: {csv_path}")
             self.conn.execute(f"""
                 INSERT INTO aggtrades_history
                 SELECT 
                     epoch_ms(transact_time) as timestamp,
                     '{symbol}' as symbol,
-                    CAST(price AS DECIMAL(18,8)) as price,
-                    CAST(quantity AS DECIMAL(18,8)) as quantity,
-                    CASE WHEN is_buyer_maker IN ('true', 'True', '1') THEN 'sell' ELSE 'buy' END as side,
-                    CAST(price AS DECIMAL(18,8)) * CAST(quantity AS DECIMAL(18,8)) as gross_value
+                    price::DOUBLE as price,
+                    quantity::DOUBLE as quantity,
+                    CASE WHEN is_buyer_maker THEN 'sell' ELSE 'buy' END as side,
+                    (price::DOUBLE * quantity::DOUBLE) as gross_value
                 FROM read_csv_auto('{csv_path}')
-                WHERE CAST(price AS DECIMAL(18,8)) * CAST(quantity AS DECIMAL(18,8)) >= {float(min_gross_value)}
+                WHERE (price::DOUBLE * quantity::DOUBLE) >= {float(min_gross_value)}
                 LIMIT 10000
             """)
             
             # Return loaded data
-            return self.conn.execute("""
+            df = self.conn.execute("""
                 SELECT timestamp, price, quantity, side, gross_value
                 FROM aggtrades_history
                 WHERE symbol = ? AND gross_value >= ?
                 ORDER BY timestamp DESC
                 LIMIT 10000
             """, [symbol, float(min_gross_value)]).df()
+            
+            logger.info(f"✅ Loaded {len(df)} large trades from CSV (buy: {len(df[df['side']=='buy'])}, sell: {len(df[df['side']=='sell'])})")
+            return df
+            
         except Exception as e:
+            logger.error(f"❌ Failed to load trades from CSV: {e}", exc_info=True)
             # Return empty DataFrame on error
             return pd.DataFrame(columns=["timestamp", "price", "quantity", "side", "gross_value"])

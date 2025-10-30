@@ -1,4 +1,6 @@
 """FastAPI application for liquidation heatmap API."""
+import logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 from decimal import Decimal
 from typing import Literal, Optional
