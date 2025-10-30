@@ -30,13 +30,13 @@
     <div id="liquidation-map" style="width: 100%; height: 600px;"></div>
 
     <script>
-        // Coinglass-style colors for leverage tiers
+        // Leverage tier colors (matches Coinglass style)
         const LEVERAGE_COLORS = {
-            '5x': '#5dd3d3',   // Cyan (5x)
-            '10x': '#6ba3ff',  // Blue (10x)
-            '25x': '#4a90e2',  // Dark Blue (25x)
-            '50x': '#ff9f40',  // Orange (50x)
-            '100x': '#ff6384'  // Red-orange (100x)
+            '5x': '#5dd3d3',   // Cyan
+            '10x': '#6ba3ff',  // Blue
+            '25x': '#4a90e2',  // Dark Blue
+            '50x': '#ff9f40',  // Orange
+            '100x': '#ff6384'  // Pink/Red
         };
 
         async function loadLevels() {
@@ -67,12 +67,18 @@
             const longsByLeverage = groupByLeverage(data.long_liquidations);
             const shortsByLeverage = groupByLeverage(data.short_liquidations);
 
+            // Track which leverages we've seen to avoid legend duplicates
+            const seenLeverages = new Set();
+
             // Create bar traces for each leverage tier
             const traces = [];
 
             // Long liquidations (below price) - separate bars per leverage
             Object.keys(longsByLeverage).sort().forEach(leverage => {
                 const levels = longsByLeverage[leverage];
+                const showInLegend = !seenLeverages.has(leverage);
+                seenLeverages.add(leverage);
+
                 traces.push({
                     x: levels.map(l => parseFloat(l.price_level)),
                     y: levels.map(l => parseFloat(l.volume)),
@@ -83,6 +89,7 @@
                     },
                     hovertemplate: `Price: $%{x}<br>Volume: %{y:.2f}<br>Leverage: ${leverage}<extra></extra>`,
                     legendgroup: leverage,
+                    showlegend: showInLegend,
                     yaxis: 'y'
                 });
             });
@@ -90,6 +97,9 @@
             // Short liquidations (above price) - separate bars per leverage
             Object.keys(shortsByLeverage).sort().forEach(leverage => {
                 const levels = shortsByLeverage[leverage];
+                const showInLegend = !seenLeverages.has(leverage);
+                seenLeverages.add(leverage);
+
                 traces.push({
                     x: levels.map(l => parseFloat(l.price_level)),
                     y: levels.map(l => parseFloat(l.volume)),
@@ -100,7 +110,7 @@
                     },
                     hovertemplate: `Price: $%{x}<br>Volume: %{y:.2f}<br>Leverage: ${leverage}<extra></extra>`,
                     legendgroup: leverage,
-                    showlegend: false,  // Don't duplicate legend
+                    showlegend: showInLegend,  // Show if first time seeing this leverage
                     yaxis: 'y'
                 });
             });
