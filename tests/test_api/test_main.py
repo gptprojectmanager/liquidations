@@ -126,3 +126,12 @@ class TestHistoricalLiquidationsEndpoint:
         """Test that history endpoint returns 200 with valid params."""
         response = client.get("/liquidations/history?symbol=BTCUSDT")
         assert response.status_code == 200
+
+    def test_history_returns_list_of_records(self, client):
+        """Test that history returns list of liquidation records from DB."""
+        response = client.get("/liquidations/history?symbol=BTCUSDT")
+        data = response.json()
+
+        assert isinstance(data, list)
+        # Should have at least some historical data from liquidation_history table
+        assert len(data) > 0
