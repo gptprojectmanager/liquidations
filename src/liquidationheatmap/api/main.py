@@ -1,10 +1,10 @@
 """FastAPI application for liquidation heatmap API."""
 
 from decimal import Decimal
-from typing import Literal
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import FastAPI, Query
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from ..ingestion.db_service import DuckDBService
@@ -17,6 +17,9 @@ app = FastAPI(
     description="Calculate and visualize cryptocurrency liquidation levels",
     version="0.1.0",
 )
+
+# Mount static files for frontend dashboards
+app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
 
 class LiquidationResponse(BaseModel):
@@ -223,9 +226,6 @@ async def get_heatmap(
         db.close()
 
 
-
-from typing import Optional
-
 @app.get("/liquidations/history")
 async def get_liquidation_history(
     symbol: str = Query("BTCUSDT", description="Trading pair symbol"),
@@ -326,12 +326,13 @@ async def get_liquidation_history(
     finally:
         db.close()
 
+
 @app.get("/liquidations/compare-models")
 async def compare_models(
     symbol: str = Query("BTCUSDT", description="Trading pair symbol"),
 ):
     """Compare predictions from all models (T036).
-    
+
     Returns predictions from binance_standard, funding_adjusted, and ensemble models.
     """
     # Fetch data from DuckDB
@@ -372,11 +373,13 @@ async def compare_models(
             for liq in liquidations
         ]
 
-        models_data.append({
-            "name": model.model_name,
-            "levels": levels,
-            "avg_confidence": avg_conf,
-        })
+        models_data.append(
+            {
+                "name": model.model_name,
+                "levels": levels,
+                "avg_confidence": avg_conf,
+            }
+        )
 
     # Calculate agreement percentage (simplified)
     # Check if models agree within 5% on average liquidation prices
@@ -387,12 +390,14 @@ async def compare_models(
             if model_data["levels"]:
                 prices = [Decimal(level["price_level"]) for level in model_data["levels"]]
                 avg_prices.append(sum(prices) / len(prices))
-        
+
         if len(avg_prices) >= 2:
             # Calculate coefficient of variation
             mean_price = sum(avg_prices) / len(avg_prices)
             if mean_price > 0:
-                std_dev = (sum((p - mean_price) ** 2 for p in avg_prices) / len(avg_prices)) ** Decimal("0.5")
+                std_dev = (
+                    sum((p - mean_price) ** 2 for p in avg_prices) / len(avg_prices)
+                ) ** Decimal("0.5")
                 cv = (std_dev / mean_price) * 100
                 # Agreement is high when CV is low
                 agreement = max(Decimal("0"), 100 - (cv * 20))  # Scale CV to 0-100
