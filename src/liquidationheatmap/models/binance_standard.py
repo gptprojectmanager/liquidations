@@ -42,17 +42,21 @@ class BinanceStandardModel(AbstractLiquidationModel):
         open_interest: Decimal,
         symbol: str = "BTCUSDT",
         leverage_tiers: List[int] = None,
+        num_bins: int = 50,
+        large_trades=None,  # Optional DataFrame with real aggTrades data
     ) -> List[LiquidationLevel]:
-        """Calculate liquidation levels for given leverage tiers.
+        """Calculate liquidation levels using REAL trade data or synthetic binning.
 
         Args:
             current_price: Current market price
             open_interest: Total Open Interest in USDT
             symbol: Trading pair (default: BTCUSDT)
             leverage_tiers: List of leverage values (default: [5, 10, 25, 50, 100])
+            num_bins: Number of bins per leverage tier (for synthetic mode)
+            large_trades: Optional DataFrame with real aggTrades (timestamp, price, quantity, side, gross_value)
 
         Returns:
-            List of LiquidationLevel objects (one per leverage + side)
+            List of LiquidationLevel objects
         """
         if leverage_tiers is None:
             leverage_tiers = [5, 10, 25, 50, 100]
@@ -60,45 +64,106 @@ class BinanceStandardModel(AbstractLiquidationModel):
         if current_price <= 0 or open_interest <= 0:
             raise ValueError("Price and Open Interest must be positive")
 
-        # Get MMR based on position size (use OI as proxy)
-        mmr = self._get_mmr(open_interest)
-
         liquidations = []
         timestamp = datetime.now()
+        mmr = self._get_mmr(open_interest)
+
+        # MODE 1: Use REAL trade data if provided (asymmetric, market-driven)
+        if large_trades is not None and not large_trades.empty:
+            for _, trade in large_trades.iterrows():
+                entry_price = Decimal(str(trade["price"]))
+                trade_volume = Decimal(str(trade["gross_value"]))
+                side = trade["side"].lower()
+
+                # For each leverage tier, calculate liquidation
+                for leverage in leverage_tiers:
+                    if side == "buy":  # Long entry → liquidation BELOW current price
+                        liq_price = self._calculate_long_liquidation(entry_price, leverage, mmr)
+                        if liq_price < current_price:  # Only include if below current price
+                            liquidations.append(
+                                LiquidationLevel(
+                                    timestamp=timestamp,
+                                    symbol=symbol,
+                                    price_level=liq_price,
+                                    liquidation_volume=trade_volume / len(leverage_tiers),  # Split across leverages
+                                    leverage_tier=f"{leverage}x",
+                                    side="long",
+                                    confidence=self.confidence_score(),
+                                )
+                            )
+                    elif side == "sell":  # Short entry → liquidation ABOVE current price
+                        liq_price = self._calculate_short_liquidation(entry_price, leverage, mmr)
+                        if liq_price > current_price:  # Only include if above current price
+                            liquidations.append(
+                                LiquidationLevel(
+                                    timestamp=timestamp,
+                                    symbol=symbol,
+                                    price_level=liq_price,
+                                    liquidation_volume=trade_volume / len(leverage_tiers),
+                                    leverage_tier=f"{leverage}x",
+                                    side="short",
+                                    confidence=self.confidence_score(),
+                                )
+                            )
+
+            return liquidations
+
+        # MODE 2: Fallback to synthetic Gaussian binning (symmetric, for testing)
+        import numpy as np
 
         for leverage in leverage_tiers:
-            # Calculate liquidation prices
-            long_liq = self._calculate_long_liquidation(current_price, leverage, mmr)
-            short_liq = self._calculate_short_liquidation(current_price, leverage, mmr)
-
-            # Distribute OI equally across leverage tiers (simplified assumption)
+            # Volume per leverage tier
             volume_per_tier = open_interest / len(leverage_tiers) / 2  # Split long/short
 
-            # Long liquidation (below current price)
-            liquidations.append(
-                LiquidationLevel(
-                    timestamp=timestamp,
-                    symbol=symbol,
-                    price_level=long_liq,
-                    liquidation_volume=volume_per_tier,
-                    leverage_tier=f"{leverage}x",
-                    side="long",
-                    confidence=self.confidence_score(),
-                )
+            # LONG positions: Entry prices distributed ABOVE current price
+            entry_range_long = np.linspace(
+                float(current_price) * 1.01,  # 1% above
+                float(current_price) * 1.15,  # 15% above  
+                num_bins
             )
+            
+            # Gaussian distribution for realistic volume clustering
+            entry_weights_long = np.exp(-0.5 * ((entry_range_long - float(current_price) * 1.05) / (float(current_price) * 0.03)) ** 2)
+            entry_weights_long = entry_weights_long / entry_weights_long.sum()
+            
+            for entry_price, weight in zip(entry_range_long, entry_weights_long):
+                liq_price = self._calculate_long_liquidation(Decimal(str(entry_price)), leverage, mmr)
+                liquidations.append(
+                    LiquidationLevel(
+                        timestamp=timestamp,
+                        symbol=symbol,
+                        price_level=liq_price,
+                        liquidation_volume=volume_per_tier * Decimal(str(weight)),
+                        leverage_tier=f"{leverage}x",
+                        side="long",
+                        confidence=self.confidence_score(),
+                    )
+                )
 
-            # Short liquidation (above current price)
-            liquidations.append(
-                LiquidationLevel(
-                    timestamp=timestamp,
-                    symbol=symbol,
-                    price_level=short_liq,
-                    liquidation_volume=volume_per_tier,
-                    leverage_tier=f"{leverage}x",
-                    side="short",
-                    confidence=self.confidence_score(),
-                )
+            # SHORT positions: Entry prices distributed BELOW current price
+            entry_range_short = np.linspace(
+                float(current_price) * 0.85,  # 15% below
+                float(current_price) * 0.99,  # 1% below
+                num_bins
             )
+            
+            # Gaussian distribution
+            entry_weights_short = np.exp(-0.5 * ((entry_range_short - float(current_price) * 0.95) / (float(current_price) * 0.03)) ** 2)
+            entry_weights_short = entry_weights_short / entry_weights_short.sum()
+            
+            for entry_price, weight in zip(entry_range_short, entry_weights_short):
+                liq_price = self._calculate_short_liquidation(Decimal(str(entry_price)), leverage, mmr)
+                liquidations.append(
+                    LiquidationLevel(
+                        timestamp=timestamp,
+                        symbol=symbol,
+                        price_level=liq_price,
+                        liquidation_volume=volume_per_tier * Decimal(str(weight)),
+                        leverage_tier=f"{leverage}x",
+                        side="short",
+                        confidence=self.confidence_score(),
+                    )
+                )
 
         return liquidations
 

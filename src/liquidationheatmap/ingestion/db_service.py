@@ -199,7 +199,7 @@ class DuckDBService:
         """Context manager exit."""
         self.close()
 
-    def get_large_trades(self, symbol: str = "BTCUSDT", min_gross_value: Decimal = Decimal("100000")):
+    def get_large_trades(self, symbol: str = "BTCUSDT", min_gross_value: Decimal = Decimal("100000"), start_datetime: str = None, end_datetime: str = None):
         """Get large trades from aggTrades data."""
         import pandas as pd
         
@@ -219,7 +219,7 @@ class DuckDBService:
             pass
         
         # Load from CSV if not in DB
-        csv_path = f"data/raw/{symbol}/aggTrades/{symbol}-aggTrades-*.csv"
+        csv_path = f"/media/sam/3TB-WDC/binance-history-data-downloader/data/{symbol}/aggTrades/{symbol}-aggTrades-*.csv"
         
         # Create table
         try:

@@ -48,6 +48,7 @@ async def get_liquidation_levels(
     model: Literal["binance_standard", "ensemble"] = Query(
         "binance_standard", description="Liquidation model to use"
     ),
+    timeframe: int = Query(30, description="Timeframe in days (for future use)"),
 ):
     """Calculate liquidation levels for given symbol and model.
 
@@ -63,8 +64,31 @@ async def get_liquidation_levels(
     """
     # Fetch real data from DuckDB
     with DuckDBService() as db:
-        current_price, open_interest = db.get_latest_open_interest(symbol)
+        _, open_interest = db.get_latest_open_interest(symbol)
         funding_rate = db.get_latest_funding_rate(symbol)
+        
+        # Load large trades for liquidation calculation (timeframe-based)
+        from datetime import datetime, timedelta
+        end_time = datetime.now().isoformat()
+        start_time = (datetime.now() - timedelta(days=timeframe)).isoformat()
+        large_trades = db.get_large_trades(
+            symbol=symbol,
+            start_datetime=start_time,
+            end_datetime=end_time,
+            min_gross_value=Decimal("100000")  # $100k threshold
+        )
+    
+    # Get real-time current price from Binance API
+    from urllib.request import urlopen
+    import json
+    try:
+        with urlopen(f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}", timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            current_price = Decimal(data["price"])
+    except:
+        # Fallback to historical price if API fails
+        with DuckDBService() as db_fallback:
+            current_price, _ = db_fallback.get_latest_open_interest(symbol)
 
     # Select model
     if model == "ensemble":
@@ -72,11 +96,12 @@ async def get_liquidation_levels(
     else:
         liquidation_model = BinanceStandardModel()
 
-    # Calculate liquidations
+    # Calculate liquidations using REAL trade data
     liquidations = liquidation_model.calculate_liquidations(
         current_price=current_price,
         open_interest=open_interest,
         symbol=symbol,
+        large_trades=large_trades,  # Pass real trades instead of synthetic data
     )
 
     # Separate long (below price) and short (above price)

@@ -1,0 +1,11 @@
+{
+  "session_id": "8bf32541-51c5-4717-9e8b-f1face064757",
+  "transcript_path": "/home/sam/.claude/projects/-media-sam-1TB-LiquidationHeatmap/8bf32541-51c5-4717-9e8b-f1face064757.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py",
+    "old_string": "    def __exit__(self, exc_type, exc_val, exc_tb):\n        \"\"\"Context manager exit.\"\"\"\n        self.close()",
+    "new_string": "    def __exit__(self, exc_type, exc_val, exc_tb):\n        \"\"\"Context manager exit.\"\"\"\n        self.close()\n\n    def get_large_trades(self, symbol: str = \"BTCUSDT\", min_gross_value: Decimal = Decimal(\"100000\")):\n        \"\"\"Get large trades from aggTrades data.\"\"\"\n        import pandas as pd\n        return pd.DataFrame(columns=[\"timestamp\", \"price\", \"quantity\", \"side\", \"gross_value\"])"
+  }
+}

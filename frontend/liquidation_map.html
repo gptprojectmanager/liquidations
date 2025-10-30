@@ -41,9 +41,16 @@
 
         async function loadLevels() {
             const model = document.getElementById('modelSelect').value;
+            const timeframe = document.getElementById('timeframeSelect').value;
+
+            console.log(`🔄 Loading: model=${model}, timeframe=${timeframe} days`);
+
             try {
-                const response = await fetch(`http://localhost:8000/liquidations/levels?symbol=BTCUSDT&model=${model}`);
+                const response = await fetch(`http://localhost:8000/liquidations/levels?symbol=BTCUSDT&model=${model}&timeframe=${timeframe}`);
                 const data = await response.json();
+
+                console.log(`✅ Loaded ${data.long_liquidations.length} long + ${data.short_liquidations.length} short liquidations`);
+                console.log(`Model: ${data.model}, Current Price: $${data.current_price}`);
 
                 renderLiquidationMap(data);
             } catch (error) {
@@ -104,8 +111,8 @@
                 ...data.short_liquidations.map(l => parseFloat(l.price_level))
             ].sort((a, b) => a - b);
 
-            const cumulativeLong = calculateCumulative(data.long_liquidations, allPrices);
-            const cumulativeShort = calculateCumulative(data.short_liquidations, allPrices);
+            const cumulativeLong = calculateCumulative(data.long_liquidations, allPrices, true);
+            const cumulativeShort = calculateCumulative(data.short_liquidations, allPrices, false);
 
             // Cumulative Long line (red, descending from left)
             traces.push({
@@ -156,9 +163,10 @@
                 yaxis: 'y'
             });
 
+            const timeframe = document.getElementById('timeframeSelect').value;
             const layout = {
                 title: {
-                    text: `Binance BTC/USDT Perpetual - ${data.model}`,
+                    text: `Binance BTC/USDT Perpetual - ${data.model} (${timeframe} day)`,
                     font: { size: 16 }
                 },
                 xaxis: {
@@ -211,16 +219,18 @@
             return grouped;
         }
 
-        function calculateCumulative(liquidations, allPrices) {
+        function calculateCumulative(liquidations, allPrices, isLong = false) {
             const prices = [];
             const values = [];
 
-            let cumulative = 0;
             allPrices.forEach(price => {
-                const matchingLiqs = liquidations.filter(l =>
-                    parseFloat(l.price_level) <= price
-                );
-                cumulative = matchingLiqs.reduce((sum, l) =>
+                // For LONG: cumulative from right (sum all liquidations >= price)
+                // For SHORT: cumulative from left (sum all liquidations <= price)
+                const matchingLiqs = liquidations.filter(l => {
+                    const liqPrice = parseFloat(l.price_level);
+                    return isLong ? liqPrice >= price : liqPrice <= price;
+                });
+                const cumulative = matchingLiqs.reduce((sum, l) =>
                     sum + parseFloat(l.volume), 0
                 );
                 prices.push(price);
@@ -231,7 +241,19 @@
         }
 
         // Auto-load on page load
-        window.onload = () => loadLevels();
+        window.onload = () => {
+            loadLevels();
+
+            // Add event listener for timeframe selector
+            document.getElementById('timeframeSelect').addEventListener('change', () => {
+                loadLevels();
+            });
+
+            // Add event listener for model selector
+            document.getElementById('modelSelect').addEventListener('change', () => {
+                loadLevels();
+            });
+        };
     </script>
 </body>
 </html>
