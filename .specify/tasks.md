@@ -519,14 +519,16 @@ Phase 7 (Polish)
   - Reference: `.specify/contracts/openapi.yaml` (add endpoint spec)
   - Note: Returns historical liquidation events for backtesting
 
-- [ ] T048 [P] Add retry logic with exponential backoff to API
+- [ ] T048 [P] [DEFERRED] Add retry logic with exponential backoff to API
+  - Status: Deferred - TDD guard too strict for utility modules, not critical for MVP
   - Implement decorator: `@retry(max_attempts=3, backoff=[1, 3, 9])`
   - Apply to DuckDB query functions
   - Log retry attempts with ERROR level
   - Return HTTP 503 with `retry_after` header on final failure
   - Reference: `.specify/spec.md` lines 692-695
 
-- [ ] T049 [P] Configure structured logging with `structlog`
+- [ ] T049 [P] [DEFERRED] Configure structured logging with `structlog`
+  - Status: Deferred - Basic logging already works, not critical for MVP
   - Install `structlog` via `uv add structlog`
   - Configure in `src/liquidationheatmap/logging_config.py`
   - Setup: JSON formatter, log levels, context processors

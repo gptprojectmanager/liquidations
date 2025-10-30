@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 from typing import Literal
+from typing import Optional
 
 from fastapi import FastAPI, Query
 from pydantic import BaseModel
@@ -221,9 +222,105 @@ async def get_heatmap(
         db.close()
 
 
+
+from typing import Optional
+
 @app.get("/liquidations/history")
 async def get_liquidation_history(
     symbol: str = Query("BTCUSDT", description="Trading pair symbol"),
+    start: Optional[str] = Query(None, description="Start datetime (ISO format)"),
+    end: Optional[str] = Query(None, description="End datetime (ISO format)"),
+    aggregate: bool = Query(False, description="Aggregate by timestamp and side"),
 ):
-    """Get historical liquidation data from database (T047)."""
-    return []
+    """Get historical liquidation data from database (T047).
+
+    Query actual liquidation events stored in liquidation_history table.
+    Supports date filtering and aggregation for time-series analysis.
+
+    Args:
+        symbol: Trading pair (e.g., BTCUSDT)
+        start: Optional start datetime filter
+        end: Optional end datetime filter
+        aggregate: If true, group by timestamp and side with totals
+
+    Returns:
+        List of historical liquidation records or aggregated data
+    """
+    db = DuckDBService()
+
+    try:
+        if aggregate:
+            # Aggregated query for time-series visualization
+            query = """
+            SELECT
+                timestamp,
+                side,
+                SUM(quantity) as total_volume,
+                COUNT(*) as num_levels,
+                AVG(price) as avg_price
+            FROM liquidation_history
+            WHERE symbol = ?
+            """
+
+            params = [symbol]
+
+            if start:
+                query += " AND timestamp >= ?"
+                params.append(start)
+
+            if end:
+                query += " AND timestamp <= ?"
+                params.append(end)
+
+            query += " GROUP BY timestamp, side ORDER BY timestamp, side"
+
+            df = db.conn.execute(query, params).df()
+
+            return [
+                {
+                    "timestamp": str(rec["timestamp"]),
+                    "side": rec["side"],
+                    "total_volume": float(rec["total_volume"]),
+                    "num_levels": int(rec["num_levels"]),
+                    "avg_price": float(rec["avg_price"]),
+                }
+                for rec in df.to_dict(orient="records")
+            ]
+
+        else:
+            # Raw historical records
+            query = """
+            SELECT timestamp, symbol, price, quantity, side, leverage, model
+            FROM liquidation_history
+            WHERE symbol = ?
+            """
+
+            params = [symbol]
+
+            if start:
+                query += " AND timestamp >= ?"
+                params.append(start)
+
+            if end:
+                query += " AND timestamp <= ?"
+                params.append(end)
+
+            query += " ORDER BY timestamp DESC, side, leverage"
+
+            df = db.conn.execute(query, params).df()
+
+            return [
+                {
+                    "timestamp": str(rec["timestamp"]),
+                    "symbol": rec["symbol"],
+                    "price": float(rec["price"]),
+                    "quantity": float(rec["quantity"]),
+                    "side": rec["side"],
+                    "leverage": int(rec["leverage"]),
+                    "model": rec["model"],
+                }
+                for rec in df.to_dict(orient="records")
+            ]
+
+    finally:
+        db.close()

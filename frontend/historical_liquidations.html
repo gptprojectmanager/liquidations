@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC/USDT Historical Liquidations</title>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>BTC/USDT Historical Liquidations Chart</h1>
+    <div class="controls">
+        <button onclick="loadHistoricalData()">Load Historical Data</button>
+        <select id="aggregationSelect">
+            <option value="total">Total Volume</option>
+            <option value="count">Number of Levels</option>
+            <option value="avg_price">Average Price</option>
+        </select>
+    </div>
+    <div id="chart"></div>
+    <div id="info"></div>
+
+    <script>
+        // Coinglass color scheme from examples/liquidations_chart_plot.py
+        const COLORS = {
+            shorts: '#d9024b',  // Red for short liquidations
+            longs: '#45bf87',   // Green for long liquidations
+            price: '#f0b90b',   // Yellow/gold for price
+            background: '#0d1117'
+        };
+
+        async function loadHistoricalData() {
+            try {
+                // Fetch raw liquidation history from API
+                // Note: This would ideally use GET /liquidations/history endpoint (T047)
+                // For now, we'll create a workaround using direct data fetch
+                const response = await fetch('http://localhost:8000/liquidations/history?symbol=BTCUSDT');
+
+                if (!response.ok) {
+                    // Fallback: Show message about T047 not implemented
+                    document.getElementById('info').innerHTML = `
+                        <p class="error">
+                            History endpoint not yet implemented (Task T047).<br>
+                            <strong>Workaround:</strong> Run this Python query:
+                            <pre style="background: #161b22; padding: 10px; margin: 10px 0; border-radius: 5px;">
+uv run python -c "
+import duckdb, json
+conn = duckdb.connect('data/processed/liquidations.duckdb')
+df = conn.execute('''
+    SELECT timestamp, side, SUM(quantity) as total_volume,
+           COUNT(*) as num_levels, AVG(price) as avg_price
+    FROM liquidation_history
+    WHERE symbol = 'BTCUSDT'
+    GROUP BY timestamp, side
+    ORDER BY timestamp, side
+''').df()
+print(json.dumps(df.to_dict(orient='records'), default=str))
+" > frontend/historical_data.json
+                            </pre>
+                            Then reload this page.
+                        </p>
+                    `;
+
+                    // Try to load from static file as fallback
+                    const fallbackResponse = await fetch('historical_data.json');
+                    if (fallbackResponse.ok) {
+                        const data = await fallbackResponse.json();
+                        renderHistoricalChart(data);
+                    }
+                    return;
+                }
+
+                const data = await response.json();
+                renderHistoricalChart(data);
+
+            } catch (error) {
+                document.getElementById('info').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                console.error('Error loading historical data:', error);
+            }
+        }
+
+        function renderHistoricalChart(rawData) {
+            const aggregationType = document.getElementById('aggregationSelect').value;
+
+            // Group data by timestamp
+            const timestamps = [...new Set(rawData.map(d => d.timestamp))].sort();
+
+            // Separate longs and shorts
+            const longsData = timestamps.map(ts => {
+                const record = rawData.find(d => d.timestamp === ts && d.side === 'long');
+                return record ? parseFloat(record[aggregationType]) : 0;
+            });
+
+            const shortsData = timestamps.map(ts => {
+                const record = rawData.find(d => d.timestamp === ts && d.side === 'short');
+                return record ? parseFloat(record[aggregationType]) : 0;
+            });
+
+            // Make shorts negative for the dual-axis effect (like Coinglass chart)
+            const shortsDataNegative = shortsData.map(v => -v);
+
+            // Create traces (similar to liquidation_map.html structure)
+            const longsTrace = {
+                x: timestamps,
+                y: longsData,
+                type: 'bar',
+                name: 'Longs',
+                marker: {
+                    color: COLORS.longs
+                },
+                hovertemplate: 'Time: %{x}<br>Longs: %{y:.2e}<extra></extra>'
+            };
+
+            const shortsTrace = {
+                x: timestamps,
+                y: shortsDataNegative,
+                type: 'bar',
+                name: 'Shorts',
+                marker: {
+                    color: COLORS.shorts
+                },
+                hovertemplate: 'Time: %{x}<br>Shorts: %{y:.2e}<extra></extra>'
+            };
+
+            // Layout (reusing styles from liquidation_map.html and heatmap.html)
+            const layout = {
+                title: 'Total Liquidations Chart (Historical)',
+                xaxis: {
+                    title: 'Time',
+                    showgrid: true,
+                    gridcolor: '#30363d',
+                    type: 'date'
+                },
+                yaxis: {
+                    title: aggregationType === 'total' ? 'Liquidation Volume' :
+                           aggregationType === 'count' ? 'Number of Levels' :
+                           'Average Price (USD)',
+                    showgrid: true,
+                    gridcolor: '#30363d',
+                    zeroline: true,
+                    zerolinecolor: '#30363d'
+                },
+                paper_bgcolor: COLORS.background,
+                plot_bgcolor: COLORS.background,
+                font: {
+                    color: '#c9d1d9'
+                },
+                barmode: 'overlay',
+                showlegend: true,
+                legend: {
+                    orientation: 'h',
+                    x: 0.5,
+                    xanchor: 'center',
+                    y: 1.1
+                }
+            };
+
+            // Create plot (using Plotly.js like other visualizations)
+            Plotly.newPlot('chart', [longsTrace, shortsTrace], layout, {responsive: true});
+
+            // Display summary info
+            document.getElementById('info').innerHTML = `
+                <p><strong>Data Range:</strong> ${timestamps[0]} to ${timestamps[timestamps.length - 1]}</p>
+                <p><strong>Total Snapshots:</strong> ${timestamps.length}</p>
+                <p><strong>Visualization Style:</strong> Coinglass-inspired (from examples/liquidations_chart_plot.py)</p>
+            `;
+        }
+
+        // Auto-load on page load
+        window.onload = () => loadHistoricalData();
+    </script>
+</body>
+</html>
