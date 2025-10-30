@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from ..ingestion.db_service import DuckDBService
 from ..models.binance_standard import BinanceStandardModel
 from ..models.ensemble import EnsembleModel
+from ..models.funding_adjusted import FundingAdjustedModel
 
 app = FastAPI(
     title="Liquidation Heatmap API",
@@ -324,3 +325,87 @@ async def get_liquidation_history(
 
     finally:
         db.close()
+
+@app.get("/liquidations/compare-models")
+async def compare_models(
+    symbol: str = Query("BTCUSDT", description="Trading pair symbol"),
+):
+    """Compare predictions from all models (T036).
+    
+    Returns predictions from binance_standard, funding_adjusted, and ensemble models.
+    """
+    # Fetch data from DuckDB
+    with DuckDBService() as db:
+        current_price, open_interest = db.get_latest_open_interest(symbol)
+        funding_rate = db.get_latest_funding_rate(symbol)
+
+    # Initialize all 3 models
+    binance_model = BinanceStandardModel()
+    funding_model = FundingAdjustedModel()
+    ensemble_model = EnsembleModel()
+
+    models_data = []
+
+    # Run each model and collect results
+    for model in [binance_model, funding_model, ensemble_model]:
+        liquidations = model.calculate_liquidations(
+            current_price=current_price,
+            open_interest=open_interest,
+            symbol=symbol,
+        )
+
+        # Calculate average confidence
+        if liquidations:
+            avg_conf = sum(liq.confidence for liq in liquidations) / len(liquidations)
+        else:
+            avg_conf = Decimal("0")
+
+        # Format levels for response
+        levels = [
+            {
+                "price_level": str(liq.price_level),
+                "volume": str(liq.liquidation_volume),
+                "leverage": liq.leverage_tier,
+                "confidence": str(liq.confidence),
+                "side": liq.side,
+            }
+            for liq in liquidations
+        ]
+
+        models_data.append({
+            "name": model.model_name,
+            "levels": levels,
+            "avg_confidence": avg_conf,
+        })
+
+    # Calculate agreement percentage (simplified)
+    # Check if models agree within 5% on average liquidation prices
+    if len(models_data) >= 2:
+        # Get average liquidation prices from each model
+        avg_prices = []
+        for model_data in models_data:
+            if model_data["levels"]:
+                prices = [Decimal(level["price_level"]) for level in model_data["levels"]]
+                avg_prices.append(sum(prices) / len(prices))
+        
+        if len(avg_prices) >= 2:
+            # Calculate coefficient of variation
+            mean_price = sum(avg_prices) / len(avg_prices)
+            if mean_price > 0:
+                std_dev = (sum((p - mean_price) ** 2 for p in avg_prices) / len(avg_prices)) ** Decimal("0.5")
+                cv = (std_dev / mean_price) * 100
+                # Agreement is high when CV is low
+                agreement = max(Decimal("0"), 100 - (cv * 20))  # Scale CV to 0-100
+            else:
+                agreement = Decimal("0")
+        else:
+            agreement = Decimal("100")
+    else:
+        agreement = Decimal("100")
+
+    return {
+        "symbol": symbol,
+        "current_price": current_price,
+        "models": models_data,
+        "agreement_percentage": agreement,
+    }
