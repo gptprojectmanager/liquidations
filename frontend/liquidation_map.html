@@ -3,114 +3,221 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BTC/USDT Liquidation Map</title>
+    <title>Binance BTC/USDT Liquidation Map</title>
     <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>BTC/USDT Liquidation Levels</h1>
+    <h1>Binance BTC/USDT Liquidation Map</h1>
     <div class="controls">
         <select id="modelSelect">
             <option value="binance_standard">Binance Standard</option>
             <option value="ensemble">Ensemble</option>
         </select>
         <button onclick="loadLevels()">Load Levels</button>
+        <span id="currentPrice" style="margin-left: 20px; color: #f0b90b; font-weight: bold;"></span>
     </div>
-    <div id="liquidation-map"></div>
-    <div id="info"></div>
+    <div id="liquidation-map" style="width: 100%; height: 600px;"></div>
 
     <script>
+        // Coinglass-style colors for leverage tiers
+        const LEVERAGE_COLORS = {
+            '5x': '#5dd3d3',   // Cyan (5x)
+            '10x': '#6ba3ff',  // Blue (10x)
+            '25x': '#4a90e2',  // Dark Blue (25x)
+            '50x': '#ff9f40',  // Orange (50x)
+            '100x': '#ff6384'  // Red-orange (100x)
+        };
+
         async function loadLevels() {
             const model = document.getElementById('modelSelect').value;
             try {
                 const response = await fetch(`http://localhost:8000/liquidations/levels?symbol=BTCUSDT&model=${model}`);
                 const data = await response.json();
 
-                renderBarChart(data);
+                renderLiquidationMap(data);
             } catch (error) {
-                document.getElementById('info').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                console.error('Error loading levels:', error);
+                alert(`Error: ${error.message}`);
             }
         }
 
-        function renderBarChart(data) {
-            // Prepare data for bar chart
-            const longPrices = data.long_liquidations.map(l => parseFloat(l.price_level));
-            const longVolumes = data.long_liquidations.map(l => parseFloat(l.volume));
-            const longLeverages = data.long_liquidations.map(l => `${l.leverage}x`);
-
-            const shortPrices = data.short_liquidations.map(l => parseFloat(l.price_level));
-            const shortVolumes = data.short_liquidations.map(l => parseFloat(l.volume));
-            const shortLeverages = data.short_liquidations.map(l => `${l.leverage}x`);
-
-            // Long liquidations (red bars, below price)
-            const longTrace = {
-                x: longPrices,
-                y: longVolumes,
-                type: 'bar',
-                name: 'Long Liquidations',
-                marker: {
-                    color: '#d9024b'  // Coinglass red
-                },
-                text: longLeverages,
-                hovertemplate: 'Price: $%{x}<br>Volume: %{y:.2f}<br>Leverage: %{text}<extra></extra>'
-            };
-
-            // Short liquidations (green bars, above price)
-            const shortTrace = {
-                x: shortPrices,
-                y: shortVolumes,
-                type: 'bar',
-                name: 'Short Liquidations',
-                marker: {
-                    color: '#45bf87'  // Coinglass green
-                },
-                text: shortLeverages,
-                hovertemplate: 'Price: $%{x}<br>Volume: %{y:.2f}<br>Leverage: %{text}<extra></extra>'
-            };
-
-            // Current price line
+        function renderLiquidationMap(data) {
             const currentPrice = parseFloat(data.current_price);
-            const priceLineTrace = {
-                x: [currentPrice, currentPrice],
-                y: [0, Math.max(...longVolumes, ...shortVolumes)],
+            document.getElementById('currentPrice').textContent = `Current Price: $${currentPrice.toLocaleString()}`;
+
+            // Group by leverage tier
+            const longsByLeverage = groupByLeverage(data.long_liquidations);
+            const shortsByLeverage = groupByLeverage(data.short_liquidations);
+
+            // Create bar traces for each leverage tier
+            const traces = [];
+
+            // Long liquidations (below price) - separate bars per leverage
+            Object.keys(longsByLeverage).sort().forEach(leverage => {
+                const levels = longsByLeverage[leverage];
+                traces.push({
+                    x: levels.map(l => parseFloat(l.price_level)),
+                    y: levels.map(l => parseFloat(l.volume)),
+                    type: 'bar',
+                    name: `${leverage} Leverage`,
+                    marker: {
+                        color: LEVERAGE_COLORS[leverage] || '#888'
+                    },
+                    hovertemplate: `Price: $%{x}<br>Volume: %{y:.2f}<br>Leverage: ${leverage}<extra></extra>`,
+                    legendgroup: leverage,
+                    yaxis: 'y'
+                });
+            });
+
+            // Short liquidations (above price) - separate bars per leverage
+            Object.keys(shortsByLeverage).sort().forEach(leverage => {
+                const levels = shortsByLeverage[leverage];
+                traces.push({
+                    x: levels.map(l => parseFloat(l.price_level)),
+                    y: levels.map(l => parseFloat(l.volume)),
+                    type: 'bar',
+                    name: `${leverage} Leverage`,
+                    marker: {
+                        color: LEVERAGE_COLORS[leverage] || '#888'
+                    },
+                    hovertemplate: `Price: $%{x}<br>Volume: %{y:.2f}<br>Leverage: ${leverage}<extra></extra>`,
+                    legendgroup: leverage,
+                    showlegend: false,  // Don't duplicate legend
+                    yaxis: 'y'
+                });
+            });
+
+            // Calculate cumulative distributions
+            const allPrices = [
+                ...data.long_liquidations.map(l => parseFloat(l.price_level)),
+                ...data.short_liquidations.map(l => parseFloat(l.price_level))
+            ].sort((a, b) => a - b);
+
+            const cumulativeLong = calculateCumulative(data.long_liquidations, allPrices);
+            const cumulativeShort = calculateCumulative(data.short_liquidations, allPrices);
+
+            // Cumulative Long line (red, descending from left)
+            traces.push({
+                x: cumulativeLong.prices,
+                y: cumulativeLong.values,
                 type: 'scatter',
                 mode: 'lines',
-                name: 'Current Price',
+                name: 'Cumulative Long Liquidation Leverage',
                 line: {
-                    color: '#f0b90b',  // Coinglass gold
-                    width: 3,
+                    color: '#d9024b',  // Coinglass red
+                    width: 2
+                },
+                yaxis: 'y2'
+            });
+
+            // Cumulative Short line (green, ascending from left)
+            traces.push({
+                x: cumulativeShort.prices,
+                y: cumulativeShort.values,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Cumulative Short Liquidation Leverage',
+                line: {
+                    color: '#45bf87',  // Coinglass green
+                    width: 2
+                },
+                yaxis: 'y2'
+            });
+
+            // Current price vertical line
+            const maxVolume = Math.max(
+                ...data.long_liquidations.map(l => parseFloat(l.volume)),
+                ...data.short_liquidations.map(l => parseFloat(l.volume))
+            );
+
+            traces.push({
+                x: [currentPrice, currentPrice],
+                y: [0, maxVolume],
+                type: 'scatter',
+                mode: 'lines',
+                name: `Current Price: ${currentPrice}`,
+                line: {
+                    color: '#ff0000',  // Red
+                    width: 2,
                     dash: 'dash'
-                }
-            };
+                },
+                hoverinfo: 'skip',
+                yaxis: 'y'
+            });
 
             const layout = {
-                title: `Liquidation Levels (${data.model})`,
+                title: {
+                    text: `Binance BTC/USDT Perpetual - ${data.model}`,
+                    font: { size: 16 }
+                },
                 xaxis: {
-                    title: 'Price (USD)',
+                    title: 'Price Level (USD)',
                     showgrid: true,
-                    gridcolor: '#30363d'
+                    gridcolor: '#30363d',
+                    tickformat: ',.0f'
                 },
                 yaxis: {
                     title: 'Liquidation Volume',
                     showgrid: true,
-                    gridcolor: '#30363d'
+                    gridcolor: '#30363d',
+                    side: 'left'
+                },
+                yaxis2: {
+                    title: 'Cumulative Liquidation Leverage',
+                    overlaying: 'y',
+                    side: 'right',
+                    showgrid: false
                 },
                 paper_bgcolor: '#0d1117',
                 plot_bgcolor: '#0d1117',
                 font: {
                     color: '#c9d1d9'
                 },
-                barmode: 'group'
+                barmode: 'stack',  // Stack bars for same price level
+                bargap: 0.1,
+                legend: {
+                    orientation: 'h',
+                    yanchor: 'bottom',
+                    y: 1.02,
+                    xanchor: 'right',
+                    x: 1
+                },
+                hovermode: 'closest'
             };
 
-            Plotly.newPlot('liquidation-map', [longTrace, shortTrace, priceLineTrace], layout);
+            Plotly.newPlot('liquidation-map', traces, layout, {responsive: true});
+        }
 
-            // Display info
-            document.getElementById('info').innerHTML = `
-                <p>Current Price: <strong>$${currentPrice.toLocaleString()}</strong></p>
-                <p>Long Liquidations: ${data.long_liquidations.length} levels</p>
-                <p>Short Liquidations: ${data.short_liquidations.length} levels</p>
-            `;
+        function groupByLeverage(liquidations) {
+            const grouped = {};
+            liquidations.forEach(liq => {
+                const leverage = liq.leverage;
+                if (!grouped[leverage]) {
+                    grouped[leverage] = [];
+                }
+                grouped[leverage].push(liq);
+            });
+            return grouped;
+        }
+
+        function calculateCumulative(liquidations, allPrices) {
+            const prices = [];
+            const values = [];
+
+            let cumulative = 0;
+            allPrices.forEach(price => {
+                const matchingLiqs = liquidations.filter(l =>
+                    parseFloat(l.price_level) <= price
+                );
+                cumulative = matchingLiqs.reduce((sum, l) =>
+                    sum + parseFloat(l.volume), 0
+                );
+                prices.push(price);
+                values.push(cumulative);
+            });
+
+            return { prices, values };
         }
 
         // Auto-load on page load
