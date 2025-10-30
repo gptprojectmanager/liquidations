@@ -60,10 +60,11 @@ def load_open_interest_csv(
                 raise ValueError(f"CSV file is empty or has invalid format: {file_path}")
             raise ValueError(f"CSV missing required columns: {e}")
 
+        # Convert timezone and precision
+        df["timestamp"] = df["timestamp"].dt.tz_localize(None).astype("datetime64[ns]")
         if df.empty:
             raise ValueError(f"CSV file is empty: {file_path}")
 
-        # Convert to timezone-naive for consistent date comparisons
         df["timestamp"] = df["timestamp"].dt.tz_localize(None)
 
         # Validate required columns exist
@@ -130,10 +131,11 @@ def load_funding_rate_csv(
                 raise ValueError(f"CSV file is empty or has invalid format: {file_path}")
             raise ValueError(f"CSV missing required columns: {e}")
 
+        # Convert timezone and precision
+        df["timestamp"] = df["timestamp"].dt.tz_localize(None).astype("datetime64[ns]")
         if df.empty:
             raise ValueError(f"CSV file is empty: {file_path}")
 
-        # Convert to timezone-naive for consistent date comparisons
         df["timestamp"] = df["timestamp"].dt.tz_localize(None)
 
         # Validate required columns
@@ -191,3 +193,83 @@ def load_csv_glob(
     result = result.sort_values("timestamp").reset_index(drop=True)
 
     return result
+
+
+def load_aggtrades_csv(
+    file_path: str, conn: Optional[duckdb.DuckDBPyConnection] = None
+) -> pd.DataFrame:
+    """Load aggTrades CSV from Binance using DuckDB's zero-copy ingestion.
+
+    Expected CSV format (Binance aggTrades):
+        agg_trade_id,price,quantity,first_trade_id,last_trade_id,transact_time,is_buyer_maker
+        2867872924,113988.7,0.018,6669431038,6669431038,1759276800034,true
+
+    Args:
+        file_path: Path to Binance aggTrades CSV file
+        conn: Optional DuckDB connection (creates temporary if None)
+
+    Returns:
+        pd.DataFrame with columns: timestamp, symbol, price, quantity, side, gross_value
+
+    Raises:
+        FileNotFoundError: If CSV file doesn't exist
+        ValueError: If CSV format is invalid
+    """
+    file_path = Path(file_path)
+    if not file_path.exists():
+        raise FileNotFoundError(f"CSV file not found: {file_path}")
+
+    # Extract symbol from filename (e.g., BTCUSDT-aggTrades-2025-10-01.csv)
+    filename = file_path.stem  # Remove .csv extension
+    symbol = filename.split('-')[0] if '-' in filename else 'BTCUSDT'
+
+    close_conn = False
+    if conn is None:
+        conn = duckdb.connect(":memory:")
+        close_conn = True
+
+    try:
+        # Use DuckDB's zero-copy CSV ingestion
+        try:
+            df = conn.execute(f"""
+            SELECT
+                to_timestamp(transact_time / 1000) AS timestamp,
+                '{symbol}' AS symbol,
+                CAST(price AS DECIMAL(18, 8)) AS price,
+                CAST(quantity AS DECIMAL(18, 8)) AS quantity,
+                CASE 
+                    WHEN is_buyer_maker = 'true' THEN 'sell'
+                    ELSE 'buy'
+                END AS side,
+                CAST(price AS DOUBLE) * CAST(quantity AS DOUBLE) AS gross_value
+            FROM read_csv(
+                '{file_path}',
+                auto_detect=true,
+                header=true,
+                delim=','
+            )
+            """).fetchdf()
+        except duckdb.BinderException as e:
+            if "No function matches" in str(e):
+                raise ValueError(f"CSV file is empty or has invalid format: {file_path}")
+            raise ValueError(f"CSV missing required columns: {e}")
+
+        # Convert timezone and precision
+        df["timestamp"] = df["timestamp"].dt.tz_localize(None).astype("datetime64[ns]")
+        if df.empty:
+            raise ValueError(f"CSV file is empty: {file_path}")
+
+        df["timestamp"] = df["timestamp"].dt.tz_localize(None)
+
+        # Validate required columns
+        required_cols = {"timestamp", "symbol", "price", "quantity", "side", "gross_value"}
+        if not required_cols.issubset(df.columns):
+            raise ValueError(
+                f"CSV missing required columns. Expected {required_cols}, got {set(df.columns)}"
+            )
+
+        return df
+
+    finally:
+        if close_conn:
+            conn.close()
