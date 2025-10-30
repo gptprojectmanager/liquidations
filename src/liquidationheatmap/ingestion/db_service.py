@@ -198,3 +198,68 @@ class DuckDBService:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         self.close()
+
+    def get_large_trades(self, symbol: str = "BTCUSDT", min_gross_value: Decimal = Decimal("100000")):
+        """Get large trades from aggTrades data."""
+        import pandas as pd
+        
+        # Try to query from DB first
+        try:
+            query = """
+                SELECT timestamp, price, quantity, side, gross_value
+                FROM aggtrades_history
+                WHERE symbol = ? AND gross_value >= ?
+                ORDER BY timestamp DESC
+                LIMIT 10000
+            """
+            df = self.conn.execute(query, [symbol, float(min_gross_value)]).df()
+            if not df.empty:
+                return df
+        except:
+            pass
+        
+        # Load from CSV if not in DB
+        csv_path = f"data/raw/{symbol}/aggTrades/{symbol}-aggTrades-*.csv"
+        
+        # Create table
+        try:
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS aggtrades_history (
+                    timestamp TIMESTAMP,
+                    symbol VARCHAR,
+                    price DECIMAL(18,8),
+                    quantity DECIMAL(18,8),
+                    side VARCHAR,
+                    gross_value DECIMAL(20,2)
+                )
+            """)
+        except:
+            pass
+        
+        # Load data
+        try:
+            self.conn.execute(f"""
+                INSERT INTO aggtrades_history
+                SELECT 
+                    epoch_ms(transact_time) as timestamp,
+                    '{symbol}' as symbol,
+                    CAST(price AS DECIMAL(18,8)) as price,
+                    CAST(quantity AS DECIMAL(18,8)) as quantity,
+                    CASE WHEN is_buyer_maker IN ('true', 'True', '1') THEN 'sell' ELSE 'buy' END as side,
+                    CAST(price AS DECIMAL(18,8)) * CAST(quantity AS DECIMAL(18,8)) as gross_value
+                FROM read_csv_auto('{csv_path}')
+                WHERE CAST(price AS DECIMAL(18,8)) * CAST(quantity AS DECIMAL(18,8)) >= {float(min_gross_value)}
+                LIMIT 10000
+            """)
+            
+            # Return loaded data
+            return self.conn.execute("""
+                SELECT timestamp, price, quantity, side, gross_value
+                FROM aggtrades_history
+                WHERE symbol = ? AND gross_value >= ?
+                ORDER BY timestamp DESC
+                LIMIT 10000
+            """, [symbol, float(min_gross_value)]).df()
+        except Exception as e:
+            # Return empty DataFrame on error
+            return pd.DataFrame(columns=["timestamp", "price", "quantity", "side", "gross_value"])
