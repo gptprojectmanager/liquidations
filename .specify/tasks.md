@@ -292,7 +292,7 @@ Phase 7 (Polish)
 
 ### Heatmap Cache Generation
 
-- [ ] T028 [US2] Create `scripts/generate_heatmap_cache.py`
+- [X] T028 [US2] Create `scripts/generate_heatmap_cache.py`
   - Aggregate liquidation_levels into heatmap_cache table
   - Time buckets: 1-hour intervals
   - Price buckets: $100 increments (dynamic based on price range)
@@ -301,14 +301,14 @@ Phase 7 (Polish)
 
 ### API Endpoint
 
-- [ ] T029 [US2] Implement `GET /liquidations/heatmap` endpoint in `api/main.py`
+- [X] T029 [US2] Implement `GET /liquidations/heatmap` endpoint in `api/main.py`
   - Query params: symbol, model, timeframe (1h/4h/12h/1d/7d/30d), start, end
   - Query heatmap_cache table (pre-aggregated for speed)
   - Return: times[], prices[], densities[][] (2D matrix)
   - Include metadata: total_volume, highest_density_price, data_quality_score
   - Reference: `.specify/contracts/openapi.yaml` lines 11-70
 
-- [ ] T030 [P] [US2] Create `src/liquidationheatmap/api/heatmap_models.py`
+- [X] T030 [P] [US2] Create `src/liquidationheatmap/api/heatmap_models.py`
   - `HeatmapRequest`: symbol, model, timeframe, start, end
   - `HeatmapDataPoint`: time, price_bucket, density, volume
   - `HeatmapMetadata`: total_volume, highest_density_price, num_buckets, data_quality_score
@@ -317,7 +317,7 @@ Phase 7 (Polish)
 
 ### Plotly.js Visualization
 
-- [ ] T031 [US2] Create `frontend/heatmap.html` with Plotly.js heatmap
+- [X] T031 [US2] Create `frontend/heatmap.html` with Plotly.js heatmap
   - Fetch data from `/liquidations/heatmap` API
   - Plotly config: type='heatmap', colorscale=[purple, blue, teal, yellow]
   - Add current price line as scatter overlay (red dashed line)
