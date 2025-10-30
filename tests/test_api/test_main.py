@@ -135,3 +135,13 @@ class TestHistoricalLiquidationsEndpoint:
         assert isinstance(data, list)
         # Should have at least some historical data from liquidation_history table
         assert len(data) > 0
+
+
+class TestFrontendStaticFiles:
+    """Tests for frontend static file serving."""
+
+    def test_frontend_liquidation_map_html_is_served(self, client):
+        """Test that frontend/liquidation_map.html is accessible via HTTP."""
+        response = client.get("/frontend/liquidation_map.html")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
