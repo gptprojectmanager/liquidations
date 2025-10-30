@@ -85,7 +85,7 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             id BIGINT PRIMARY KEY,
             timestamp TIMESTAMP NOT NULL,
             symbol VARCHAR(20) NOT NULL,
-            open_interest_value DECIMAL(18, 8) NOT NULL,
+            open_interest_value DECIMAL(20, 8) NOT NULL,
             open_interest_contracts DECIMAL(18, 8),
             source VARCHAR(50) DEFAULT 'binance_csv'
         );
@@ -115,6 +115,26 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     print("✅ Created table: funding_rate_history (with 1 index)")
+
+    # Table 5: aggtrades_history
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS aggtrades_history (
+            id BIGINT PRIMARY KEY,
+            timestamp TIMESTAMP NOT NULL,
+            symbol VARCHAR(20) NOT NULL,
+            price DECIMAL(18, 8) NOT NULL,
+            quantity DECIMAL(18, 8) NOT NULL,
+            side VARCHAR(4) NOT NULL,
+            gross_value DOUBLE NOT NULL
+        );
+    """)
+    
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_aggtrades_timestamp_symbol
+        ON aggtrades_history(timestamp, symbol);
+    """)
+    
+    print("✅ Created table: aggtrades_history (with 1 index)")
 
 
 def verify_schema(conn: duckdb.DuckDBPyConnection) -> None:
