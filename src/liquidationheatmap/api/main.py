@@ -120,7 +120,8 @@ async def get_liquidation_levels(
     logger = logging.getLogger(__name__)
     logger.info(f"Raw liquidations: {len(liquidations)}")
 
-    # Aggregate into $100 price bins
+    # Aggregate into $100 price bins, separated by leverage tier
+    # KEY: Use (bin_price, leverage_tier) tuple to preserve leverage separation
     bin_size = Decimal("100")
     long_bins = defaultdict(lambda: {"volume": Decimal("0"), "count": 0})
     short_bins = defaultdict(lambda: {"volume": Decimal("0"), "count": 0})
@@ -129,24 +130,28 @@ async def get_liquidation_levels(
         # Round to nearest $100 bin
         bin_price = (liq.price_level // bin_size) * bin_size
 
+        # Use (price, leverage) tuple as key to keep leverage tiers separated
         if liq.side == "long" and liq.price_level < current_price:
-            long_bins[bin_price]["volume"] += liq.liquidation_volume
-            long_bins[bin_price]["count"] += 1
+            key = (bin_price, liq.leverage_tier)
+            long_bins[key]["volume"] += liq.liquidation_volume
+            long_bins[key]["count"] += 1
         elif liq.side == "short" and liq.price_level > current_price:
-            short_bins[bin_price]["volume"] += liq.liquidation_volume
-            short_bins[bin_price]["count"] += 1
+            key = (bin_price, liq.leverage_tier)
+            short_bins[key]["volume"] += liq.liquidation_volume
+            short_bins[key]["count"] += 1
 
     logger.info(f"Aggregated bins: {len(long_bins)} long, {len(short_bins)} short")
 
     # Separate long (below price) and short (above price)
+    # Extract real leverage from tuple key
     long_liqs = [
         {
             "price_level": str(price),
             "volume": str(data["volume"]),
             "count": data["count"],
-            "leverage": "10x",  # Minimal fix: add field to pass test
+            "leverage": leverage,  # Real leverage from data
         }
-        for price, data in sorted(long_bins.items(), reverse=True)
+        for (price, leverage), data in sorted(long_bins.items(), reverse=True)
     ]
 
     short_liqs = [
@@ -154,9 +159,9 @@ async def get_liquidation_levels(
             "price_level": str(price),
             "volume": str(data["volume"]),
             "count": data["count"],
-            "leverage": "10x",  # Minimal fix: add field to pass test
+            "leverage": leverage,  # Real leverage from data
         }
-        for price, data in sorted(short_bins.items())
+        for (price, leverage), data in sorted(short_bins.items())
     ]
 
     return LiquidationResponse(

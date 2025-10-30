@@ -47,7 +47,7 @@ def test_liquidation_levels_response_includes_leverage_field(client):
         assert "leverage" in first_long, (
             f"Long liquidation missing 'leverage' field. Keys: {first_long.keys()}"
         )
-        assert first_long["leverage"] in ["10x", "25x", "50x", "100x"], (
+        assert first_long["leverage"] in ["5x", "10x", "25x", "50x", "100x"], (
             f"Invalid leverage value: {first_long['leverage']}"
         )
 
@@ -58,6 +58,6 @@ def test_liquidation_levels_response_includes_leverage_field(client):
         assert "leverage" in first_short, (
             f"Short liquidation missing 'leverage' field. Keys: {first_short.keys()}"
         )
-        assert first_short["leverage"] in ["10x", "25x", "50x", "100x"], (
+        assert first_short["leverage"] in ["5x", "10x", "25x", "50x", "100x"], (
             f"Invalid leverage value: {first_short['leverage']}"
         )
