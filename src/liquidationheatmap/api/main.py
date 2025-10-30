@@ -105,28 +105,47 @@ async def get_liquidation_levels(
         symbol=symbol,
         large_trades=large_trades,  # Pass real trades instead of synthetic data
     )
+    
+    # AGGREGATE liquidations into price bins to reduce data size for frontend
+    from collections import defaultdict
+    logger = logging.getLogger(__name__)
+    logger.info(f"Raw liquidations: {len(liquidations)}")
+    
+    # Aggregate into $100 price bins
+    bin_size = Decimal("100")
+    long_bins = defaultdict(lambda: {"volume": Decimal("0"), "count": 0})
+    short_bins = defaultdict(lambda: {"volume": Decimal("0"), "count": 0})
+    
+    for liq in liquidations:
+        # Round to nearest $100 bin
+        bin_price = (liq.price_level // bin_size) * bin_size
+        
+        if liq.side == "long" and liq.price_level < current_price:
+            long_bins[bin_price]["volume"] += liq.liquidation_volume
+            long_bins[bin_price]["count"] += 1
+        elif liq.side == "short" and liq.price_level > current_price:
+            short_bins[bin_price]["volume"] += liq.liquidation_volume
+            short_bins[bin_price]["count"] += 1
+    
+    logger.info(f"Aggregated bins: {len(long_bins)} long, {len(short_bins)} short")
 
     # Separate long (below price) and short (above price)
     long_liqs = [
         {
-            "price_level": str(liq.price_level),
-            "volume": str(liq.liquidation_volume),
-            "leverage": liq.leverage_tier,
-            "confidence": str(liq.confidence),
+            "price_level": str(price),
+            "volume": str(data["volume"]),
+            "count": data["count"],
         }
-        for liq in liquidations
-        if liq.side == "long" and liq.price_level < current_price
+        for price, data in sorted(long_bins.items(), reverse=True)
     ]
 
     short_liqs = [
         {
-            "price_level": str(liq.price_level),
-            "volume": str(liq.liquidation_volume),
-            "leverage": liq.leverage_tier,
-            "confidence": str(liq.confidence),
+            "price_level": str(price),
+            "volume": str(data["volume"]),
+            "count": data["count"],
         }
-        for liq in liquidations
-        if liq.side == "short" and liq.price_level > current_price
+        for price, data in sorted(short_bins.items())
     ]
 
     return LiquidationResponse(
