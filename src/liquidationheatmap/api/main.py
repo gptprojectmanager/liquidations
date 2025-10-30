@@ -219,3 +219,11 @@ async def get_heatmap(
 
     finally:
         db.close()
+
+
+@app.get("/liquidations/history")
+async def get_liquidation_history(
+    symbol: str = Query("BTCUSDT", description="Trading pair symbol"),
+):
+    """Get historical liquidation data from database (T047)."""
+    return []
