@@ -9,13 +9,23 @@
 </head>
 <body>
     <h1>Binance BTC/USDT Liquidation Map</h1>
-    <div class="controls">
-        <select id="modelSelect">
-            <option value="binance_standard">Binance Standard</option>
-            <option value="ensemble">Ensemble</option>
-        </select>
-        <button onclick="loadLevels()">Load Levels</button>
-        <span id="currentPrice" style="margin-left: 20px; color: #f0b90b; font-weight: bold;"></span>
+    <div class="controls" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <select id="modelSelect">
+                <option value="binance_standard">Binance Standard</option>
+                <option value="ensemble">Ensemble</option>
+            </select>
+            <button onclick="loadLevels()">Load Levels</button>
+            <span id="currentPrice" style="margin-left: 20px; color: #f0b90b; font-weight: bold;"></span>
+        </div>
+        <div>
+            <select id="timeframeSelect" style="padding: 8px 12px; background: #161b22; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px;">
+                <option value="1">1 day</option>
+                <option value="7">7 day</option>
+                <option value="30" selected>30 day</option>
+                <option value="90">90 day</option>
+            </select>
+        </div>
     </div>
     <div id="liquidation-map" style="width: 100%; height: 600px;"></div>
 
