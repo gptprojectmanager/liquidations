@@ -207,7 +207,31 @@
       "timestamp": "2025-10-30T00:07:41.742687",
       "command": "git add -A && git status --short",
       "description": "Stage Phase 4 files"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T00:07:43.185175",
+      "command": "git commit -m \"feat(Phase4): Complete T028-T031 - Heatmap visualization\n\nImplements User Story 2 (Visualization) tasks:\n\nT028 ✅ - Heatmap cache generation (scripts/generate_heatmap_cache.py)\n- SQL aggregation by time_bucket (hourly) + price_bucket (\\$100)\n- Clears cache before regeneration\n- Rich console output + logging\n- Tested: 4 cache rows in 0.41s\n\nT030 ✅ - Pydantic models (src/liquidationheatmap/api/heatmap_models.py)\n- HeatmapRequest: symbol, model, timeframe, start, end\n- HeatmapDataPoint: time, price_bucket, density, volume\n- HeatmapMetadata: total_volume, highest_density_price, data_quality_score\n- HeatmapResponse: complete response model with examples\n\nT029 ✅ - API endpoint (GET /liquidations/heatmap)\n- Queries pre-aggregated heatmap_cache table\n- Returns HeatmapResponse with data + metadata\n- Calculates data quality score + time range\n- Gets current price from Open Interest\n\nT031 ✅ - Plotly.js heatmap (frontend/heatmap.html)\n- Single-page visualization (no build step)\n- Coinglass color scheme (purple → yellow)\n- Current price line overlay (red dashed)\n- Hover tooltips: time, price, density\n- ~90 lines total (HTML + CSS + JS)\n\nPhase 4 Status: 4/8 tasks complete (50%)\nNext: T032-T035 (bar chart, CSS, tests)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\"",
+      "description": "Commit Phase 4 progress"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T00:07:53.222740",
+      "command": "sed -i 's/^- \\[ \\] T028 \\[US2\\]/- [X] T028 [US2]/' .specify/tasks.md\nsed -i 's/^- \\[ \\] T029 \\[US2\\]/- [X] T029 [US2]/' .specify/tasks.md  \nsed -i 's/^- \\[ \\] T030 \\[P\\] \\[US2\\]/- [X] T030 [P] [US2]/' .specify/tasks.md\nsed -i 's/^- \\[ \\] T031 \\[US2\\]/- [X] T031 [US2]/' .specify/tasks.md\ngrep -E \"^- \\[[Xx ]\\] T0(28|29|30|31)\" .specify/tasks.md",
+      "description": "Mark T028-T031 as complete in tasks.md"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T00:08:02.657882",
+      "command": "git add .specify/tasks.md && git commit -m \"docs: Mark T028-T031 as complete in tasks.md\"",
+      "description": "Commit task completion updates"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T00:08:04.146010",
+      "command": "git log --oneline -5",
+      "description": "Show recent commits"
     }
   ],
-  "last_updated": "2025-10-30T00:07:41.742713"
+  "last_updated": "2025-10-30T00:08:04.146030"
 }

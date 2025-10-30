@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC/USDT Liquidation Map</title>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>BTC/USDT Liquidation Levels</h1>
+    <div class="controls">
+        <select id="modelSelect">
+            <option value="binance_standard">Binance Standard</option>
+            <option value="ensemble">Ensemble</option>
+        </select>
+        <button onclick="loadLevels()">Load Levels</button>
+    </div>
+    <div id="liquidation-map"></div>
+    <div id="info"></div>
+
+    <script>
+        async function loadLevels() {
+            const model = document.getElementById('modelSelect').value;
+            try {
+                const response = await fetch(`http://localhost:8000/liquidations/levels?symbol=BTCUSDT&model=${model}`);
+                const data = await response.json();
+
+                renderBarChart(data);
+            } catch (error) {
+                document.getElementById('info').innerHTML = `<p class="error">Error: ${error.message}</p>`;
+            }
+        }
+
+        function renderBarChart(data) {
+            // Prepare data for bar chart
+            const longPrices = data.long_liquidations.map(l => parseFloat(l.price_level));
+            const longVolumes = data.long_liquidations.map(l => parseFloat(l.volume));
+            const longLeverages = data.long_liquidations.map(l => `${l.leverage}x`);
+
+            const shortPrices = data.short_liquidations.map(l => parseFloat(l.price_level));
+            const shortVolumes = data.short_liquidations.map(l => parseFloat(l.volume));
+            const shortLeverages = data.short_liquidations.map(l => `${l.leverage}x`);
+
+            // Long liquidations (red bars, below price)
+            const longTrace = {
+                x: longPrices,
+                y: longVolumes,
+                type: 'bar',
+                name: 'Long Liquidations',
+                marker: {
+                    color: '#d9024b'  // Coinglass red
+                },
+                text: longLeverages,
+                hovertemplate: 'Price: $%{x}<br>Volume: %{y:.2f}<br>Leverage: %{text}<extra></extra>'
+            };
+
+            // Short liquidations (green bars, above price)
+            const shortTrace = {
+                x: shortPrices,
+                y: shortVolumes,
+                type: 'bar',
+                name: 'Short Liquidations',
+                marker: {
+                    color: '#45bf87'  // Coinglass green
+                },
+                text: shortLeverages,
+                hovertemplate: 'Price: $%{x}<br>Volume: %{y:.2f}<br>Leverage: %{text}<extra></extra>'
+            };
+
+            // Current price line
+            const currentPrice = parseFloat(data.current_price);
+            const priceLineTrace = {
+                x: [currentPrice, currentPrice],
+                y: [0, Math.max(...longVolumes, ...shortVolumes)],
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Current Price',
+                line: {
+                    color: '#f0b90b',  // Coinglass gold
+                    width: 3,
+                    dash: 'dash'
+                }
+            };
+
+            const layout = {
+                title: `Liquidation Levels (${data.model})`,
+                xaxis: {
+                    title: 'Price (USD)',
+                    showgrid: true,
+                    gridcolor: '#30363d'
+                },
+                yaxis: {
+                    title: 'Liquidation Volume',
+                    showgrid: true,
+                    gridcolor: '#30363d'
+                },
+                paper_bgcolor: '#0d1117',
+                plot_bgcolor: '#0d1117',
+                font: {
+                    color: '#c9d1d9'
+                },
+                barmode: 'group'
+            };
+
+            Plotly.newPlot('liquidation-map', [longTrace, shortTrace, priceLineTrace], layout);
+
+            // Display info
+            document.getElementById('info').innerHTML = `
+                <p>Current Price: <strong>$${currentPrice.toLocaleString()}</strong></p>
+                <p>Long Liquidations: ${data.long_liquidations.length} levels</p>
+                <p>Short Liquidations: ${data.short_liquidations.length} levels</p>
+            `;
+        }
+
+        // Auto-load on page load
+        window.onload = () => loadLevels();
+    </script>
+</body>
+</html>

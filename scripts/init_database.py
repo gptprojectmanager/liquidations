@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Initialize DuckDB database with schema from data-model.md.
 
-Creates 4 tables:
+Creates 5 tables:
 - liquidation_levels: Calculated liquidation prices
 - heatmap_cache: Pre-aggregated heatmap buckets
 - open_interest_history: Binance Open Interest data
 - funding_rate_history: 8-hour funding rates
+- liquidation_history: Actual liquidation events (for backtesting)
 """
 
 import sys
@@ -13,13 +14,12 @@ from pathlib import Path
 
 import duckdb
 
-
 DB_PATH = "data/processed/liquidations.duckdb"
 
 
 def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """Create all tables and indexes."""
-    
+
     # Table 1: liquidation_levels
     conn.execute("""
         CREATE TABLE IF NOT EXISTS liquidation_levels (
@@ -35,24 +35,24 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
-    
+
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_liquidation_levels_timestamp 
         ON liquidation_levels(timestamp);
     """)
-    
+
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_liquidation_levels_symbol_model 
         ON liquidation_levels(symbol, model);
     """)
-    
+
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_liquidation_levels_price 
         ON liquidation_levels(price_level);
     """)
-    
+
     print("✅ Created table: liquidation_levels (with 3 indexes)")
-    
+
     # Table 2: heatmap_cache
     conn.execute("""
         CREATE TABLE IF NOT EXISTS heatmap_cache (
@@ -66,19 +66,19 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
-    
+
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_heatmap_time_price 
         ON heatmap_cache(time_bucket, price_bucket);
     """)
-    
+
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_heatmap_symbol_model 
         ON heatmap_cache(symbol, model);
     """)
-    
+
     print("✅ Created table: heatmap_cache (with 2 indexes)")
-    
+
     # Table 3: open_interest_history
     conn.execute("""
         CREATE TABLE IF NOT EXISTS open_interest_history (
@@ -90,14 +90,14 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             source VARCHAR(50) DEFAULT 'binance_csv'
         );
     """)
-    
+
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_oi_timestamp_symbol 
         ON open_interest_history(timestamp, symbol);
     """)
-    
+
     print("✅ Created table: open_interest_history (with 1 index)")
-    
+
     # Table 4: funding_rate_history
     conn.execute("""
         CREATE TABLE IF NOT EXISTS funding_rate_history (
@@ -108,12 +108,12 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             funding_interval_hours INT DEFAULT 8
         );
     """)
-    
+
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_funding_timestamp_symbol 
         ON funding_rate_history(timestamp, symbol);
     """)
-    
+
     print("✅ Created table: funding_rate_history (with 1 index)")
 
 
@@ -121,14 +121,14 @@ def verify_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """Verify all tables exist."""
     tables = conn.execute("SHOW TABLES").fetchall()
     table_names = [t[0] for t in tables]
-    
+
     expected_tables = [
-        'liquidation_levels',
-        'heatmap_cache',
-        'open_interest_history',
-        'funding_rate_history'
+        "liquidation_levels",
+        "heatmap_cache",
+        "open_interest_history",
+        "funding_rate_history",
     ]
-    
+
     print("\n📊 Database Schema:")
     for table in expected_tables:
         if table in table_names:
@@ -143,12 +143,12 @@ def main():
     """Initialize database schema."""
     # Ensure data directory exists
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    
+
     print(f"📥 Initializing database: {DB_PATH}")
-    
+
     # Connect and create schema
     conn = duckdb.connect(DB_PATH)
-    
+
     try:
         create_schema(conn)
         verify_schema(conn)

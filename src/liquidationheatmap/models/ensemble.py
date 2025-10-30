@@ -1,6 +1,5 @@
 """Ensemble liquidation model - weighted average of multiple models."""
 
-from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List
 
@@ -107,9 +106,7 @@ class EnsembleModel(AbstractLiquidationModel):
         total = sum(available.values())
         return {k: v / total for k, v in available.items()}
 
-    def _aggregate_predictions(
-        self, predictions: List[tuple]
-    ) -> List[LiquidationLevel]:
+    def _aggregate_predictions(self, predictions: List[tuple]) -> List[LiquidationLevel]:
         """Aggregate predictions from multiple models using weighted average.
 
         Groups by leverage_tier + side, then calculates weighted average price.
@@ -146,7 +143,11 @@ class EnsembleModel(AbstractLiquidationModel):
             # Check model agreement (coefficient of variation)
             prices = [p for _, p in data["prices"]]
             avg_price = sum(prices) / len(prices)
-            disagreement = max(abs(p - avg_price) / avg_price for p in prices) if avg_price > 0 else Decimal("0")
+            disagreement = (
+                max(abs(p - avg_price) / avg_price for p in prices)
+                if avg_price > 0
+                else Decimal("0")
+            )
 
             # Lower confidence if models disagree significantly
             confidence = self.confidence_score()

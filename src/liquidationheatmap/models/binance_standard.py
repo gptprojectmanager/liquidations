@@ -19,16 +19,16 @@ class BinanceStandardModel(AbstractLiquidationModel):
 
     # BTC/USDT MMR tiers (source: Binance official docs)
     MMR_TIERS = [
-        (Decimal("50000"), Decimal("0.004"), Decimal("0")),        # 0-50k: 0.4%
-        (Decimal("250000"), Decimal("0.005"), Decimal("50")),      # 50k-250k: 0.5%
-        (Decimal("1000000"), Decimal("0.01"), Decimal("1300")),    # 250k-1M: 1.0%
-        (Decimal("10000000"), Decimal("0.025"), Decimal("16300")), # 1M-10M: 2.5%
-        (Decimal("20000000"), Decimal("0.05"), Decimal("266300")), # 10M-20M: 5.0%
-        (Decimal("50000000"), Decimal("0.10"), Decimal("1266300")),# 20M-50M: 10.0%
-        (Decimal("100000000"), Decimal("0.125"), Decimal("2516300")),# 50M-100M: 12.5%
-        (Decimal("200000000"), Decimal("0.15"), Decimal("5016300")),# 100M-200M: 15.0%
-        (Decimal("300000000"), Decimal("0.25"), Decimal("25016300")),# 200M-300M: 25.0%
-        (Decimal("500000000"), Decimal("0.50"), Decimal("100016300")),# 300M-500M: 50.0%
+        (Decimal("50000"), Decimal("0.004"), Decimal("0")),  # 0-50k: 0.4%
+        (Decimal("250000"), Decimal("0.005"), Decimal("50")),  # 50k-250k: 0.5%
+        (Decimal("1000000"), Decimal("0.01"), Decimal("1300")),  # 250k-1M: 1.0%
+        (Decimal("10000000"), Decimal("0.025"), Decimal("16300")),  # 1M-10M: 2.5%
+        (Decimal("20000000"), Decimal("0.05"), Decimal("266300")),  # 10M-20M: 5.0%
+        (Decimal("50000000"), Decimal("0.10"), Decimal("1266300")),  # 20M-50M: 10.0%
+        (Decimal("100000000"), Decimal("0.125"), Decimal("2516300")),  # 50M-100M: 12.5%
+        (Decimal("200000000"), Decimal("0.15"), Decimal("5016300")),  # 100M-200M: 15.0%
+        (Decimal("300000000"), Decimal("0.25"), Decimal("25016300")),  # 200M-300M: 25.0%
+        (Decimal("500000000"), Decimal("0.50"), Decimal("100016300")),  # 300M-500M: 50.0%
     ]
 
     @property

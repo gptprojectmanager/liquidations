@@ -2,11 +2,11 @@
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 import duckdb
 
-from .csv_loader import load_csv_glob, load_funding_rate_csv, load_open_interest_csv
+from .csv_loader import load_csv_glob, load_funding_rate_csv
 
 
 class DuckDBService:
@@ -69,7 +69,7 @@ class DuckDBService:
         """
         # Load from CSV
         csv_pattern = f"data/raw/{symbol}/metrics/{symbol}-metrics-*.csv"
-        
+
         try:
             df = load_csv_glob(csv_pattern, conn=self.conn)
         except FileNotFoundError:
@@ -110,7 +110,7 @@ class DuckDBService:
 
         # Get latest
         latest = df.iloc[-1]
-        oi_value = Decimal(str(latest['open_interest_value']))
+        oi_value = Decimal(str(latest["open_interest_value"]))
         current_price = Decimal("67000.00")  # Mock for now
 
         return current_price, oi_value
@@ -145,7 +145,7 @@ class DuckDBService:
 
         # Load from CSV
         csv_pattern = f"data/raw/{symbol}/fundingRate/{symbol}-fundingRate-*.csv"
-        
+
         try:
             df = load_csv_glob(csv_pattern, loader_func=load_funding_rate_csv, conn=self.conn)
         except FileNotFoundError:
@@ -184,7 +184,7 @@ class DuckDBService:
         """)
 
         latest = df.iloc[-1]
-        return Decimal(str(latest['funding_rate']))
+        return Decimal(str(latest["funding_rate"]))
 
     def close(self):
         """Close database connection."""

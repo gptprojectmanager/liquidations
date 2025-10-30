@@ -10,6 +10,7 @@ from typing import List
 @dataclass
 class LiquidationLevel:
     """Single liquidation level calculated by a model."""
+
     timestamp: datetime
     symbol: str
     price_level: Decimal
