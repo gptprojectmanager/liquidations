@@ -117,3 +117,12 @@ class TestLiquidationsWithRealData:
             # If 200, should have structure (may be empty)
             assert "long_liquidations" in data
             assert "short_liquidations" in data
+
+
+class TestHistoricalLiquidationsEndpoint:
+    """Tests for /liquidations/history endpoint (T047)."""
+
+    def test_history_returns_200_with_valid_params(self, client):
+        """Test that history endpoint returns 200 with valid params."""
+        response = client.get("/liquidations/history?symbol=BTCUSDT")
+        assert response.status_code == 200
