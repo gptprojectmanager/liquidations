@@ -22,6 +22,7 @@ from src.liquidationheatmap.ingestion.csv_loader import (
     load_csv_glob,
     load_funding_rate_csv,
     load_open_interest_csv,
+    load_aggtrades_csv,
 )
 from src.liquidationheatmap.ingestion.validators import (
     detect_outliers,
@@ -213,6 +214,58 @@ def ingest_funding_rate(conn: duckdb.DuckDBPyConnection, symbol: str,
         raise
 
 
+def ingest_aggtrades(conn: duckdb.DuckDBPyConnection, symbol: str,
+                      data_dir: Path, start_date: str, end_date: str) -> int:
+    """Ingest aggTrades data into DuckDB.
+    
+    Returns:
+        Number of rows inserted
+    """
+    console.print("\n📥 [bold cyan]Ingesting aggTrades data...[/bold cyan]")
+    
+    aggtrades_dir = data_dir / symbol / "aggTrades"
+    pattern = str(aggtrades_dir / f"{symbol}-aggTrades-*.csv")
+    
+    logger.info(f"Loading aggTrades CSV files from: {pattern}")
+    
+    try:
+        df = load_csv_glob(pattern, loader_func=load_aggtrades_csv, conn=conn)
+        
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+        end = end.replace(hour=23, minute=59, second=59)
+        df = df[(df['timestamp'] >= start) & (df['timestamp'] <= end)]
+        
+        if df.empty:
+            logger.warning("No aggTrades data found in date range")
+            return 0
+        
+        max_id = conn.execute('SELECT COALESCE(MAX(id), 0) FROM aggtrades_history').fetchone()[0]
+        df['id'] = range(max_id + 1, max_id + 1 + len(df))
+        
+        conn.execute("""
+            INSERT OR IGNORE INTO aggtrades_history
+            (id, timestamp, symbol, price, quantity, side, gross_value)
+            SELECT id, timestamp, symbol, price, quantity, side, gross_value
+            FROM df
+        """)
+        
+        row_count = len(df)
+        console.print(f"✅ Ingested [bold green]{row_count:,}[/bold green] aggTrades rows")
+        logger.info(f"Successfully ingested {row_count} aggTrades rows")
+        
+        return row_count
+        
+    except FileNotFoundError as e:
+        logger.error(f"aggTrades CSV files not found: {e}")
+        console.print(f"[bold red]❌ Error:[/bold red] CSV files not found at {aggtrades_dir}")
+        console.print("[yellow]ℹ️  This is expected if historical data hasn't been downloaded yet.[/yellow]")
+        return 0
+    except Exception as e:
+        logger.error(f"Failed to ingest aggTrades data: {e}")
+        raise
+
+
 def main():
     """Main ingestion workflow."""
     args = parse_args()
@@ -262,6 +315,15 @@ def main():
             )
             progress.update(task2, completed=True)
             total_rows += fr_rows
+            
+            # Ingest aggTrades
+            task3 = progress.add_task("Ingesting aggTrades...", total=None)
+            at_rows = ingest_aggtrades(
+                conn, args.symbol, Path(args.data_dir),
+                args.start_date, args.end_date
+            )
+            progress.update(task3, completed=True)
+            total_rows += at_rows
         
         # Calculate duration
         duration = (datetime.now() - start_time).total_seconds()
