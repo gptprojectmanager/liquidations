@@ -302,7 +302,75 @@
       "timestamp": "2025-10-30T01:04:01.499379",
       "command": "git add -A && git commit -m \"feat(T047): Implement /liquidations/history API endpoint\n\n- Query historical liquidation data from DuckDB\n- Support date filtering (start/end parameters)\n- Support aggregation (aggregate=true for time-series)\n- Tests passing (2/2)\n\"",
       "description": "Commit T047 implementation"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-10-30T01:04:30.354516",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/frontend/historical_liquidations.html"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T01:04:30.993312",
+      "command": "cat > /media/sam/1TB/LiquidationHeatmap/frontend/historical_liquidations.html << 'EOF'\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>BTC/USDT Historical Liquidations</title>\n    <script src=\"https://cdn.plot.ly/plotly-2.26.0.min.js\"></script>\n    <link rel=\"stylesheet\" href=\"styles.css\">\n</head>\n<body>\n    <h1>BTC/USDT Historical Liquidations Chart</h1>\n    <div class=\"controls\">\n        <button onclick=\"loadHistoricalData()\">Load Historical Data</button>\n        <select id=\"aggregationSelect\">\n            <option value=\"total_volume\">Total Volume</option>\n            <option value=\"num_levels\">Number of Levels</option>\n            <option value=\"avg_price\">Average Price</option>\n        </select>\n        <label>\n            <input type=\"checkbox\" id=\"aggregateCheckbox\" checked> Aggregate by time\n        </label>\n    </div>\n    <div id=\"chart\"></div>\n    <div id=\"info\"></div>\n\n    <script>\n        // Coinglass color scheme from examples/liquidations_chart_plot.py\n        const COLORS = {\n            shorts: '#d9024b',  // Red for short liquidations\n            longs: '#45bf87',   // Green for long liquidations\n            price: '#f0b90b',   // Yellow/gold for price\n            background: '#0d1117'\n        };\n\n        async function loadHistoricalData() {\n            const aggregate = document.getElementById('aggregateCheckbox').checked;\n            \n            try {\n                // Fetch from real API endpoint (T047)\n                const response = await fetch(`http://localhost:8000/liquidations/history?symbol=BTCUSDT&aggregate=${aggregate}`);\n\n                if (!response.ok) {\n                    throw new Error(`API returned ${response.status}: ${response.statusText}`);\n                }\n\n                const data = await response.json();\n                \n                if (data.length === 0) {\n                    document.getElementById('info').innerHTML = `<p class=\"error\">No historical data available. Run: python scripts/generate_heatmap_cache.py</p>`;\n                    return;\n                }\n\n                renderHistoricalChart(data, aggregate);\n\n            } catch (error) {\n                document.getElementById('info').innerHTML = `<p class=\"error\">Error: ${error.message}</p>`;\n                console.error('Error loading historical data:', error);\n            }\n        }\n\n        function renderHistoricalChart(rawData, isAggregated) {\n            const aggregationType = document.getElementById('aggregationSelect').value;\n\n            if (isAggregated) {\n                // Aggregated data: already grouped by timestamp and side\n                const timestamps = [...new Set(rawData.map(d => d.timestamp))].sort();\n\n                const longsData = timestamps.map(ts => {\n                    const record = rawData.find(d => d.timestamp === ts && d.side === 'long');\n                    return record ? parseFloat(record[aggregationType]) : 0;\n                });\n\n                const shortsData = timestamps.map(ts => {\n                    const record = rawData.find(d => d.timestamp === ts && d.side === 'short');\n                    return record ? parseFloat(record[aggregationType]) : 0;\n                });\n\n                // Make shorts negative for dual-axis effect (Coinglass style)\n                const shortsDataNegative = shortsData.map(v => -v);\n\n                createBarChart(timestamps, longsData, shortsDataNegative, aggregationType);\n                \n                document.getElementById('info').innerHTML = `\n                    <p><strong>Data Range:</strong> ${timestamps[0]} to ${timestamps[timestamps.length - 1]}</p>\n                    <p><strong>Total Snapshots:</strong> ${timestamps.length}</p>\n                    <p><strong>Mode:</strong> Aggregated (grouped by timestamp and side)</p>\n                `;\n\n            } else {\n                // Raw data: individual liquidation records\n                // Group by timestamp for visualization\n                const byTimestamp = {};\n                rawData.forEach(rec => {\n                    if (!byTimestamp[rec.timestamp]) {\n                        byTimestamp[rec.timestamp] = { long: 0, short: 0 };\n                    }\n                    byTimestamp[rec.timestamp][rec.side] += rec.quantity;\n                });\n\n                const timestamps = Object.keys(byTimestamp).sort();\n                const longsData = timestamps.map(ts => byTimestamp[ts].long);\n                const shortsData = timestamps.map(ts => -byTimestamp[ts].short);\n\n                createBarChart(timestamps, longsData, shortsData, 'quantity');\n\n                document.getElementById('info').innerHTML = `\n                    <p><strong>Total Records:</strong> ${rawData.length}</p>\n                    <p><strong>Time Range:</strong> ${timestamps[0]} to ${timestamps[timestamps.length - 1]}</p>\n                    <p><strong>Mode:</strong> Raw records (individual liquidations)</p>\n                `;\n            }\n        }\n\n        function createBarChart(timestamps, longsData, shortsData, metric) {\n            const longsTrace = {\n                x: timestamps,\n                y: longsData,\n                type: 'bar',\n                name: 'Longs',\n                marker: { color: COLORS.longs },\n                hovertemplate: 'Time: %{x}<br>Longs: %{y:.2e}<extra></extra>'\n            };\n\n            const shortsTrace = {\n                x: timestamps,\n                y: shortsData,\n                type: 'bar',\n                name: 'Shorts',\n                marker: { color: COLORS.shorts },\n                hovertemplate: 'Time: %{x}<br>Shorts: %{y:.2e}<extra></extra>'\n            };\n\n            const layout = {\n                title: 'Total Liquidations Chart (Historical)',\n                xaxis: {\n                    title: 'Time',\n                    showgrid: true,\n                    gridcolor: '#30363d',\n                    type: 'date'\n                },\n                yaxis: {\n                    title: metric === 'total_volume' ? 'Liquidation Volume' :\n                           metric === 'num_levels' ? 'Number of Levels' :\n                           metric === 'avg_price' ? 'Average Price (USD)' :\n                           'Quantity',\n                    showgrid: true,\n                    gridcolor: '#30363d',\n                    zeroline: true,\n                    zerolinecolor: '#30363d'\n                },\n                paper_bgcolor: COLORS.background,\n                plot_bgcolor: COLORS.background,\n                font: { color: '#c9d1d9' },\n                barmode: 'overlay',\n                showlegend: true,\n                legend: {\n                    orientation: 'h',\n                    x: 0.5,\n                    xanchor: 'center',\n                    y: 1.1\n                }\n            };\n\n            Plotly.newPlot('chart', [longsTrace, shortsTrace], layout, {responsive: true});\n        }\n\n        // Auto-load on page load\n        window.onload = () => loadHistoricalData();\n    </script>\n</body>\n</html>\nEOF\n",
+      "description": "Update frontend to use API endpoint"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-10-30T01:04:40.829466",
+      "todo_count": 4
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T01:04:41.458747",
+      "command": "curl -s \"http://localhost:8000/liquidations/history?symbol=BTCUSDT\" | head -50",
+      "description": "Test API endpoint - raw data"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-10-30T01:04:49.629028",
+      "bash_id": "a88ad3"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T01:04:50.497982",
+      "command": "curl -s \"http://localhost:8000/liquidations/history?symbol=BTCUSDT&aggregate=true\" | python3 -m json.tool",
+      "description": "Test API with aggregation"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T01:05:00.266175",
+      "command": "uv run uvicorn src.liquidationheatmap.api.main:app --host 0.0.0.0 --port 8000 &",
+      "description": "Restart API server with new history endpoint"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T01:05:01.101914",
+      "command": "sleep 3 && curl -s \"http://localhost:8000/liquidations/history?symbol=BTCUSDT&aggregate=true\" | python3 -m json.tool | head -40",
+      "description": "Test aggregated history API"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T01:05:12.498667",
+      "command": "curl -s \"http://localhost:8000/liquidations/history?symbol=BTCUSDT&start=2024-10-29T18:00:00&end=2024-10-29T20:00:00&aggregate=true\" | python3 -m json.tool",
+      "description": "Test date range filter"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T01:05:24.298192",
+      "command": "curl -s \"http://localhost:8000/liquidations/history?symbol=BTCUSDT&start=2024-10-29T20:00:00\" | python3 -m json.tool | head -30",
+      "description": "Test raw records (no aggregation)"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-10-30T01:05:26.025064",
+      "todo_count": 4
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T01:05:36.740058",
+      "command": "git add -A && git commit -m \"feat(T047): Complete historical liquidations feature\n\nFrontend:\n- Updated historical_liquidations.html to use API endpoint\n- Toggle between aggregated and raw data modes\n- Coinglass-style bar chart visualization\n\nAPI Testing:\n- Aggregated data: ✅ Works\n- Date filtering: ✅ Works (start/end params)\n- Raw records: ✅ Works\n- Query examples tested successfully\n\"",
+      "description": "Final commit for T047"
     }
   ],
-  "last_updated": "2025-10-30T01:04:01.499394"
+  "last_updated": "2025-10-30T01:05:36.740078"
 }
