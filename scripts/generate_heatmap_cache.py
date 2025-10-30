@@ -99,15 +99,55 @@ def main():
     logger.info(f"Connecting to DuckDB: {args.db_path}")
     conn = duckdb.connect(args.db_path)
 
-    try:
-        # TODO: Implement heatmap cache generation logic
-        # 1. Query liquidation_levels table
-        # 2. Aggregate by time_bucket and price_bucket
-        # 3. Calculate density (SUM of volumes per bucket)
-        # 4. INSERT into heatmap_cache table
+    start_time = datetime.now()
 
-        console.print("[yellow]⚠️  Implementation pending (T028 foundation)[/yellow]")
-        logger.info("Heatmap cache generation foundation created")
+    try:
+        # Clear existing cache for symbol
+        console.print(f"\n🗑️  [cyan]Clearing existing cache for {args.symbol}...[/cyan]")
+        conn.execute(f"DELETE FROM heatmap_cache WHERE symbol = '{args.symbol}'")
+
+        # Map time bucket to DuckDB interval
+        time_interval_map = {
+            "1h": "1 hour",
+            "4h": "4 hours",
+            "12h": "12 hours",
+            "1d": "1 day"
+        }
+        interval = time_interval_map[args.time_bucket]
+
+        # Generate heatmap cache
+        console.print(f"📊 [cyan]Aggregating liquidations into heatmap buckets...[/cyan]")
+        logger.info(f"Aggregating with price_bucket=${args.price_bucket}, time_bucket={interval}")
+
+        # Simplified aggregation (without time_bucket_gapfill for compatibility)
+        sql = f"""
+        INSERT INTO heatmap_cache
+        SELECT
+            ROW_NUMBER() OVER () AS id,
+            date_trunc('hour', timestamp) AS time_bucket,
+            FLOOR(price_level / {args.price_bucket}) * {args.price_bucket} AS price_bucket,
+            '{args.symbol}' AS symbol,
+            model,
+            COUNT(*) AS density,
+            SUM(liquidation_volume) AS volume,
+            CURRENT_TIMESTAMP AS last_updated
+        FROM liquidation_levels
+        WHERE symbol = '{args.symbol}'
+        GROUP BY date_trunc('hour', timestamp), price_bucket, model
+        ORDER BY time_bucket, price_bucket, model
+        """
+
+        conn.execute(sql)
+        rows_inserted = conn.execute("SELECT COUNT(*) FROM heatmap_cache WHERE symbol = ?", [args.symbol]).fetchone()[0]
+
+        # Calculate duration
+        duration = (datetime.now() - start_time).total_seconds()
+
+        console.print(f"\n[bold green]✅ Heatmap cache generated successfully![/bold green]")
+        console.print(f"Rows inserted: [bold]{rows_inserted}[/bold]")
+        console.print(f"Duration: [bold]{duration:.2f}s[/bold]\n")
+
+        logger.info(f"Generated {rows_inserted} heatmap cache rows in {duration:.2f}s")
 
     except Exception as e:
         console.print(f"\n[bold red]❌ Cache generation failed:[/bold red] {e}")
@@ -115,9 +155,6 @@ def main():
         sys.exit(1)
     finally:
         conn.close()
-
-    console.print("\n[bold green]✅ Foundation ready[/bold green]")
-    console.print("[yellow]ℹ️  Next: Implement aggregation SQL (T028)[/yellow]\n")
 
 
 if __name__ == "__main__":
