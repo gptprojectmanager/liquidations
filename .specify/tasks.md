@@ -505,19 +505,21 @@ Phase 7 (Polish)
 
 **Tasks**:
 
-- [ ] T046 Add `liquidation_history` table to database schema
+- [X] T046 Add `liquidation_history` table to database schema
   - Update `scripts/init_database.py` to create Table 5
   - Schema: id, timestamp, symbol, price, quantity, side, leverage
   - Indexes: timestamp, symbol
   - Reference: `.specify/data-model.md` lines 206-240
   - Note: Stores actual liquidation events (not predictions)
+  - Status: ✅ Completed - Table created and populated with 30 historical records
 
-- [ ] T047 Implement `GET /liquidations/history` endpoint in `api/main.py`
-  - Query params: symbol, start, end (datetime)
+- [X] T047 Implement `GET /liquidations/history` endpoint in `api/main.py`
+  - Query params: symbol, start, end (datetime), aggregate (bool)
   - Query DuckDB `liquidation_history` table
   - Return Pydantic model: timestamp, symbol, price, quantity, side, leverage
   - Reference: `.specify/contracts/openapi.yaml` (add endpoint spec)
   - Note: Returns historical liquidation events for backtesting
+  - Status: ✅ Completed - API endpoint with date filtering and aggregation support, tests passing (2/2)
 
 - [ ] T048 [P] [DEFERRED] Add retry logic with exponential backoff to API
   - Status: Deferred - TDD guard too strict for utility modules, not critical for MVP
