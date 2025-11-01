@@ -8,6 +8,11 @@ Calculate and visualize cryptocurrency liquidation levels from Binance futures d
 # Install dependencies
 uv sync
 
+# Pre-flight checks (recommended for production)
+uv run python scripts/check_ingestion_ready.py \
+    --db data/processed/liquidations.duckdb \
+    --data-dir /path/to/binance-data
+
 # Ingest historical CSV data (example: Jan 2025)
 uv run python scripts/ingest_aggtrades.py \
     --symbol BTCUSDT \
@@ -111,10 +116,13 @@ LiquidationHeatmap/
 ├── tests/            # Test suite
 ├── scripts/          # Utilities and batch jobs
 │   ├── ingest_aggtrades.py        # Streaming ingestion
+│   ├── check_ingestion_ready.py   # Pre-flight checks (production)
 │   ├── validate_aggtrades.py      # Data quality validation
-│   └── migrate_add_unique_constraint.py  # Duplicate prevention
+│   ├── migrate_add_unique_constraint.py     # Duplicate prevention
+│   └── migrate_add_metadata_tracking.py     # Metadata logging
 ├── docs/             # Documentation
-│   └── DATA_VALIDATION.md         # Validation guide
+│   ├── DATA_VALIDATION.md         # Validation guide
+│   └── PRODUCTION_CHECKLIST.md    # Production readiness
 ├── data/             # Data directory
 │   ├── raw/          # External data (symlink)
 │   ├── processed/    # DuckDB databases
