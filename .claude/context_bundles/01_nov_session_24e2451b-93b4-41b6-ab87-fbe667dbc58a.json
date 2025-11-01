@@ -1,0 +1,13 @@
+{
+  "session_id": "24e2451b-93b4-41b6-ab87-fbe667dbc58a",
+  "created_at": "2025-11-01T16:57:58.706173",
+  "operations": [
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-01T16:57:58.706191",
+      "command": "rm -f /tmp/full_ingestion*.py /tmp/full_ingestion*.log /tmp/full_v2.log /tmp/ingest_aggtrades_manual.py /tmp/test_streaming.py && echo \"✅ Cleaned /tmp scripts\"",
+      "description": "Remove temp ingestion scripts"
+    }
+  ],
+  "last_updated": "2025-11-01T16:57:58.706198"
+}
