@@ -9,7 +9,14 @@ Calculate and visualize cryptocurrency liquidation levels from Binance futures d
 uv sync
 
 # Ingest historical CSV data (example: Jan 2025)
-uv run python scripts/ingest_historical.py --start 2025-01-01 --end 2025-01-31
+uv run python scripts/ingest_aggtrades.py \
+    --symbol BTCUSDT \
+    --start-date 2025-01-01 \
+    --end-date 2025-01-31 \
+    --data-dir /path/to/binance-data
+
+# Validate data quality (after ingestion)
+uv run python scripts/validate_aggtrades.py
 
 # Run FastAPI server
 uv run uvicorn api.main:app --reload
@@ -79,6 +86,23 @@ This project uses Test-Driven Development (TDD):
 
 See `CLAUDE.md` for detailed TDD workflow.
 
+## Data Validation
+
+After ingestion, validate data quality with:
+
+```bash
+uv run python scripts/validate_aggtrades.py
+```
+
+**Validation checks**:
+- Basic statistics (row count, date range, price range)
+- Duplicate detection
+- Invalid values (negative prices, NULL fields)
+- Temporal continuity (gap detection)
+- Sanity checks (realistic value ranges)
+
+See `docs/DATA_VALIDATION.md` for detailed documentation.
+
 ## Project Structure
 
 ```
@@ -86,6 +110,11 @@ LiquidationHeatmap/
 ├── src/              # Core application code
 ├── tests/            # Test suite
 ├── scripts/          # Utilities and batch jobs
+│   ├── ingest_aggtrades.py        # Streaming ingestion
+│   ├── validate_aggtrades.py      # Data quality validation
+│   └── migrate_add_unique_constraint.py  # Duplicate prevention
+├── docs/             # Documentation
+│   └── DATA_VALIDATION.md         # Validation guide
 ├── data/             # Data directory
 │   ├── raw/          # External data (symlink)
 │   ├── processed/    # DuckDB databases
