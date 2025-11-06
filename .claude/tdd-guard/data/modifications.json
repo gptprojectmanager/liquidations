@@ -1,0 +1,10 @@
+{
+  "session_id": "3e08517f-3da9-4a49-9ce3-2967ad8cb6ba",
+  "transcript_path": "/home/sam/.claude/projects/-media-sam-1TB-LiquidationHeatmap/3e08517f-3da9-4a49-9ce3-2967ad8cb6ba.jsonl",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "src/models/liquidation.py",
+    "content": "\"\"\"\nBinance liquidation price calculation model.\n\nImplements Binance futures liquidation formula with maintenance margin.\n\"\"\"\n\n\nclass BinanceLiquidationModel:\n    \"\"\"Calculate liquidation prices for Binance futures positions.\"\"\"\n\n    def calculate_liquidation_price(\n        self, entry_price, leverage, position_type, maintenance_margin_rate=0.004\n    ):\n        \"\"\"\n        Calculate liquidation price using Binance formula for long positions.\n\n        Formula: liq_price = entry_price * (1 - 1/leverage + mmr/leverage)\n        \"\"\"\n        # Formula: liq_price = entry_price * (1 - 1/leverage + mmr/leverage)\n        liq_price = entry_price * (1 - 1 / leverage + maintenance_margin_rate / leverage)\n\n        return {\"liq_price\": liq_price, \"leverage\": leverage, \"position_type\": position_type}\n"
+  }
+}

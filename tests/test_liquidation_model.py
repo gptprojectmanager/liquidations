@@ -26,3 +26,19 @@ class TestBinanceLiquidationModel:
         assert result["liq_price"] == 90.0
         assert result["leverage"] == 10
         assert result["position_type"] == "long"
+
+    def test_long_liquidation_5x_different_price(self):
+        """
+        Test long position at 5x leverage with different entry price.
+
+        Formula: liq_price = entry_price * (1 - 1/leverage)
+        Expected: 50000 * (1 - 1/5) = 50000 * 0.8 = 40000.0
+        """
+        model = BinanceLiquidationModel()
+
+        result = model.calculate_liquidation_price(
+            entry_price=50000.0, leverage=5, position_type="long", maintenance_margin_rate=0.0
+        )
+
+        assert result["liq_price"] == 40000.0
+        assert result["leverage"] == 5

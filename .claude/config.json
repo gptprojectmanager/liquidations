@@ -24,8 +24,8 @@
     }
   },
   "project": {
-    "name": "UTXOracle",
-    "description": "Bitcoin-native price oracle using mempool analysis",
+    "name": "LiquidationHeatmap",
+    "description": "liquidation heatmap",
     "workflow_type": "spec_driven_tdd"
   }
 }
