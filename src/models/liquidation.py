@@ -28,6 +28,14 @@ class BinanceLiquidationModel:
             Dictionary with liquidation details
         """
         # Calculate liquidation price based on position type
-        liq_price = entry_price * (1 - 1 / leverage + maintenance_margin_rate / leverage)
+        if position_type == "long":
+            liq_price = entry_price * (1 - 1 / leverage + maintenance_margin_rate / leverage)
+        elif position_type == "short":
+            liq_price = entry_price * (1 + 1 / leverage - maintenance_margin_rate / leverage)
+        else:
+            raise ValueError(f"position_type must be 'long' or 'short', got: {position_type}")
+
+        # Round to 2 decimal places for clean API responses
+        liq_price = round(liq_price, 2)
 
         return {"liq_price": liq_price, "leverage": leverage, "position_type": position_type}
