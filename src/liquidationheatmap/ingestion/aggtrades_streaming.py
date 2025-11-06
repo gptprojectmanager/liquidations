@@ -14,7 +14,8 @@ import duckdb
 logger = logging.getLogger(__name__)
 
 # I/O throttling to prevent HDD overload (milliseconds)
-THROTTLE_MS = 100
+# NOTE: 200ms recommended for HDD safety in production, 0ms safe for SSD
+THROTTLE_MS = 200
 
 
 def get_aggtrades_files(data_dir, symbol, start_date, end_date):
@@ -55,13 +56,12 @@ def get_aggtrades_files(data_dir, symbol, start_date, end_date):
     return sorted(files)
 
 
-def load_aggtrades_streaming(
-    conn, data_dir, symbol, start_date, end_date, throttle_ms=THROTTLE_MS
-):
+def load_aggtrades_streaming(conn, data_dir, symbol, start_date, end_date, throttle_ms=THROTTLE_MS):
     """Ingest aggTrades files one-by-one with dual-format support.
 
     Handles both old format (no header) and new format (with header).
     Prevents OOM by streaming files individually instead of buffering in pandas.
+    Uses original agg_trade_id from CSV as PRIMARY KEY for idempotency.
 
     Args:
         conn: DuckDB connection
@@ -92,11 +92,10 @@ def load_aggtrades_streaming(
     start_ts = int(start_dt.timestamp())
     end_ts = int(end_dt.timestamp())
 
-    # Get current max ID for resume capability
-    max_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM aggtrades_history").fetchone()[0]
-    initial_max_id = max_id
+    # Get initial count for reporting
+    initial_count = conn.execute("SELECT COUNT(*) FROM aggtrades_history").fetchone()[0]
 
-    logger.info(f"Starting from ID: {max_id}")
+    logger.info(f"Starting from {initial_count:,} existing rows")
 
     # Process files one by one
     total_rows = 0
@@ -106,12 +105,19 @@ def load_aggtrades_streaming(
     for idx, file_path in enumerate(files, 1):
         try:
             # Try new format first (with header)
+            csv_rows = 0
             try:
+                # Count rows in CSV before INSERT
+                csv_rows = conn.execute(f"""
+                    SELECT COUNT(*) FROM read_csv('{file_path}', auto_detect=true, header=true)
+                    WHERE transact_time / 1000 >= {start_ts} AND transact_time / 1000 <= {end_ts}
+                """).fetchone()[0]
+
                 conn.execute(f"""
                     INSERT OR IGNORE INTO aggtrades_history
-                    (id, timestamp, symbol, price, quantity, side, gross_value)
+                    (agg_trade_id, timestamp, symbol, price, quantity, side, gross_value)
                     SELECT
-                        row_number() OVER (ORDER BY transact_time) + {max_id} AS id,
+                        agg_trade_id,
                         to_timestamp(transact_time / 1000) AS timestamp,
                         '{symbol}' AS symbol,
                         CAST(price AS DECIMAL(18, 8)) AS price,
@@ -125,13 +131,20 @@ def load_aggtrades_streaming(
 
             except duckdb.BinderException as e:
                 # Fallback to old format (no header)
-                if "transact_time" in str(e):
+                if "transact_time" in str(e) or "agg_trade_id" in str(e):
                     logger.debug(f"Fallback to no-header format for {file_path.name}")
+
+                    # Count rows in CSV before INSERT
+                    csv_rows = conn.execute(f"""
+                        SELECT COUNT(*) FROM read_csv('{file_path}', auto_detect=true, header=false)
+                        WHERE column5 / 1000 >= {start_ts} AND column5 / 1000 <= {end_ts}
+                    """).fetchone()[0]
+
                     conn.execute(f"""
                         INSERT OR IGNORE INTO aggtrades_history
-                        (id, timestamp, symbol, price, quantity, side, gross_value)
+                        (agg_trade_id, timestamp, symbol, price, quantity, side, gross_value)
                         SELECT
-                            row_number() OVER (ORDER BY column5) + {max_id} AS id,
+                            CAST(column0 AS BIGINT) AS agg_trade_id,
                             to_timestamp(column5 / 1000) AS timestamp,
                             '{symbol}' AS symbol,
                             CAST(column1 AS DECIMAL(18, 8)) AS price,
@@ -146,14 +159,16 @@ def load_aggtrades_streaming(
                     raise
 
             # Count rows inserted from this file
-            new_max_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM aggtrades_history").fetchone()[0]
-            file_rows = new_max_id - max_id
+            current_count = conn.execute(
+                "SELECT COUNT(*) FROM aggtrades_history"
+            ).fetchone()[0]
+            file_rows = current_count - (initial_count + total_rows)
+            skipped_rows = csv_rows - file_rows
             total_rows += file_rows
-            max_id = new_max_id
             success_count += 1
 
             logger.info(
-                f"[{idx}/{len(files)}] {file_path.name}: {file_rows:,} rows (format: {format_used})"
+                f"[{idx}/{len(files)}] {file_path.name}: {file_rows:,} inserted, {skipped_rows:,} skipped (format: {format_used})"
             )
 
             # I/O throttle to prevent HDD overload
@@ -165,8 +180,19 @@ def load_aggtrades_streaming(
             logger.warning(f"[{idx}/{len(files)}] Skip {file_path.name}: {e}")
             continue
 
-    logger.info(f"Ingestion complete: {total_rows:,} rows from {success_count} files")
+    # Calculate total skipped rows for summary
+    final_count = conn.execute("SELECT COUNT(*) FROM aggtrades_history").fetchone()[0]
+    total_inserted = final_count - initial_count
+
+    logger.info(f"Ingestion complete: {total_inserted:,} rows inserted from {success_count} files")
     logger.info(f"Skipped {skip_count} files due to errors")
-    logger.info(f"ID range: {initial_max_id} → {max_id}")
+
+    # Status assessment for monitoring
+    if total_inserted == 0 and success_count > 0:
+        logger.info("Status: Database already complete (all rows already exist)")
+    elif total_inserted > 0:
+        logger.info(f"Status: Database updated with {total_inserted:,} new rows")
+    else:
+        logger.warning("Status: No data processed (check for errors above)")
 
     return total_rows
