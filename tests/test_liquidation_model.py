@@ -59,3 +59,25 @@ class TestBinanceLiquidationModel:
         assert result["liq_price"] == 110.0
         assert result["leverage"] == 10
         assert result["position_type"] == "short"
+
+    def test_distance_percent_and_usd_calculation(self):
+        """
+        Test that distance_percent and distance_usd are calculated correctly.
+
+        Formula:
+        - distance_percent = abs((entry_price - liq_price) / entry_price) * 100
+        - distance_usd = abs(entry_price - liq_price)
+
+        Example (long 10x):
+        - entry: 100, liq: 90
+        - distance_percent = abs((100 - 90) / 100) * 100 = 10.0%
+        - distance_usd = abs(100 - 90) = 10.0
+        """
+        model = BinanceLiquidationModel()
+
+        result = model.calculate_liquidation_price(
+            entry_price=100.0, leverage=10, position_type="long", maintenance_margin_rate=0.0
+        )
+
+        assert result["distance_percent"] == 10.0
+        assert result["distance_usd"] == 10.0

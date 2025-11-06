@@ -38,4 +38,14 @@ class BinanceLiquidationModel:
         # Round to 2 decimal places for clean API responses
         liq_price = round(liq_price, 2)
 
-        return {"liq_price": liq_price, "leverage": leverage, "position_type": position_type}
+        # Calculate distance from entry price
+        distance_usd = round(abs(entry_price - liq_price), 2)
+        distance_percent = round((distance_usd / entry_price) * 100, 2)
+
+        return {
+            "liq_price": liq_price,
+            "leverage": leverage,
+            "position_type": position_type,
+            "distance_percent": distance_percent,
+            "distance_usd": distance_usd,
+        }
