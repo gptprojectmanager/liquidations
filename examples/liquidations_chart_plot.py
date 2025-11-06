@@ -5,9 +5,9 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib import ticker
+from summary import summarize_liquidations
 
 from data import get_new_data
-from summary import summarize_liquidations
 
 BACKGROUND_COLOR = "#0d1117"
 FIGURE_SIZE = (15, 7)

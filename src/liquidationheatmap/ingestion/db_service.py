@@ -1,10 +1,10 @@
 """DuckDB service for querying Open Interest and market data."""
 
+import logging
 from decimal import Decimal
 from pathlib import Path
 from typing import Tuple
 
-import logging
 import duckdb
 
 from .csv_loader import load_csv_glob, load_funding_rate_csv
@@ -200,34 +200,59 @@ class DuckDBService:
         """Context manager exit."""
         self.close()
 
-    def get_large_trades(self, symbol: str = "BTCUSDT", min_gross_value: Decimal = Decimal("100000"), start_datetime: str = None, end_datetime: str = None):
+    def get_large_trades(
+        self,
+        symbol: str = "BTCUSDT",
+        min_gross_value: Decimal = Decimal("100000"),
+        start_datetime: str = None,
+        end_datetime: str = None,
+        limit: int = 2000,
+    ):
         """Get large trades from aggTrades data."""
         import pandas as pd
+
         logger = logging.getLogger(__name__)
-        
-        logger.info(f"get_large_trades called: symbol={symbol}, min_gross_value={min_gross_value}")
-        
+
+        logger.info(
+            f"get_large_trades called: symbol={symbol}, min_gross_value={min_gross_value}, limit={limit}"
+        )
+
         # Try to query from DB first
         try:
-            query = """
-                SELECT timestamp, price, quantity, side, gross_value
-                FROM aggtrades_history
-                WHERE symbol = ? AND gross_value >= ?
-                ORDER BY timestamp DESC
-                LIMIT 10000
-            """
-            df = self.conn.execute(query, [symbol, float(min_gross_value)]).df()
+            # Build query with optional date filters
+            query_parts = [
+                "SELECT timestamp, price, quantity, side, gross_value",
+                "FROM aggtrades_history",
+                "WHERE symbol = ? AND gross_value >= ?",
+            ]
+            params = [symbol, float(min_gross_value)]
+
+            if start_datetime:
+                query_parts.append("AND timestamp >= ?")
+                params.append(start_datetime)
+
+            if end_datetime:
+                query_parts.append("AND timestamp <= ?")
+                params.append(end_datetime)
+
+            query_parts.append("ORDER BY timestamp DESC")
+            query_parts.append(f"LIMIT {limit}")
+
+            query = " ".join(query_parts)
+            df = self.conn.execute(query, params).df()
             if not df.empty:
-                logger.info(f"Found {len(df)} trades in DB cache")
+                logger.info(
+                    f"Found {len(df)} trades in DB cache (timeframe: {start_datetime} to {end_datetime})"
+                )
                 return df
             logger.info("DB cache empty, loading from CSV")
         except Exception as e:
             logger.warning(f"DB query failed: {e}, loading from CSV")
-        
+
         # Load from CSV if not in DB
         csv_path = f"/media/sam/3TB-WDC/binance-history-data-downloader/data/{symbol}/aggTrades/{symbol}-aggTrades-2025-10-*.csv"
         logger.info(f"CSV pattern: {csv_path}")
-        
+
         # Create table
         try:
             self.conn.execute("""
@@ -242,7 +267,7 @@ class DuckDBService:
             """)
         except Exception as e:
             logger.debug(f"Table creation skipped (may exist): {e}")
-        
+
         # Load data using DOUBLE to avoid DECIMAL overflow
         try:
             logger.info(f"Loading CSV files matching: {csv_path}")
@@ -259,19 +284,24 @@ class DuckDBService:
                 WHERE (price::DOUBLE * quantity::DOUBLE) >= {float(min_gross_value)}
                 LIMIT 10000
             """)
-            
+
             # Return loaded data
-            df = self.conn.execute("""
+            df = self.conn.execute(
+                """
                 SELECT timestamp, price, quantity, side, gross_value
                 FROM aggtrades_history
                 WHERE symbol = ? AND gross_value >= ?
                 ORDER BY timestamp DESC
                 LIMIT 10000
-            """, [symbol, float(min_gross_value)]).df()
-            
-            logger.info(f"✅ Loaded {len(df)} large trades from CSV (buy: {len(df[df['side']=='buy'])}, sell: {len(df[df['side']=='sell'])})")
+            """,
+                [symbol, float(min_gross_value)],
+            ).df()
+
+            logger.info(
+                f"✅ Loaded {len(df)} large trades from CSV (buy: {len(df[df['side'] == 'buy'])}, sell: {len(df[df['side'] == 'sell'])})"
+            )
             return df
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to load trades from CSV: {e}", exc_info=True)
             # Return empty DataFrame on error

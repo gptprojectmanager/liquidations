@@ -39,7 +39,7 @@ def main():
 
     args = parser.parse_args()
 
-    console.print(f"\n[bold cyan]aggTrades Streaming Ingestion[/bold cyan]")
+    console.print("\n[bold cyan]aggTrades Streaming Ingestion[/bold cyan]")
     console.print(f"Symbol: {args.symbol}")
     console.print(f"Date range: {args.start_date} to {args.end_date}")
     console.print(f"Database: {args.db}")
@@ -64,7 +64,7 @@ def main():
         # Verify
         count = conn.execute('SELECT COUNT(*) FROM aggtrades_history').fetchone()[0]
         date_range = conn.execute('SELECT MIN(timestamp), MAX(timestamp) FROM aggtrades_history').fetchone()
-        console.print(f"\nDatabase stats:")
+        console.print("\nDatabase stats:")
         console.print(f"  Total rows: {count:,}")
         console.print(f"  Date range: {date_range[0]} → {date_range[1]}")
 

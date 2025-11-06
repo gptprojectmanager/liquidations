@@ -32,7 +32,7 @@ class TestE2EIntegration:
         # Step 1: Verify data ingestion (via DuckDBService)
         with DuckDBService() as db:
             current_price, open_interest = db.get_latest_open_interest("BTCUSDT")
-            
+
             assert current_price > 0
             assert open_interest > 0
             assert open_interest > Decimal("1000000")  # Should have real data
@@ -48,18 +48,18 @@ class TestE2EIntegration:
 
         # Verify calculations
         assert len(liquidations) == 6  # 3 leverage × 2 sides
-        
+
         long_liqs = [liq for liq in liquidations if liq.side == "long"]
         short_liqs = [liq for liq in liquidations if liq.side == "short"]
-        
+
         assert len(long_liqs) == 3
         assert len(short_liqs) == 3
-        
+
         # Long liquidations should be BELOW current price
         for liq in long_liqs:
             assert liq.price_level < current_price, \
                 f"Long {liq.leverage_tier} liquidation {liq.price_level} should be < current price {current_price}"
-        
+
         # Short liquidations should be ABOVE current price
         for liq in short_liqs:
             assert liq.price_level > current_price, \
@@ -67,23 +67,23 @@ class TestE2EIntegration:
 
         # Step 3: Query API
         response = client.get("/liquidations/levels?symbol=BTCUSDT&model=binance_standard")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         assert "long_liquidations" in data
         assert "short_liquidations" in data
         assert "current_price" in data
-        
+
         # Verify API returns valid structure
         assert len(data["long_liquidations"]) > 0
         assert len(data["short_liquidations"]) > 0
-        
+
         # Verify API liquidations match model behavior
         for liq in data["long_liquidations"]:
             liq_price = Decimal(liq["price_level"])
             assert liq_price < Decimal(str(data["current_price"]))
-        
+
         for liq in data["short_liquidations"]:
             liq_price = Decimal(liq["price_level"])
             assert liq_price > Decimal(str(data["current_price"]))
@@ -91,20 +91,20 @@ class TestE2EIntegration:
     def test_api_response_time_under_50ms_p95(self, client):
         """Test that API p95 response time is <50ms."""
         response_times = []
-        
+
         # Make 20 requests
         for _ in range(20):
             start = time.time()
             response = client.get("/liquidations/levels?symbol=BTCUSDT&model=binance_standard")
             response_times.append((time.time() - start) * 1000)  # Convert to ms
-            
+
             assert response.status_code == 200
-        
+
         # Calculate p95
         response_times.sort()
         p95_index = int(len(response_times) * 0.95)
         p95_time = response_times[p95_index]
-        
+
         # Note: This may fail if DB is slow, but should pass on SSD
         # Relaxed to 100ms for CI environments
         assert p95_time < 100, f"P95 response time {p95_time:.1f}ms exceeds 100ms threshold"
@@ -112,14 +112,14 @@ class TestE2EIntegration:
     def test_ensemble_model_confidence_adjusts_based_on_agreement(self, client):
         """Test that ensemble model lowers confidence when models disagree."""
         response = client.get("/liquidations/levels?symbol=BTCUSDT&model=ensemble")
-        
+
         assert response.status_code == 200
         data = response.json()
-        
+
         # Check that confidence is present
         if len(data["long_liquidations"]) > 0:
             first_long = data["long_liquidations"][0]
             confidence = Decimal(first_long["confidence"])
-            
+
             # Confidence should be reasonable (0.7-0.95 range)
             assert Decimal("0.6") <= confidence <= Decimal("1.0")

@@ -17,7 +17,6 @@ Modes:
 import argparse
 import logging
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple
 
@@ -58,17 +57,17 @@ class CompleteIngestionOrchestrator:
     def ensure_schema(self):
         """Create table and indexes if they don't exist."""
         print("\n🔧 Phase 0: Schema Validation")
-        
+
         try:
             # Check if table exists
             result = self.conn.execute("""
                 SELECT COUNT(*) FROM information_schema.tables 
                 WHERE table_name = 'aggtrades_history'
             """).fetchone()
-            
+
             if result[0] == 0:
                 print("⚠️  Table does not exist - creating schema...")
-                
+
                 # Create table with PRIMARY KEY
                 self.conn.execute("""
                     CREATE TABLE aggtrades_history (
@@ -82,7 +81,7 @@ class CompleteIngestionOrchestrator:
                     )
                 """)
                 print("✅ Table created with PRIMARY KEY on agg_trade_id")
-                
+
                 # Create indexes
                 self.conn.execute(
                     "CREATE INDEX idx_aggtrades_timestamp_symbol ON aggtrades_history(timestamp, symbol)"
@@ -98,18 +97,18 @@ class CompleteIngestionOrchestrator:
                     FROM information_schema.table_constraints 
                     WHERE table_name = 'aggtrades_history' AND constraint_type = 'PRIMARY KEY'
                 """).fetchall()
-                
+
                 if pk_check:
                     print("✅ Schema validated (PRIMARY KEY exists)")
                 else:
                     print("⚠️  WARNING: Table exists but has NO PRIMARY KEY!")
                     print("   Run /tmp/rebuild_db_with_pk_auto.py to fix this!")
                     return False
-                    
+
         except Exception as e:
             print(f"❌ Schema error: {e}")
             return False
-            
+
         return True
 
     def discover_files(self) -> List[Path]:
@@ -174,7 +173,7 @@ class CompleteIngestionOrchestrator:
                 print(f"   • {start} → {end} ({days} days)")
 
             return gaps
-            
+
         except Exception as e:
             logger.error(f"Gap detection failed: {e}")
             return []
@@ -310,7 +309,7 @@ class CompleteIngestionOrchestrator:
                     print("\n❌ --start-date and --end-date required for --mode full")
                     return 1
 
-                print(f"\n🚀 Phase 2: Full Ingestion Mode")
+                print("\n🚀 Phase 2: Full Ingestion Mode")
                 print(f"Loading ALL files from {self.start_date} to {self.end_date}")
                 print("(Duplicates automatically ignored via INSERT OR IGNORE)")
 

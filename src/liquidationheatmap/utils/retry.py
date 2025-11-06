@@ -1,7 +1,7 @@
 """Simple retry logic for database operations (KISS approach)."""
 
-import time
 import logging
+import time
 from typing import Callable, TypeVar
 
 T = TypeVar('T')
@@ -28,7 +28,7 @@ def retry_on_error(func: Callable[[], T], max_attempts: int = 3, backoff_seconds
         >>> result = retry_on_error(lambda: db.conn.execute(query))
     """
     last_exception = None
-    
+
     for attempt in range(max_attempts):
         try:
             return func()
@@ -40,5 +40,5 @@ def retry_on_error(func: Callable[[], T], max_attempts: int = 3, backoff_seconds
                 time.sleep(sleep_time)
             else:
                 logger.error(f"All {max_attempts} attempts failed. Last error: {e}")
-    
+
     raise last_exception

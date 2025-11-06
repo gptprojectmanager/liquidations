@@ -124,14 +124,14 @@ class BinanceStandardModel(AbstractLiquidationModel):
             # LONG positions: Entry prices distributed ABOVE current price
             entry_range_long = np.linspace(
                 float(current_price) * 1.01,  # 1% above
-                float(current_price) * 1.15,  # 15% above  
+                float(current_price) * 1.15,  # 15% above
                 num_bins
             )
-            
+
             # Gaussian distribution for realistic volume clustering
             entry_weights_long = np.exp(-0.5 * ((entry_range_long - float(current_price) * 1.05) / (float(current_price) * 0.03)) ** 2)
             entry_weights_long = entry_weights_long / entry_weights_long.sum()
-            
+
             for entry_price, weight in zip(entry_range_long, entry_weights_long):
                 liq_price = self._calculate_long_liquidation(Decimal(str(entry_price)), leverage, mmr)
                 liquidations.append(
@@ -152,11 +152,11 @@ class BinanceStandardModel(AbstractLiquidationModel):
                 float(current_price) * 0.99,  # 1% below
                 num_bins
             )
-            
+
             # Gaussian distribution
             entry_weights_short = np.exp(-0.5 * ((entry_range_short - float(current_price) * 0.95) / (float(current_price) * 0.03)) ** 2)
             entry_weights_short = entry_weights_short / entry_weights_short.sum()
-            
+
             for entry_price, weight in zip(entry_range_short, entry_weights_short):
                 liq_price = self._calculate_short_liquidation(Decimal(str(entry_price)), leverage, mmr)
                 liquidations.append(

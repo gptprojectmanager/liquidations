@@ -8,12 +8,11 @@ Usage:
 import argparse
 import logging
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import duckdb
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -116,7 +115,7 @@ def main():
         interval = time_interval_map[args.time_bucket]
 
         # Generate heatmap cache
-        console.print(f"📊 [cyan]Aggregating liquidations into heatmap buckets...[/cyan]")
+        console.print("📊 [cyan]Aggregating liquidations into heatmap buckets...[/cyan]")
         logger.info(f"Aggregating with price_bucket=${args.price_bucket}, time_bucket={interval}")
 
         # Simplified aggregation (without time_bucket_gapfill for compatibility)
@@ -143,7 +142,7 @@ def main():
         # Calculate duration
         duration = (datetime.now() - start_time).total_seconds()
 
-        console.print(f"\n[bold green]✅ Heatmap cache generated successfully![/bold green]")
+        console.print("\n[bold green]✅ Heatmap cache generated successfully![/bold green]")
         console.print(f"Rows inserted: [bold]{rows_inserted}[/bold]")
         console.print(f"Duration: [bold]{duration:.2f}s[/bold]\n")
 

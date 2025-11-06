@@ -12,11 +12,10 @@ import argparse
 import logging
 import os
 import signal
+import subprocess
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
-import subprocess
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -183,7 +182,7 @@ def main():
         print("   Resolution:")
         print(f"   1. Check if process is legitimate: ps aux | grep {wrapper.pid_file.stem}")
         print(f"   2. Kill if stuck: kill -9 <PID> && rm {wrapper.pid_file}")
-        print(f"   3. Re-run this script")
+        print("   3. Re-run this script")
         return 1
     print("✅ No locks detected\n")
 

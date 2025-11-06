@@ -1,6 +1,7 @@
 """Tests for abstract base liquidation model."""
 
 import pytest
+
 from src.liquidationheatmap.models.base import AbstractLiquidationModel
 
 

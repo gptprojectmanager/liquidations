@@ -115,19 +115,22 @@ async def get_liquidation_levels(
     )
 
     # AGGREGATE liquidations into price bins to reduce data size for frontend
-    from collections import defaultdict
     import math
+    from collections import defaultdict
 
     logger = logging.getLogger(__name__)
     logger.info(f"Raw liquidations: {len(liquidations)}")
 
-    # Calculate dynamic bin size (py-liquidation-map algorithm)
+    # Calculate dynamic bin size (py-liquidation-map algorithm, enhanced for higher granularity)
     price_min = min(liq.price_level for liq in liquidations)
     price_max = max(liq.price_level for liq in liquidations)
     price_range = float(price_max - price_min)
-    tick_degits = 2 - math.ceil(math.log10(price_range))
+    # Add +1 to tick_degits to get 10x smaller bins (e.g., $100 instead of $1000 for BTC)
+    tick_degits = 2 - math.ceil(math.log10(price_range)) + 1
     bin_size = Decimal(10 ** (-tick_degits))
-    logger.info(f"Dynamic binning: range=${price_range:.2f} (${price_min}-${price_max}), tick_degits={tick_degits}, bin_size=${bin_size}")
+    logger.info(
+        f"Dynamic binning: range=${price_range:.2f} (${price_min}-${price_max}), tick_degits={tick_degits}, bin_size=${bin_size}"
+    )
 
     # Aggregate into dynamic price bins, separated by leverage tier
     # KEY: Use (bin_price, leverage_tier) tuple to preserve leverage separation

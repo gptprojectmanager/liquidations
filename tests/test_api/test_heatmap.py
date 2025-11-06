@@ -57,7 +57,7 @@ class TestHeatmapEndpoint:
         """Test that heatmap returns empty list when no cache data."""
         response = client.get("/liquidations/heatmap?symbol=BTCUSDT&model=binance_standard")
         data = response.json()
-        
+
         # Should return 200 with empty data if cache not populated
         assert response.status_code == 200
         assert isinstance(data["data"], list)

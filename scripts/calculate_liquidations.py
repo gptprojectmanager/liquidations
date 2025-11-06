@@ -8,7 +8,6 @@ Usage:
 
 import argparse
 import time
-from datetime import datetime
 from decimal import Decimal
 
 from rich.console import Console
@@ -56,7 +55,7 @@ def main():
 
     args = parser.parse_args()
 
-    console.print(f"\n[bold cyan]Liquidation Calculator[/bold cyan]")
+    console.print("\n[bold cyan]Liquidation Calculator[/bold cyan]")
     console.print(f"Symbol: {args.symbol}")
     console.print(f"Model: {args.model}")
     console.print(f"Leverage tiers: {args.leverage}\n")
@@ -65,7 +64,7 @@ def main():
     with DuckDBService() as db:
         console.print("[yellow]Fetching data from DuckDB...[/yellow]")
         current_price, open_interest = db.get_latest_open_interest(args.symbol)
-        
+
         if args.funding_rate is not None:
             funding_rate = Decimal(str(args.funding_rate))
         else:
@@ -124,7 +123,7 @@ def main():
 
         # Insert results
         console.print("[yellow]Storing results in DuckDB...[/yellow]")
-        
+
         for idx, liq in enumerate(liquidations):
             db.conn.execute("""
                 INSERT OR IGNORE INTO liquidation_levels VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

@@ -108,7 +108,7 @@ def test_api_uses_dynamic_binning_for_btc_range(client):
                 f"Still using hardcoded $100 bins. "
                 f"Expected dynamic binning (got {most_common_spacing})"
             )
-            
+
             # Verify bins are larger than $100 (appropriate for large range)
             assert most_common_spacing > 100.0, (
                 f"Bin spacing {most_common_spacing} too small for ~$24k price range"

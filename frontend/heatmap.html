@@ -17,7 +17,7 @@
     <script>
         async function loadHeatmap() {
             try {
-                const response = await fetch('http://localhost:8000/liquidations/heatmap?symbol=BTCUSDT&model=binance_standard');
+                const response = await fetch('http://localhost:8888/liquidations/heatmap?symbol=BTCUSDT&model=binance_standard');
                 const data = await response.json();
                 
                 if (!data.data || data.data.length === 0) {

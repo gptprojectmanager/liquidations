@@ -128,12 +128,12 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             gross_value DOUBLE NOT NULL
         );
     """)
-    
+
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_aggtrades_timestamp_symbol
         ON aggtrades_history(timestamp, symbol);
     """)
-    
+
     print("✅ Created table: aggtrades_history (with 1 index)")
 
 
