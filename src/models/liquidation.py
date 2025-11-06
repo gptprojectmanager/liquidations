@@ -42,10 +42,19 @@ class BinanceLiquidationModel:
         distance_usd = round(abs(entry_price - liq_price), 2)
         distance_percent = round((distance_usd / entry_price) * 100, 2)
 
+        # Classify risk level based on leverage
+        if leverage >= 50:
+            risk_level = "high"
+        elif leverage >= 25:
+            risk_level = "medium"
+        else:
+            risk_level = "low"
+
         return {
             "liq_price": liq_price,
             "leverage": leverage,
             "position_type": position_type,
             "distance_percent": distance_percent,
             "distance_usd": distance_usd,
+            "risk_level": risk_level,
         }

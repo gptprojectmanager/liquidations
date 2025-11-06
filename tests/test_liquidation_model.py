@@ -81,3 +81,33 @@ class TestBinanceLiquidationModel:
 
         assert result["distance_percent"] == 10.0
         assert result["distance_usd"] == 10.0
+
+    def test_risk_level_high_leverage(self):
+        """Test that leverage >= 50x is classified as 'high' risk."""
+        model = BinanceLiquidationModel()
+
+        result = model.calculate_liquidation_price(
+            entry_price=100.0, leverage=50, position_type="long"
+        )
+
+        assert result["risk_level"] == "high"
+
+    def test_risk_level_medium_leverage(self):
+        """Test that 25x <= leverage < 50x is classified as 'medium' risk."""
+        model = BinanceLiquidationModel()
+
+        result = model.calculate_liquidation_price(
+            entry_price=100.0, leverage=25, position_type="long"
+        )
+
+        assert result["risk_level"] == "medium"
+
+    def test_risk_level_low_leverage(self):
+        """Test that leverage < 25x is classified as 'low' risk."""
+        model = BinanceLiquidationModel()
+
+        result = model.calculate_liquidation_price(
+            entry_price=100.0, leverage=10, position_type="long"
+        )
+
+        assert result["risk_level"] == "low"
