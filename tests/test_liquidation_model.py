@@ -111,3 +111,37 @@ class TestBinanceLiquidationModel:
         )
 
         assert result["risk_level"] == "low"
+
+    def test_calculate_multiple_leverage_levels(self):
+        """
+        Test calculating liquidations for multiple leverage levels at once.
+
+        This is the main method for API usage - returns dict with long_liquidations
+        and short_liquidations lists.
+        """
+        model = BinanceLiquidationModel()
+
+        results = model.calculate_liquidation_levels(
+            entry_price=50000.0, leverage_levels=[5, 10, 25, 50, 100]
+        )
+
+        # Check structure
+        assert "long_liquidations" in results
+        assert "short_liquidations" in results
+
+        # Check counts
+        assert len(results["long_liquidations"]) == 5
+        assert len(results["short_liquidations"]) == 5
+
+        # Verify first long liquidation (5x)
+        long_5x = results["long_liquidations"][0]
+        assert long_5x["leverage"] == 5
+        assert long_5x["position_type"] == "long"
+        assert "liq_price" in long_5x
+        assert "distance_percent" in long_5x
+        assert "risk_level" in long_5x
+
+        # Verify first short liquidation (5x)
+        short_5x = results["short_liquidations"][0]
+        assert short_5x["leverage"] == 5
+        assert short_5x["position_type"] == "short"

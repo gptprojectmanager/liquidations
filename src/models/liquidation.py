@@ -58,3 +58,47 @@ class BinanceLiquidationModel:
             "distance_usd": distance_usd,
             "risk_level": risk_level,
         }
+
+    def calculate_liquidation_levels(
+        self,
+        entry_price: float,
+        leverage_levels: list[int] = None,
+        maintenance_margin_rate: float = 0.004,
+    ) -> dict:
+        """
+        Calculate liquidation levels for multiple leverages.
+
+        Args:
+            entry_price: Current or entry price
+            leverage_levels: List of leverage multipliers (default: [5, 10, 25, 50, 100, 125])
+            maintenance_margin_rate: Maintenance margin rate (default 0.004 = 0.4%)
+
+        Returns:
+            Dictionary with long_liquidations and short_liquidations lists
+        """
+        if leverage_levels is None:
+            leverage_levels = [5, 10, 25, 50, 100, 125]
+
+        long_liquidations = []
+        short_liquidations = []
+
+        for leverage in leverage_levels:
+            # Calculate long liquidation
+            long_liq = self.calculate_liquidation_price(
+                entry_price=entry_price,
+                leverage=leverage,
+                position_type="long",
+                maintenance_margin_rate=maintenance_margin_rate,
+            )
+            long_liquidations.append(long_liq)
+
+            # Calculate short liquidation
+            short_liq = self.calculate_liquidation_price(
+                entry_price=entry_price,
+                leverage=leverage,
+                position_type="short",
+                maintenance_margin_rate=maintenance_margin_rate,
+            )
+            short_liquidations.append(short_liq)
+
+        return {"long_liquidations": long_liquidations, "short_liquidations": short_liquidations}
