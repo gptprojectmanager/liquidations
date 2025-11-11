@@ -475,19 +475,16 @@ class DuckDBService:
             ) AS t (leverage, weight)
         ),
 
-        -- Step 1: Calculate volume profile from {lookback_days}-day aggTrades (SHAPE only)
-        -- PERFORMANCE OPTIMIZATION: Pre-aggregate by DAY first (100x faster!)
-        -- Instead of grouping millions of rows, we group by day then by price_bin
+        -- Step 1: Use pre-cached volume_profile_daily table (BLAZING FAST!)
+        -- This table is pre-aggregated from aggtrades_history with whale trades only
+        -- No need to scan 1.9B rows - just query ~7K pre-computed rows
         DailyProfile AS (
             SELECT
-                DATE_TRUNC('day', timestamp) as trade_date,
-                FLOOR(price / (SELECT price_bin_size FROM Params)) * (SELECT price_bin_size FROM Params) AS price_bin,
-                SUM(gross_value) AS daily_volume
-            FROM aggtrades_history
+                FLOOR(price_bin / (SELECT price_bin_size FROM Params)) * (SELECT price_bin_size FROM Params) AS price_bin,
+                total_volume AS daily_volume
+            FROM volume_profile_daily
             WHERE symbol = ?
-              AND timestamp >= (SELECT start_time FROM Params)
-              AND gross_value >= 500000  -- Whale trades only (>$500k)
-            GROUP BY 1, 2
+              AND trade_date >= DATE_TRUNC('day', (SELECT start_time FROM Params))
         ),
 
         VolumeProfile AS (
