@@ -12,8 +12,8 @@
     <div class="controls" style="display: flex; justify-content: space-between; align-items: center;">
         <div>
             <select id="modelSelect">
-                <option value="binance_standard">Binance Standard</option>
-                <option value="ensemble">Ensemble</option>
+                <option value="openinterest" selected>Open Interest (recommended)</option>
+                <option value="aggtrades">AggTrades (legacy)</option>
             </select>
             <button onclick="loadLevels()">Load Levels</button>
             <span id="currentPrice" style="margin-left: 20px; color: #f0b90b; font-weight: bold;"></span>
@@ -115,14 +115,14 @@
                 });
             });
 
-            // Calculate cumulative distributions
+            // Calculate cumulative distributions (Coinglass style: start from current price)
             const allPrices = [
                 ...data.long_liquidations.map(l => parseFloat(l.price_level)),
                 ...data.short_liquidations.map(l => parseFloat(l.price_level))
             ].sort((a, b) => a - b);
 
-            const cumulativeLong = calculateCumulative(data.long_liquidations, allPrices, true);
-            const cumulativeShort = calculateCumulative(data.short_liquidations, allPrices, false);
+            const cumulativeLong = calculateCumulative(data.long_liquidations, allPrices, currentPrice, true);
+            const cumulativeShort = calculateCumulative(data.short_liquidations, allPrices, currentPrice, false);
 
             // Cumulative Long line (red, descending from left)
             traces.push({
@@ -229,23 +229,48 @@
             return grouped;
         }
 
-        function calculateCumulative(liquidations, allPrices, isLong = false) {
+        function calculateCumulative(liquidations, allPrices, currentPrice, isLong = false) {
+            // Coinglass logic (from Gemini analysis):
+            // - SHORT (green): Standard cumulative from LEFT to RIGHT across ALL prices
+            //   cumulative_shorts[i] = sum(volumes[0..i])
+            // - LONG (red): Reverse cumulative from RIGHT to LEFT across ALL prices
+            //   cumulative_longs[i] = sum(volumes[i..N])
+
             const prices = [];
             const values = [];
 
-            allPrices.forEach(price => {
-                // For LONG: cumulative from right (sum all liquidations >= price)
-                // For SHORT: cumulative from left (sum all liquidations <= price)
-                const matchingLiqs = liquidations.filter(l => {
-                    const liqPrice = parseFloat(l.price_level);
-                    return isLong ? liqPrice >= price : liqPrice <= price;
+            // Sort ALL prices ascending (low to high)
+            const sortedPrices = [...allPrices].sort((a, b) => a - b);
+
+            if (isLong) {
+                // LONG: Reverse cumulative (starts high on left, decreases to right)
+                let cumulativeSum = 0;
+
+                // Calculate total first (iterate from right to left)
+                for (let i = sortedPrices.length - 1; i >= 0; i--) {
+                    const price = sortedPrices[i];
+                    const volumeAtPrice = liquidations
+                        .filter(l => parseFloat(l.price_level) === price)
+                        .reduce((sum, l) => sum + parseFloat(l.volume), 0);
+
+                    cumulativeSum += volumeAtPrice;
+                    prices.unshift(price);  // Add to beginning
+                    values.unshift(cumulativeSum);  // Add to beginning
+                }
+            } else {
+                // SHORT: Standard cumulative (starts low on left, increases to right)
+                let cumulativeSum = 0;
+
+                sortedPrices.forEach(price => {
+                    const volumeAtPrice = liquidations
+                        .filter(l => parseFloat(l.price_level) === price)
+                        .reduce((sum, l) => sum + parseFloat(l.volume), 0);
+
+                    cumulativeSum += volumeAtPrice;
+                    prices.push(price);
+                    values.push(cumulativeSum);
                 });
-                const cumulative = matchingLiqs.reduce((sum, l) =>
-                    sum + parseFloat(l.volume), 0
-                );
-                prices.push(price);
-                values.push(cumulative);
-            });
+            }
 
             return { prices, values };
         }

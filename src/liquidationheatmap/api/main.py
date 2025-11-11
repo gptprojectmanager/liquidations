@@ -51,10 +51,11 @@ async def health_check():
 @app.get("/liquidations/levels", response_model=LiquidationResponse)
 async def get_liquidation_levels(
     symbol: str = Query("BTCUSDT", description="Trading pair symbol"),
-    model: Literal["binance_standard", "ensemble"] = Query(
-        "binance_standard", description="Liquidation model to use"
+    model: Literal["aggtrades", "openinterest"] = Query(
+        "openinterest",
+        description="Calculation model: aggtrades (legacy) or openinterest (OI-based, recommended)",
     ),
-    timeframe: int = Query(30, description="Timeframe in days (for future use)"),
+    timeframe: int = Query(30, description="Timeframe in days"),
 ):
     """Calculate liquidation levels for given symbol and model.
 
@@ -68,25 +69,9 @@ async def get_liquidation_levels(
     Returns:
         LiquidationResponse with long and short liquidations
     """
-    # Fetch real data from DuckDB
-    with DuckDBService() as db:
-        _, open_interest = db.get_latest_open_interest(symbol)
-        funding_rate = db.get_latest_funding_rate(symbol)
-
-        # Load large trades for liquidation calculation (timeframe-based)
-        from datetime import datetime, timedelta
-
-        end_time = datetime.now().isoformat()
-        start_time = (datetime.now() - timedelta(days=timeframe)).isoformat()
-        large_trades = db.get_large_trades(
-            symbol=symbol,
-            start_datetime=start_time,
-            end_datetime=end_time,
-            min_gross_value=Decimal("100000"),  # $100k threshold
-        )
-
     # Get real-time current price from Binance API
     import json
+    from datetime import datetime, timedelta
     from urllib.request import urlopen
 
     try:
@@ -94,91 +79,92 @@ async def get_liquidation_levels(
             f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}", timeout=5
         ) as resp:
             data = json.loads(resp.read().decode())
-            current_price = Decimal(data["price"])
+            current_price = float(data["price"])
     except:
         # Fallback to historical price if API fails
         with DuckDBService() as db_fallback:
-            current_price, _ = db_fallback.get_latest_open_interest(symbol)
+            price_decimal, _ = db_fallback.get_latest_open_interest(symbol)
+            current_price = float(price_decimal)
 
-    # Select model
-    if model == "ensemble":
-        liquidation_model = EnsembleModel()
-    else:
-        liquidation_model = BinanceStandardModel()
+    # Dynamic bin size based on timeframe (Coinglass approach)
+    if timeframe <= 7:
+        bin_size = 200.0  # 7d: High granularity
+    elif timeframe <= 30:
+        bin_size = 500.0  # 30d: Medium granularity
+    else:  # 90 days
+        bin_size = 1500.0  # 90d: Low granularity
 
-    # Calculate liquidations using REAL trade data
-    liquidations = liquidation_model.calculate_liquidations(
-        current_price=current_price,
-        open_interest=open_interest,
-        symbol=symbol,
-        large_trades=large_trades,  # Pass real trades instead of synthetic data
-    )
+    # Choose calculation model
+    with DuckDBService() as db:
+        if model == "openinterest":
+            # OI-based model: distributes current Open Interest based on volume profile
+            # This is the RECOMMENDED model - more realistic than aggTrades
+            bins_df = db.calculate_liquidations_oi_based(
+                symbol=symbol,
+                current_price=current_price,
+                bin_size=bin_size,
+                lookback_days=timeframe,  # Use API timeframe parameter
+            )
 
-    # AGGREGATE liquidations into price bins to reduce data size for frontend
-    import math
-    from collections import defaultdict
+            # Rename columns to match expected format
+            if not bins_df.empty and "liq_price" in bins_df.columns:
+                # OI model returns liq_price, need to aggregate by price_bucket
+                bins_df = (
+                    bins_df.groupby(["price_bucket", "leverage", "side"])
+                    .agg(
+                        {
+                            "volume": "sum",
+                        }
+                    )
+                    .reset_index()
+                )
+                bins_df["count"] = 1  # Placeholder count
+                bins_df.rename(columns={"volume": "total_volume"}, inplace=True)
+        else:  # model == "aggtrades"
+            # Legacy aggTrades-based model (kept for comparison)
+            # NOTE: This model counts ALL trades (opens + closes), inflating volumes ~17x
+            end_time = datetime.now().isoformat()
+            start_time = (datetime.now() - timedelta(days=timeframe)).isoformat()
+
+            bins_df = db.calculate_liquidations_sql(
+                symbol=symbol,
+                current_price=current_price,
+                bin_size=bin_size,
+                min_gross_value=500000.0,  # $500k whale trades
+                start_datetime=start_time,
+                end_datetime=end_time,
+            )
 
     logger = logging.getLogger(__name__)
-    logger.info(f"Raw liquidations: {len(liquidations)}")
+    logger.info(f"SQL returned {len(bins_df)} aggregated bins")
 
-    # Calculate dynamic bin size (py-liquidation-map algorithm, enhanced for higher granularity)
-    price_min = min(liq.price_level for liq in liquidations)
-    price_max = max(liq.price_level for liq in liquidations)
-    price_range = float(price_max - price_min)
-    # Add +1 to tick_degits to get 10x smaller bins (e.g., $100 instead of $1000 for BTC)
-    tick_degits = 2 - math.ceil(math.log10(price_range)) + 1
-    bin_size = Decimal(10 ** (-tick_degits))
-    logger.info(
-        f"Dynamic binning: range=${price_range:.2f} (${price_min}-${price_max}), tick_degits={tick_degits}, bin_size=${bin_size}"
-    )
+    # Convert DataFrame to API response format
+    long_liqs = []
+    short_liqs = []
 
-    # Aggregate into dynamic price bins, separated by leverage tier
-    # KEY: Use (bin_price, leverage_tier) tuple to preserve leverage separation
-    long_bins = defaultdict(lambda: {"volume": Decimal("0"), "count": 0})
-    short_bins = defaultdict(lambda: {"volume": Decimal("0"), "count": 0})
-
-    for liq in liquidations:
-        # Round to nearest $100 bin
-        bin_price = (liq.price_level // bin_size) * bin_size
-
-        # Use (price, leverage) tuple as key to keep leverage tiers separated
-        if liq.side == "long" and liq.price_level < current_price:
-            key = (bin_price, liq.leverage_tier)
-            long_bins[key]["volume"] += liq.liquidation_volume
-            long_bins[key]["count"] += 1
-        elif liq.side == "short" and liq.price_level > current_price:
-            key = (bin_price, liq.leverage_tier)
-            short_bins[key]["volume"] += liq.liquidation_volume
-            short_bins[key]["count"] += 1
-
-    logger.info(f"Aggregated bins: {len(long_bins)} long, {len(short_bins)} short")
-
-    # Separate long (below price) and short (above price)
-    # Extract real leverage from tuple key
-    long_liqs = [
-        {
-            "price_level": str(price),
-            "volume": str(data["volume"]),
-            "count": data["count"],
-            "leverage": leverage,  # Real leverage from data
+    for _, row in bins_df.iterrows():
+        liq_entry = {
+            "price_level": str(row["price_bucket"]),
+            "volume": str(row["total_volume"]),
+            "count": int(row["count"]),
+            "leverage": f"{int(row['leverage'])}x",
         }
-        for (price, leverage), data in sorted(long_bins.items(), reverse=True)
-    ]
 
-    short_liqs = [
-        {
-            "price_level": str(price),
-            "volume": str(data["volume"]),
-            "count": data["count"],
-            "leverage": leverage,  # Real leverage from data
-        }
-        for (price, leverage), data in sorted(short_bins.items())
-    ]
+        if row["side"] == "buy":  # Long positions
+            long_liqs.append(liq_entry)
+        else:  # Short positions
+            short_liqs.append(liq_entry)
+
+    # Sort: longs descending (high to low), shorts ascending (low to high)
+    long_liqs = sorted(long_liqs, key=lambda x: float(x["price_level"]), reverse=True)
+    short_liqs = sorted(short_liqs, key=lambda x: float(x["price_level"]))
+
+    logger.info(f"Formatted response: {len(long_liqs)} long, {len(short_liqs)} short")
 
     return LiquidationResponse(
         symbol=symbol,
         model=model,
-        current_price=current_price,
+        current_price=str(current_price),
         long_liquidations=long_liqs,
         short_liquidations=short_liqs,
     )
