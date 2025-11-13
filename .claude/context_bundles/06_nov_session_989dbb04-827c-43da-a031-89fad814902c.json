@@ -307,7 +307,349 @@
       "timestamp": "2025-11-06T22:39:49.484752",
       "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py",
       "old_string": "        # Try to query from DB first\n        try:\n            query = f\"\"\"\n                SELECT ti..."
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-06T22:42:31.078616",
+      "todo_count": 5
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T22:42:43.326919",
+      "command": "lsof -i :8888 | grep -v COMMAND | awk '{print $2}' | xargs -r kill -9 2>/dev/null; echo \"Killed old servers (if any)\"",
+      "description": "Kill any old servers on port 8888"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T22:42:53.220676",
+      "command": "uv run uvicorn src.liquidationheatmap.api.main:app --host 127.0.0.1 --port 8888 --reload 2>&1 &",
+      "description": "Start FastAPI server with auto-reload"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T22:43:05.994449",
+      "command": "sleep 3 && curl -s http://localhost:8888/health | jq .",
+      "description": "Check server health"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T22:43:19.526426",
+      "command": "curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=7\" | jq '{timeframe: \"7d\", long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length), total: ((.long_liquidations | length) + (.short_liquidations | length))}'",
+      "description": "Test 7-day timeframe"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T22:43:29.683940",
+      "command": "curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30\" | jq '{timeframe: \"30d\", long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length), total: ((.long_liquidations | length) + (.short_liquidations | length))}'",
+      "description": "Test 30-day timeframe"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T22:43:41.154425",
+      "bash_id": "92b60e",
+      "filter": "timeframe|Found.*trades"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-06T22:46:55.665048",
+      "todo_count": 5
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-06T22:47:17.913822",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-06T22:47:30.373463",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py",
+      "old_string": "    def get_large_trades(\n        self,\n        symbol: str = \"BTCUSDT\",\n        min_gross_value: De..."
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T22:47:40.014149",
+      "bash_id": "92b60e",
+      "filter": "Reloading|detected changes"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T22:47:46.474022",
+      "command": "sleep 5 && echo \"Testing timeframes...\"",
+      "description": "Wait for server reload"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T22:47:59.276937",
+      "command": "echo \"=== Testing 7-day timeframe ===\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=7\" | jq '{timeframe: \"7d\", long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length), total: ((.long_liquidations | length) + (.short_liquidations | length))}'",
+      "description": "Test 7-day timeframe"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T22:48:42.544377",
+      "command": "echo \"=== Testing 30-day timeframe ===\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30\" | jq '{timeframe: \"30d\", long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length), total: ((.long_liquidations | length) + (.short_liquidations | length))}'",
+      "description": "Test 30-day timeframe"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T22:50:54.269525",
+      "bash_id": "354b14"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T22:51:01.573887",
+      "bash_id": "92b60e",
+      "filter": "Found.*trades|MODE 1.*Processing"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-06T22:53:30.406174",
+      "todo_count": 6
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-06T22:53:38.303425",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-06T22:53:53.101577",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py",
+      "old_string": "        # Try to query from DB first\n        try:\n            # Build query with temporal filters ON..."
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T22:54:01.739440",
+      "bash_id": "92b60e",
+      "filter": "Reloading|detected changes|statistical sampling"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T22:54:08.390967",
+      "command": "sleep 5 && echo \"Server reloaded, testing statistical sampling...\"",
+      "description": "Wait for server to stabilize"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T22:54:21.117632",
+      "command": "echo \"=== Testing 7-day timeframe (should use all trades) ===\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=7\" | jq '{timeframe: \"7d\", long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length), total: ((.long_liquidations | length) + (.short_liquidations | length))}'",
+      "description": "Test 7-day with statistical sampling"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T22:55:03.064044",
+      "bash_id": "92b60e",
+      "filter": "statistical sampling|Loaded.*trades"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T22:55:11.734710",
+      "command": "echo \"=== Testing 30-day timeframe (should apply sampling ~1M → 200k) ===\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30\" | jq '{timeframe: \"30d\", long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length), total: ((.long_liquidations | length) + (.short_liquidations | length))}'",
+      "description": "Test 30-day with statistical sampling"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T22:55:54.919788",
+      "bash_id": "92b60e",
+      "filter": "Applying statistical sampling|Loaded.*trades.*30"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-06T22:56:06.525832",
+      "todo_count": 6
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-06T23:05:29.280141",
+      "todo_count": 4
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-06T23:05:36.694226",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-06T23:05:49.859450",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py",
+      "old_string": "        # Try to query from DB first\n        try:\n            # Step 1: Count total trades in timefr..."
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-06T23:06:02.202520",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-06T23:06:09.821198",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-06T23:06:21.355520",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py",
+      "old_string": "    import math\n    from collections import defaultdict\n\n    logger = logging.getLogger(__name__)\n  ..."
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-06T23:06:30.780778",
+      "todo_count": 4
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T23:06:36.365654",
+      "bash_id": "92b60e",
+      "filter": "Reloading|detected changes"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T23:06:42.307753",
+      "command": "sleep 5 && curl -s http://localhost:8888/health | jq .",
+      "description": "Check server health after reload"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T23:07:08.160654",
+      "command": "echo \"=== Testing 7-day timeframe (bin_size=$100) ===\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=7\" | jq '{timeframe: \"7d\", long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length), total: ((.long_liquidations | length) + (.short_liquidations | length))}'",
+      "description": "Test 7-day with $100 bins"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T23:08:16.860336",
+      "bash_id": "92b60e",
+      "filter": "Dynamic binning.*timeframe|Aggregated bins"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-06T23:08:27.416261",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-06T23:08:36.215740",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py",
+      "old_string": "    if timeframe <= 7:\n        bin_size = Decimal(\"100\")  # 7d: High granularity\n    elif timeframe ..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T23:08:43.340936",
+      "command": "sleep 3 && echo \"Server reloading...\"",
+      "description": "Wait for reload"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T23:08:56.199145",
+      "command": "printf \"=== Testing all timeframes ===\\n\\n\" && printf \"7 days (bin=$200): \" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=7\" | jq -r '(.long_liquidations | length) + (.short_liquidations | length) | \"Total bins: \\(.)\"' && printf \"\\n30 days (bin=$500): \" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30\" | jq -r '(.long_liquidations | length) + (.short_liquidations | length) | \"Total bins: \\(.)\"' && printf \"\\n90 days (bin=$1500): \" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=90\" | jq -r '(.long_liquidations | length) + (.short_liquidations | length) | \"Total bins: \\(.)\"'",
+      "description": "Test all three timeframes"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T23:14:09.985312",
+      "command": "sleep 10 && echo \"Waiting for tests to complete...\"",
+      "description": "Wait for test completion"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T23:14:25.749214",
+      "bash_id": "e1684c"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T23:14:35.545880",
+      "command": "sleep 30 && echo \"Still waiting for 90-day test...\"",
+      "description": "Wait longer for 90-day test"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T23:15:12.003199",
+      "bash_id": "e1684c"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T23:15:20.219165",
+      "bash_id": "92b60e",
+      "filter": "timeframe=90|Loaded.*trades.*90|MODE 1.*Processing.*[0-9]{6}"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-06T23:27:02.477073",
+      "bash_id": "92b60e",
+      "filter": "MODE 2.*Gaussian|large_trades=None|23:1[2-5]"
+    },
+    {
+      "operation": "grep",
+      "timestamp": "2025-11-06T23:27:13.735254",
+      "pattern": "MODE 1.*Processing",
+      "path": "src/liquidationheatmap/models",
+      "output_mode": "files_with_matches"
+    },
+    {
+      "operation": "grep",
+      "timestamp": "2025-11-06T23:27:21.050196",
+      "pattern": "def calculate_liquidations|MODE 1:",
+      "path": "src/liquidationheatmap/models/binance_standard.py",
+      "output_mode": "content"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-06T23:27:39.497990",
+      "todo_count": 4
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-06T23:27:48.683157",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-06T23:27:56.226882",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py",
+      "old_string": "        large_trades = db.get_large_trades(\n            symbol=symbol,\n            start_datetime=st..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T23:28:06.514532",
+      "command": "sleep 5 && echo \"=== Testing 7-day with whale trades ($500k+) ===\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=7\" | jq '{long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length), total: ((.long_liquidations | length) + (.short_liquidations | length)), total_volume_long: [.long_liquidations[].liquidation_volume | tonumber] | add, total_volume_short: [.short_liquidations[].liquidation_volume | tonumber] | add}'",
+      "description": "Test 7-day with whale trades"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-06T23:30:50.091156",
+      "todo_count": 4
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-06T23:30:59.922932",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py"
+    },
+    {
+      "operation": "grep",
+      "timestamp": "2025-11-06T23:31:07.465522",
+      "pattern": "^    def ",
+      "path": "src/liquidationheatmap/ingestion/db_service.py",
+      "output_mode": "content"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-06T23:31:14.762821",
+      "command": "wc -l src/liquidationheatmap/ingestion/db_service.py",
+      "description": "Count total lines in db_service.py"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-06T23:31:22.249228",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-06T23:31:45.307546",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py",
+      "old_string": "        except Exception as e:\n            logger.error(f\"❌ Failed to load trades from CSV: {e}\", ex..."
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-06T23:47:42.277111",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py"
     }
   ],
-  "last_updated": "2025-11-06T22:39:49.484784"
+  "last_updated": "2025-11-06T23:47:42.277128"
 }
