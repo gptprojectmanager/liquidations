@@ -141,9 +141,87 @@ LiquidationHeatmap/
 4. Lint code with `ruff check .`
 5. Write clear commit messages (explain WHY, not just WHAT)
 
+## Liquidation Models
+
+### OpenInterest Model (Recommended)
+
+Uses current Open Interest from Binance API and distributes it based on historical volume profile:
+
+```python
+volume_at_price = current_OI × (whale_volume_at_price / total_whale_volume)
+```
+
+**Parameters**:
+- Lookback: 7/30/90 days (default: 30)
+- Whale threshold: $500k+ trades only
+- Bin size: Dynamic ($200/$500/$1500 based on timeframe)
+- Leverage tiers: 5x(15%), 10x(30%), 25x(25%), 50x(20%), 100x(10%)
+
+**Performance**: ~52 seconds for 30-day analysis
+**Accuracy**: Matches Coinglass volumes (~2.6B long, ~4.2B short)
+
+**API Usage**:
+```bash
+curl "http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=30"
+```
+
+### Binance Standard Model (Legacy)
+
+Direct calculation from aggTrades history. May overestimate volumes by ~17x compared to industry standards.
+
+**API Usage**:
+```bash
+curl "http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30"
+```
+
+---
+
+## Cache Maintenance
+
+The OpenInterest model uses a pre-aggregated `volume_profile_daily` table for fast queries (99.9996% data reduction: 1.9B → 7K rows).
+
+### Setup Daily Updates
+
+Run the setup script:
+```bash
+bash scripts/setup_cache_cronjob.sh
+```
+
+This will guide you through setting up a cron job that updates the cache daily at 00:05 UTC.
+
+### Manual Cache Update
+
+To manually update the cache:
+```bash
+uv run python scripts/create_volume_profile_cache.py
+```
+
+Expected output:
+```
+Creating volume_profile_daily table...
+✅ Created volume_profile_daily with 7,345 rows
+```
+
+**Cache Stats**:
+- Rows: ~7,345 (from 1.9B raw trades)
+- Size: ~500 KB
+- Update time: ~30 seconds
+- No server restart needed (DuckDB handles concurrent reads)
+
+### Monitoring
+
+Check cache update logs:
+```bash
+tail -f /var/log/liquidationheatmap/cache-update.log
+```
+
+---
+
 ## Key Features
 
 - ✅ **Zero-copy CSV ingestion**: DuckDB loads 10GB in ~5 seconds
+- ✅ **OpenInterest-based model**: Industry-accurate volumes (52s for 30-day)
+- ✅ **Persistent cache**: 99.9996% data reduction (1.9B → 7K rows)
 - ✅ **Binance liquidation formulas**: Leverage py-liquidation-map algorithms
 - ✅ **Real-time streaming**: Redis pub/sub (Nautilus pattern)
 - ✅ **Interactive heatmaps**: Plotly.js visualization (no build step)
@@ -176,17 +254,22 @@ Returns API status.
 
 #### 2. Liquidation Levels
 ```bash
-GET /liquidations/levels?symbol=BTCUSDT&model=binance_standard
+GET /liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=30
 ```
 **Parameters**:
 - `symbol`: Trading pair (default: BTCUSDT)
-- `model`: Model type (`binance_standard` | `ensemble`)
+- `model`: Model type (`openinterest` | `binance_standard` | `ensemble`)
+- `timeframe`: Lookback period in days (7 | 30 | 90, default: 30)
 
 **Returns**: Long liquidations (below price) and short liquidations (above price).
 
-**Example**:
+**Examples**:
 ```bash
-curl "http://localhost:8000/liquidations/levels?symbol=BTCUSDT&model=ensemble"
+# OpenInterest model (recommended) - 30 days
+curl "http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=30"
+
+# Binance Standard model (legacy)
+curl "http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30"
 ```
 
 #### 3. Historical Liquidations
