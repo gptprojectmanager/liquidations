@@ -516,31 +516,39 @@ class DuckDBService:
         ),
 
         -- Step 5-7: Calculate liquidation levels with leverage distribution
+        -- CRITICAL FIX: Divide logic based on entry price vs current price
+        -- - Volume BELOW current = Long positions (bought low)
+        -- - Volume ABOVE current = Short positions (sold high)
         AllLiquidations AS (
-            -- Short positions (liquidate above entry)
+            -- Short positions: Only from price bins ABOVE current price
+            -- (Traders who sold high, liquidate if price goes higher)
             SELECT
                 od.price_bin AS price_bucket,
                 ld.leverage,
                 'sell' AS side,
-                (od.oi_at_price * 0.5) * ld.weight AS volume,
+                od.oi_at_price * ld.weight AS volume,  -- 100% of OI at this price
                 od.price_bin * (1 + 1.0/ld.leverage - {mmr}/ld.leverage) AS liq_price
             FROM OIDistribution od
             CROSS JOIN LeverageDistribution ld
+            WHERE od.price_bin > {current_price}  -- Only bins above current
 
             UNION ALL
 
-            -- Long positions (liquidate below entry)
+            -- Long positions: Only from price bins BELOW current price
+            -- (Traders who bought low, liquidate if price goes lower)
             SELECT
                 od.price_bin AS price_bucket,
                 ld.leverage,
                 'buy' AS side,
-                (od.oi_at_price * 0.5) * ld.weight AS volume,
+                od.oi_at_price * ld.weight AS volume,  -- 100% of OI at this price
                 od.price_bin * (1 - 1.0/ld.leverage + {mmr}/ld.leverage) AS liq_price
             FROM OIDistribution od
             CROSS JOIN LeverageDistribution ld
+            WHERE od.price_bin < {current_price}  -- Only bins below current
         )
 
-        -- Final: Filter by liquidation price (not entry price!)
+        -- Final: Filter to show only liquidations at risk
+        -- (liquidation price has already been crossed by current price)
         SELECT
             price_bucket,
             leverage,
