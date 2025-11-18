@@ -416,6 +416,7 @@ class DuckDBService:
         current_price: float = None,
         bin_size: float = 500.0,
         lookback_days: int = 30,
+        whale_threshold: float = 500000.0,
     ):
         """Calculate liquidations using Open Interest-based volume profile scaling.
 

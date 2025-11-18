@@ -56,6 +56,11 @@ async def get_liquidation_levels(
         description="Calculation model: aggtrades (legacy) or openinterest (OI-based, recommended)",
     ),
     timeframe: int = Query(30, description="Timeframe in days"),
+    whale_threshold: float = Query(
+        500000.0,
+        description="Minimum trade size in USD to include in volume profile (default: $500k whale trades)",
+        ge=0.0,
+    ),
 ):
     """Calculate liquidation levels for given symbol and model.
 
@@ -104,6 +109,7 @@ async def get_liquidation_levels(
                 current_price=current_price,
                 bin_size=bin_size,
                 lookback_days=timeframe,  # Use API timeframe parameter
+                whale_threshold=whale_threshold,  # Configurable threshold (requires cache rebuild)
             )
 
             # Rename columns to match expected format
