@@ -52,7 +52,7 @@
             console.log(`🔄 Loading: model=${model}, timeframe=${timeframe} days`);
 
             try {
-                const response = await fetch(`http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=${model}&timeframe=${timeframe}`);
+                const response = await fetch(`http://localhost:8000/liquidations/levels?symbol=BTCUSDT&model=${model}&timeframe=${timeframe}`);
                 const data = await response.json();
 
                 console.log(`✅ Loaded ${data.long_liquidations.length} long + ${data.short_liquidations.length} short liquidations`);
@@ -122,10 +122,11 @@
             });
 
             // Calculate cumulative distributions (Coinglass style: start from current price)
-            const allPrices = [
+            // CRITICAL FIX: Remove duplicate prices using Set()
+            const allPrices = [...new Set([
                 ...data.long_liquidations.map(l => parseFloat(l.price_level)),
                 ...data.short_liquidations.map(l => parseFloat(l.price_level))
-            ].sort((a, b) => a - b);
+            ])].sort((a, b) => a - b);
 
             const cumulativeLong = calculateCumulative(data.long_liquidations, allPrices, currentPrice, true);
             const cumulativeShort = calculateCumulative(data.short_liquidations, allPrices, currentPrice, false);

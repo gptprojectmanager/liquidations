@@ -484,80 +484,109 @@ class DuckDBService:
             ) AS t (leverage, weight)
         ),
 
-        -- Step 1: Use pre-cached volume_profile_daily table (BLAZING FAST!)
-        -- This table is pre-aggregated from aggtrades_history with whale trades only
-        -- No need to scan 1.9B rows - just query ~7K pre-computed rows
-        DailyProfile AS (
+        -- STEP 1: Create OHLC Candles from aggTrades (hourly resolution)
+        -- Aggregates 1.9B rows → ~513 hourly candles (30 days)
+        CandleOHLC AS (
             SELECT
-                FLOOR(price_bin / (SELECT price_bin_size FROM Params)) * (SELECT price_bin_size FROM Params) AS price_bin,
-                total_volume AS daily_volume
-            FROM volume_profile_daily
+                DATE_TRUNC('hour', timestamp) as candle_time,
+                FLOOR(price / {bin_size}) * {bin_size} AS price_bin,
+                FIRST(price ORDER BY timestamp) as open,
+                MAX(price) as high,
+                MIN(price) as low,
+                LAST(price ORDER BY timestamp) as close,
+                SUM(gross_value) as volume
+            FROM aggtrades_history
             WHERE symbol = ?
-              AND trade_date >= DATE_TRUNC('day', (SELECT start_time FROM Params))
+              AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{lookback_days} days'
+            GROUP BY 1, 2
         ),
 
-        VolumeProfile AS (
+        -- STEP 2: Calculate OI Delta per hourly candle
+        -- Determines if OI increased (new positions opened) or decreased (closed)
+        OIDelta AS (
             SELECT
-                price_bin,
-                SUM(daily_volume) AS volume_at_price
-            FROM DailyProfile
+                DATE_TRUNC('hour', timestamp) as candle_time,
+                FIRST(open_interest_value ORDER BY timestamp) as oi_start,
+                LAST(open_interest_value ORDER BY timestamp) as oi_end,
+                LAST(open_interest_value ORDER BY timestamp) -
+                FIRST(open_interest_value ORDER BY timestamp) as oi_delta
+            FROM open_interest_history
+            WHERE symbol = ?
+              AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{lookback_days} days'
             GROUP BY 1
         ),
 
-        -- Step 2: Calculate total volume in period
-        TotalVolume AS (
-            SELECT COALESCE(SUM(volume_at_price), 1.0) as total_volume
-            FROM VolumeProfile
+        -- STEP 3: Infer position SIDE from candle direction + OI delta
+        -- Industry-standard logic:
+        -- - Bullish candle (close > open) + OI increase → LONG positions opened
+        -- - Bearish candle (close < open) + OI increase → SHORT positions opened
+        CandleWithSide AS (
+            SELECT
+                c.candle_time,
+                c.price_bin,
+                c.open,
+                c.high,
+                c.low,
+                c.close,
+                c.volume,
+                o.oi_delta,
+                CASE
+                    WHEN c.close > c.open AND o.oi_delta > 0 THEN 'buy'   -- Bullish + OI up = LONG
+                    WHEN c.close < c.open AND o.oi_delta > 0 THEN 'sell'  -- Bearish + OI up = SHORT
+                    ELSE NULL  -- Ignore neutral candles or OI decrease
+                END as inferred_side
+            FROM CandleOHLC c
+            LEFT JOIN OIDelta o ON c.candle_time = o.candle_time
+            WHERE
+                -- Only keep candles with clear signal (non-null side)
+                CASE
+                    WHEN c.close > c.open AND o.oi_delta > 0 THEN 'buy'
+                    WHEN c.close < c.open AND o.oi_delta > 0 THEN 'sell'
+                    ELSE NULL
+                END IS NOT NULL
         ),
 
-        -- Step 3: Calculate scaling factor (OI / total_volume ≈ 0.017 for 30-day)
-        -- Step 4: Apply scaling to get OI distribution matching volume profile SHAPE
+        -- STEP 4: Distribute OI across price bins and sides
+        -- Scale volume shape to match latest OI magnitude
+        TotalVolume AS (
+            SELECT COALESCE(SUM(volume), 1.0) as total_volume
+            FROM CandleWithSide
+        ),
+
         OIDistribution AS (
             SELECT
-                vp.price_bin,
-                -- Scaled volume = (volume_at_price / total_volume) * latest_oi
-                -- This is equivalent to: volume_at_price * scaling_factor
-                -- where scaling_factor = latest_oi / total_volume
-                vp.volume_at_price * (p.latest_oi / tv.total_volume) AS oi_at_price
-            FROM VolumeProfile vp
-            CROSS JOIN Params p
-            CROSS JOIN TotalVolume tv
+                price_bin,
+                inferred_side as side,
+                SUM(volume) as volume_at_price,
+                -- Scale volume shape with latest OI
+                SUM(volume) * (SELECT latest_oi FROM Params) /
+                (SELECT total_volume FROM TotalVolume) as oi_at_price
+            FROM CandleWithSide
+            GROUP BY price_bin, inferred_side
         ),
 
-        -- Step 5-7: Calculate liquidation levels with leverage distribution
-        -- CRITICAL FIX: Divide logic based on entry price vs current price
-        -- - Volume BELOW current = Long positions (bought low)
-        -- - Volume ABOVE current = Short positions (sold high)
+        -- STEP 5: Calculate liquidation prices for ALL positions (NO FILTERING!)
+        -- Key fix: Don't filter by price_bin vs current (that was the bug!)
         AllLiquidations AS (
-            -- Short positions: Only from price bins ABOVE current price
-            -- (Traders who sold high, liquidate if price goes higher)
             SELECT
                 od.price_bin AS price_bucket,
                 ld.leverage,
-                'sell' AS side,
-                od.oi_at_price * ld.weight AS volume,  -- 100% of OI at this price
-                od.price_bin * (1 + 1.0/ld.leverage - {mmr}/ld.leverage) AS liq_price
+                od.side,
+                od.oi_at_price * ld.weight AS volume,
+                CASE
+                    WHEN od.side = 'buy' THEN  -- LONG positions
+                        od.price_bin * (1 - 1.0/ld.leverage + {mmr}/ld.leverage)
+                    WHEN od.side = 'sell' THEN  -- SHORT positions
+                        od.price_bin * (1 + 1.0/ld.leverage - {mmr}/ld.leverage)
+                END AS liq_price
             FROM OIDistribution od
             CROSS JOIN LeverageDistribution ld
-            WHERE od.price_bin > {current_price}  -- Only bins above current
-
-            UNION ALL
-
-            -- Long positions: Only from price bins BELOW current price
-            -- (Traders who bought low, liquidate if price goes lower)
-            SELECT
-                od.price_bin AS price_bucket,
-                ld.leverage,
-                'buy' AS side,
-                od.oi_at_price * ld.weight AS volume,  -- 100% of OI at this price
-                od.price_bin * (1 - 1.0/ld.leverage + {mmr}/ld.leverage) AS liq_price
-            FROM OIDistribution od
-            CROSS JOIN LeverageDistribution ld
-            WHERE od.price_bin < {current_price}  -- Only bins below current
+            -- ❌ REMOVED: WHERE od.price_bin > {current_price}  (WRONG logic!)
+            -- ❌ REMOVED: WHERE od.price_bin < {current_price}  (WRONG logic!)
         )
 
-        -- Final: Filter to show only liquidations at risk
-        -- (liquidation price has already been crossed by current price)
+        -- STEP 6: Filter ONLY liquidations "at risk" based on liquidation price vs current
+        -- This is the CORRECT filter (not entry price vs current!)
         SELECT
             price_bucket,
             leverage,
@@ -566,15 +595,16 @@ class DuckDBService:
             liq_price
         FROM AllLiquidations
         WHERE
-            -- Shorts: liq_price above current (price must go UP to liquidate)
+            -- Shorts: liq_price ABOVE current (price must go UP to liquidate)
             (side = 'sell' AND liq_price > {current_price})
             OR
-            -- Longs: liq_price below current (price must go DOWN to liquidate)
+            -- Longs: liq_price BELOW current (price must go DOWN to liquidate)
             (side = 'buy' AND liq_price < {current_price})
         ORDER BY liq_price, leverage
         """
 
-        params = [symbol, symbol]
+        # Updated params: Params CTE (latest_oi), CandleOHLC CTE, OIDelta CTE
+        params = [symbol, symbol, symbol]
 
         try:
             df = self.conn.execute(query, params).df()

@@ -24,6 +24,15 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Add CORS middleware to allow frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Mount static files for frontend dashboards
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
