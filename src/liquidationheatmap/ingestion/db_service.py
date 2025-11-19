@@ -452,6 +452,14 @@ class DuckDBService:
             f"calculate_liquidations_oi_based: symbol={symbol}, lookback={lookback_days}d, bin_size={bin_size}"
         )
 
+        # IMPORTANT: Warn if non-default whale_threshold is used (parameter currently non-functional)
+        if whale_threshold != 500000.0:
+            logger.warning(
+                f"whale_threshold={whale_threshold} specified but volume_profile_daily cache "
+                f"uses $500k hardcoded. Parameter currently has no effect. "
+                f"See /tmp/CRITICAL_WHALE_THRESHOLD_BUG_18NOV2025.md for details."
+            )
+
         # MMR (Maintenance Margin Rate) - conservative 0.4%
         mmr = 0.004
 

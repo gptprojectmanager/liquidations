@@ -58,7 +58,7 @@ async def get_liquidation_levels(
     timeframe: int = Query(30, description="Timeframe in days"),
     whale_threshold: float = Query(
         500000.0,
-        description="Minimum trade size in USD to include in volume profile (default: $500k whale trades)",
+        description="Minimum trade size in USD (CURRENTLY FIXED AT $500K - parameter non-functional due to pre-aggregated cache limitation)",
         ge=0.0,
     ),
 ):
