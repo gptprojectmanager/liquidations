@@ -484,36 +484,32 @@ class DuckDBService:
             ) AS t (leverage, weight)
         ),
 
-        -- STEP 1: Create OHLC Candles from aggTrades (hourly resolution)
-        -- Aggregates 1.9B rows → ~513 hourly candles (30 days)
+        -- STEP 1: Use pre-cached klines_5m_history (PERFECT TIMING ALIGNMENT with OI data!)
+        -- OI data is 5min resolution → 5m candles = perfect match for accurate side inference
+        -- 8,064 rows (5m candles in 30 days) - scans in ~1 second vs 50+ seconds for aggtrades
         CandleOHLC AS (
             SELECT
-                DATE_TRUNC('hour', timestamp) as candle_time,
-                FLOOR(price / {bin_size}) * {bin_size} AS price_bin,
-                FIRST(price ORDER BY timestamp) as open,
-                MAX(price) as high,
-                MIN(price) as low,
-                LAST(price ORDER BY timestamp) as close,
-                SUM(gross_value) as volume
-            FROM aggtrades_history
+                open_time as candle_time,
+                FLOOR(close / {bin_size}) * {bin_size} AS price_bin,
+                open,
+                high,
+                low,
+                close,
+                quote_volume as volume
+            FROM klines_5m_history
             WHERE symbol = ?
-              AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{lookback_days} days'
-            GROUP BY 1, 2
+              AND open_time >= CURRENT_TIMESTAMP - INTERVAL '{lookback_days} days'
         ),
 
-        -- STEP 2: Calculate OI Delta per hourly candle
-        -- Determines if OI increased (new positions opened) or decreased (closed)
+        -- STEP 2: Calculate OI Delta BETWEEN consecutive timestamps using LAG()
+        -- OI data at exact 5min intervals → simple LAG() to get previous value
         OIDelta AS (
             SELECT
-                DATE_TRUNC('hour', timestamp) as candle_time,
-                FIRST(open_interest_value ORDER BY timestamp) as oi_start,
-                LAST(open_interest_value ORDER BY timestamp) as oi_end,
-                LAST(open_interest_value ORDER BY timestamp) -
-                FIRST(open_interest_value ORDER BY timestamp) as oi_delta
+                timestamp as candle_time,
+                open_interest_value - COALESCE(LAG(open_interest_value) OVER (ORDER BY timestamp), open_interest_value) as oi_delta
             FROM open_interest_history
             WHERE symbol = ?
               AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{lookback_days} days'
-            GROUP BY 1
         ),
 
         -- STEP 3: Infer position SIDE from candle direction + OI delta

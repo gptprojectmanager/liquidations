@@ -282,10 +282,8 @@
             return { prices, values };
         }
 
-        // Auto-load on page load
+        // Setup event listeners (no auto-load to avoid blocking page load with slow query)
         window.onload = () => {
-            loadLevels();
-
             // Add event listener for timeframe selector
             document.getElementById('timeframeSelect').addEventListener('change', () => {
                 loadLevels();
