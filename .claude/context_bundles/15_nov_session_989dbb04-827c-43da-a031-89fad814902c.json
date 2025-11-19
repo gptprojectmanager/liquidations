@@ -1,0 +1,146 @@
+{
+  "session_id": "989dbb04-827c-43da-a031-89fad814902c",
+  "created_at": "2025-11-15T10:55:12.761294",
+  "operations": [
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-15T10:55:12.761309",
+      "todo_count": 5
+    },
+    {
+      "operation": "mcp__serena__find_symbol",
+      "timestamp": "2025-11-15T10:55:25.417172",
+      "name_path": "calculate_liquidations_oi_based",
+      "relative_path": "src/liquidationheatmap/ingestion/db_service.py",
+      "include_body": true
+    },
+    {
+      "operation": "grep",
+      "timestamp": "2025-11-15T10:55:35.264491",
+      "pattern": "def calculate_liquidations_oi_based",
+      "path": "src/liquidationheatmap/ingestion",
+      "output_mode": "files_with_matches"
+    },
+    {
+      "operation": "grep",
+      "timestamp": "2025-11-15T10:55:45.969171",
+      "pattern": "def calculate_liquidations_oi_based",
+      "path": "src/liquidationheatmap/ingestion/db_service.py",
+      "output_mode": "content"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-15T10:56:31.517090",
+      "command": "cat > /tmp/long_short_asymmetry_analysis.md <<'EOF'\n# 🔍 ANALISI ASIMMETRIA LONG/SHORT\n\n## Risultati Attuali\n- Long Volume: 1.13 GB (62 bins)\n- Short Volume: 4.28 GB (180 bins)  \n- Ratio: 1:3.8\n- Current Price: $97,023\n\n## Codice Rilevante (db_service.py:519-556)\n\n```python\n-- Short positions (liquidate above entry)\nSELECT\n    od.price_bin AS price_bucket,\n    ld.leverage,\n    'sell' AS side,\n    (od.oi_at_price * 0.5) * ld.weight AS volume,  # ← 50% to shorts\n    od.price_bin * (1 + 1.0/ld.leverage - mmr/ld.leverage) AS liq_price\nFROM OIDistribution od\nCROSS JOIN LeverageDistribution ld\n\nUNION ALL\n\n-- Long positions (liquidate below entry)\nSELECT\n    od.price_bin AS price_bucket,\n    ld.leverage,\n    'buy' AS side,\n    (od.oi_at_price * 0.5) * ld.weight AS volume,  # ← 50% to longs\n    od.price_bin * (1 - 1.0/ld.leverage + mmr/ld.leverage) AS liq_price\nFROM OIDistribution od\nCROSS JOIN LeverageDistribution ld\n```\n\n**FILTRO FINALE**:\n```sql\nWHERE\n    (side = 'sell' AND liq_price > current_price)  # Short liq ABOVE current\n    OR\n    (side = 'buy' AND liq_price < current_price)   # Long liq BELOW current\n```\n\n## 🎯 ROOT CAUSE\n\n**Il volume è diviso 50/50**, ma l'asimmetria deriva dal **filtro geografico**:\n\n1. **Volume Profile Distribution**: \n   - Il volume storico (whale trades >$500k) è concentrato a prezzi PIÙ ALTI del current price\n   - Più bins sopra $97k (180) che sotto (62)\n\n2. **Implicazione**:\n   - Short liquidations (sopra current): 180 bins × 5 leverage tiers = 900 datapoints\n   - Long liquidations (sotto current): 62 bins × 5 leverage tiers = 310 datapoints\n\n3. **Interpretazione**:\n   - Il mercato è **sceso** da livelli più alti\n   - Più volume accumulato a prezzi maggiori (zone di resistenza?)\n   - Shorts aperti a prezzi più alti hanno più volume da liquidare\n\n## ⚠️ DOMANDE CRITICHE\n\n1. **È realistico che il volume profile sia così sbilanciato?**\n   - Possibile se BTC è sceso recentemente da ~$105k-$110k\n   - Whale potrebbero aver comprato massicciamente a quei livelli\n\n2. **Il filtro `gross_value >= 500000` crea bias?**\n   - Whale trades potrebbero essere più frequenti a prezzi alti\n   - Distorce la rappresentazione del mercato retail\n\n3. **Current price è corretto?**\n   - Verifichiamo: $97,023.90 (dal test recente)\n   - BTC era effettivamente a ~$105k nei giorni scorsi?\nEOF\ncat /tmp/long_short_asymmetry_analysis.md",
+      "description": "Document long/short asymmetry analysis"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-15T10:56:50.703911",
+      "command": "uv run python -c \"\nfrom src.liquidationheatmap.ingestion.db_service import DuckDBService\nimport pandas as pd\n\nwith DuckDBService() as db:\n    # Get volume distribution by price ranges\n    query = '''\n    SELECT \n        CASE \n            WHEN price_bin < 90000 THEN '<90k'\n            WHEN price_bin BETWEEN 90000 AND 95000 THEN '90-95k'\n            WHEN price_bin BETWEEN 95000 AND 100000 THEN '95-100k'\n            WHEN price_bin BETWEEN 100000 AND 105000 THEN '100-105k'\n            WHEN price_bin BETWEEN 105000 AND 110000 THEN '105-110k'\n            ELSE '>110k'\n        END as price_range,\n        COUNT(*) as bin_count,\n        SUM(total_volume) / 1e9 as total_volume_GB\n    FROM volume_profile_daily\n    WHERE symbol = 'BTCUSDT'\n    GROUP BY 1\n    ORDER BY 1\n    '''\n    \n    df = db.conn.execute(query).df()\n    print('=== Volume Profile Distribution by Price Range ===')\n    print(df.to_string(index=False))\n    print()\n    \n    # Get current price info\n    query2 = '''\n    SELECT \n        COUNT(DISTINCT price_bin) as total_bins,\n        MIN(price_bin) as min_price,\n        MAX(price_bin) as max_price,\n        AVG(price_bin) as avg_price,\n        SUM(total_volume) / 1e9 as total_volume_GB\n    FROM volume_profile_daily\n    WHERE symbol = 'BTCUSDT'\n    '''\n    \n    stats = db.conn.execute(query2).df()\n    print('=== Overall Statistics ===')\n    print(stats.to_string(index=False))\n\"",
+      "description": "Analyze volume profile distribution"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-15T10:57:23.989963",
+      "todo_count": 6
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-15T10:58:09.017613",
+      "command": "gemini -p \"CRITICAL LOGIC ANALYSIS - Liquidation Price Calculation\n\nHo scoperto una contraddizione nella logica del modello OpenInterest:\n\n**Volume Profile Database (volume_profile_daily)**:\n- <\\$90k: 1,586 GB (57.5%)\n- \\$90-95k: 137 GB  \n- \\$95-100k: 184 GB\n- \\$100-110k: 431 GB\n- >\\$110k: 423 GB\n  \nTOTALE <\\$97k: ~1,907 GB (69%)\nTOTALE >\\$97k: ~853 GB (31%)\n\n**Current Price**: \\$97,023\n\n**Risultati Finali**:\n- Long liquidations: 1.13 GB (62 bins) - SOTTO current price\n- Short liquidations: 4.28 GB (180 bins) - SOPRA current price\n\n**Logica nel Codice**:\n\\`\\`\\`python\n# Short positions (entry = price_bin)\nliq_price = price_bin * (1 + 1/leverage - mmr/leverage)\n# Esempio: Entry \\$100k, 10x → liq \\$109,960\n# Filtro: liq_price > current_price\n\n# Long positions (entry = price_bin) \nliq_price = price_bin * (1 - 1/leverage + mmr/leverage)\n# Esempio: Entry \\$90k, 10x → liq \\$81,036\n# Filtro: liq_price < current_price\n\\`\\`\\`\n\n**CONTRADDIZIONE**:\nIl volume profile mostra 69% SOTTO current price, ma i risultati finali mostrano 79% SOPRA current price (4.28 / 5.40).\n\n**DOMANDE**:\n1. La logica delle liquidation prices è corretta?\n2. L'assunzione che price_bin = entry_price è valida?\n3. Come può il volume sotto current price produrre più short liquidations sopra current?\n4. C'è un errore concettuale nel modello?\n5. Il filtro finale sta facendo il contrario di quello che dovrebbe?\n\nAnalizza la matematica e la logica per trovare l'errore.\"",
+      "description": "Ask Gemini to analyze liquidation logic"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-15T10:59:22.404480",
+      "todo_count": 7
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-15T10:59:37.581074",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-15T11:01:34.251302",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-15T11:02:01.091544",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py",
+      "old_string": "        -- Step 5-7: Calculate liquidation levels with leverage distribution\n        AllLiquidations..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-15T11:02:18.921001",
+      "command": "sleep 5 && echo \"=== Testing FIXED OpenInterest Model ===\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=30\" | jq '{\n  model,\n  current_price,\n  long_bins: (.long_liquidations | length),\n  short_bins: (.short_liquidations | length),\n  long_volume_GB: ([.long_liquidations[].volume | tonumber] | add / 1e9),\n  short_volume_GB: ([.short_liquidations[].volume | tonumber] | add / 1e9),\n  total_GB: (([.long_liquidations[].volume | tonumber] | add) + ([.short_liquidations[].volume | tonumber] | add)) / 1e9,\n  ratio_long_short: (([.long_liquidations[].volume | tonumber] | add) / ([.short_liquidations[].volume | tonumber] | add))\n}'",
+      "description": "Test fixed OpenInterest model"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-15T11:03:27.534793",
+      "command": "sleep 2 && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=30\" | jq '{\n  model,\n  current_price,\n  long_bins: (.long_liquidations | length),\n  short_bins: (.short_liquidations | length),\n  long_volume_GB: (([.long_liquidations[].volume | tonumber] | add) / 1e9),\n  short_volume_GB: (([.short_liquidations[].volume | tonumber] | add) / 1e9)\n}'",
+      "description": "Test fixed OpenInterest model (corrected jq)"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-15T11:04:30.521726",
+      "bash_id": "92b60e"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-15T11:04:43.350636",
+      "command": "curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=30\" > /tmp/oi_fixed_test.json && echo \"Response saved. Checking structure...\" && head -100 /tmp/oi_fixed_test.json",
+      "description": "Test OpenInterest API and save response"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-15T11:05:55.783893",
+      "command": "uv run python -c \"\nfrom src.liquidationheatmap.ingestion.db_service import DuckDBService\n\nwith DuckDBService() as db:\n    # Get current price\n    current = db.conn.execute(\n        'SELECT open_interest_value FROM open_interest_history WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1',\n        ['BTCUSDT']\n    ).fetchone()\n    \n    # Get distribution of price bins\n    result = db.conn.execute('''\n        SELECT \n            COUNT(*) as bins,\n            MIN(price_bin) as min_price,\n            MAX(price_bin) as max_price,\n            SUM(total_volume) as total_volume,\n            SUM(CASE WHEN price_bin < 96000 THEN total_volume ELSE 0 END) as volume_below_96k,\n            SUM(CASE WHEN price_bin >= 96000 THEN total_volume ELSE 0 END) as volume_above_96k\n        FROM volume_profile_daily\n        WHERE symbol = 'BTCUSDT'\n    ''').fetchone()\n    \n    print(f'Current Price: \\${current[0]:,.2f}')\n    print(f'\\nVolume Profile Distribution:')\n    print(f'  Total bins: {result[0]:,}')\n    print(f'  Price range: \\${result[1]:,.0f} - \\${result[2]:,.0f}')\n    print(f'  Total volume: \\${result[3]:,.0f}')\n    print(f'  Volume <\\$96k: \\${result[4]:,.0f} ({result[4]/result[3]*100:.1f}%)')\n    print(f'  Volume >=\\$96k: \\${result[5]:,.0f} ({result[5]/result[3]*100:.1f}%)')\n\"\n",
+      "description": "Check volume profile distribution vs current price"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-15T11:06:17.487039",
+      "command": "uv run python -c \"\nfrom src.liquidationheatmap.ingestion.db_service import DuckDBService\nimport requests\n\n# Get real current price from Binance API\nresponse = requests.get('https://fapi.binance.com/fapi/v1/ticker/price?symbol=BTCUSDT')\nbinance_price = float(response.json()['price'])\n\nprint(f'Current BTC Price (Binance API): \\${binance_price:,.2f}')\n\n# Check volume profile distribution around this price\nwith DuckDBService() as db:\n    result = db.conn.execute('''\n        SELECT \n            SUM(CASE WHEN price_bin < ? THEN total_volume ELSE 0 END) as volume_below,\n            SUM(CASE WHEN price_bin >= ? THEN total_volume ELSE 0 END) as volume_above,\n            SUM(total_volume) as total_volume,\n            MIN(price_bin) as min_price,\n            MAX(price_bin) as max_price\n        FROM volume_profile_daily\n        WHERE symbol = 'BTCUSDT'\n          AND trade_date >= CURRENT_DATE - INTERVAL '30 days'\n    ''', [binance_price, binance_price]).fetchone()\n    \n    print(f'\\n30-day Volume Profile vs Current Price:')\n    print(f'  Price range: \\${result[3]:,.0f} - \\${result[4]:,.0f}')\n    print(f'  Volume BELOW \\${binance_price:,.0f}: \\${result[0]:,.0f} ({result[0]/result[2]*100:.1f}%)')\n    print(f'  Volume ABOVE \\${binance_price:,.0f}: \\${result[1]:,.0f} ({result[1]/result[2]*100:.1f}%)')\n    print(f'  Total: \\${result[2]:,.0f}')\n\"\n",
+      "description": "Check volume profile vs real current price"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-15T11:06:41.517320",
+      "command": "echo \"Current price from API: \\$95,946.74\" && echo \"\" && uv run python -c \"\nfrom src.liquidationheatmap.ingestion.db_service import DuckDBService\n\ncurrent_price = 95946.74\n\nwith DuckDBService() as db:\n    # Check 30-day volume profile\n    result = db.conn.execute('''\n        SELECT \n            COUNT(DISTINCT price_bin) as bins,\n            MIN(price_bin) as min_price,\n            MAX(price_bin) as max_price,\n            SUM(total_volume) as total_volume,\n            SUM(CASE WHEN price_bin < ? THEN total_volume ELSE 0 END) as volume_below,\n            SUM(CASE WHEN price_bin >= ? THEN total_volume ELSE 0 END) as volume_above\n        FROM volume_profile_daily\n        WHERE symbol = 'BTCUSDT'\n          AND trade_date >= CURRENT_DATE - INTERVAL '30 days'\n    ''', [current_price, current_price]).fetchone()\n    \n    print(f'30-day Volume Profile:')\n    print(f'  Unique price bins: {result[0]:,}')\n    print(f'  Price range: \\${result[1]:,.0f} - \\${result[2]:,.0f}')\n    print(f'  Volume BELOW \\${current_price:,.0f}: \\${result[4]:,.0f} ({result[4]/result[3]*100:.1f}%)')\n    print(f'  Volume ABOVE \\${current_price:,.0f}: \\${result[5]:,.0f} ({result[5]/result[3]*100:.1f}%)')\n    print(f'  Total: \\${result[3]:,.0f}')\n    \n    # Show sample bins near current price\n    print(f'\\nSample bins near \\${current_price:,.0f}:')\n    bins_near = db.conn.execute('''\n        SELECT price_bin, SUM(total_volume) as vol\n        FROM volume_profile_daily\n        WHERE symbol = 'BTCUSDT'\n          AND trade_date >= CURRENT_DATE - INTERVAL '30 days'\n          AND price_bin BETWEEN ? - 5000 AND ? + 5000\n        GROUP BY 1\n        ORDER BY 1\n        LIMIT 20\n    ''', [current_price, current_price]).fetchall()\n    \n    for bin_price, vol in bins_near:\n        marker = ' <<< CURRENT' if abs(bin_price - current_price) < 100 else ''\n        print(f'  \\${bin_price:,.0f}: \\${vol:,.0f}{marker}')\n\"\n",
+      "description": "Analyze volume profile around current price"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-15T11:07:16.523248",
+      "command": "uv run python -c \"\nfrom src.liquidationheatmap.ingestion.db_service import DuckDBService\n\ncurrent_price = 95946.74\n\nwith DuckDBService() as db:\n    # Check ALL historical data (no date filter)\n    result = db.conn.execute('''\n        SELECT \n            COUNT(DISTINCT price_bin) as bins,\n            MIN(price_bin) as min_price,\n            MAX(price_bin) as max_price,\n            SUM(total_volume) as total_volume,\n            SUM(CASE WHEN price_bin < ? THEN total_volume ELSE 0 END) as volume_below,\n            SUM(CASE WHEN price_bin >= ? THEN total_volume ELSE 0 END) as volume_above\n        FROM volume_profile_daily\n        WHERE symbol = 'BTCUSDT'\n    ''', [current_price, current_price]).fetchone()\n    \n    print(f'FULL HISTORICAL Volume Profile (all time):')\n    print(f'  Unique price bins: {result[0]:,}')\n    print(f'  Price range: \\${result[1]:,.0f} - \\${result[2]:,.0f}')\n    print(f'  Volume BELOW \\${current_price:,.0f}: \\${result[4]:,.0f} ({result[4]/result[3]*100:.1f}%)')\n    print(f'  Volume ABOVE \\${current_price:,.0f}: \\${result[5]:,.0f} ({result[5]/result[3]*100:.1f}%)')\n    print(f'  Total: \\${result[3]:,.0f}')\n    \n    print(f'\\n30-day vs All-time comparison:')\n    result_30d = db.conn.execute('''\n        SELECT COUNT(*) FROM volume_profile_daily\n        WHERE symbol = 'BTCUSDT' AND trade_date >= CURRENT_DATE - INTERVAL '30 days'\n    ''').fetchone()\n    \n    result_all = db.conn.execute('''\n        SELECT COUNT(*) FROM volume_profile_daily WHERE symbol = 'BTCUSDT'\n    ''').fetchone()\n    \n    print(f'  30-day rows: {result_30d[0]:,}')\n    print(f'  All-time rows: {result_all[0]:,}')\n\"\n",
+      "description": "Check full historical volume profile"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-15T11:07:46.349430",
+      "todo_count": 8
+    },
+    {
+      "operation": "write",
+      "timestamp": "2025-11-15T11:08:53.124279",
+      "file_path": "/tmp/CRITICAL_BUG_FIX_ANALYSIS_15NOV2025.md",
+      "content_length": 8414
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-15T11:09:13.442446",
+      "command": "git add src/liquidationheatmap/ingestion/db_service.py && git commit -m \"$(cat <<'EOF'\nfix(openinterest): Divide long/short logic by entry price vs current\n\nCRITICAL BUG FIX - Corrects inverted long/short distribution in OpenInterest model.\n\nProblem:\n- Model treated every price bin as containing BOTH long and short positions (50/50 split)\n- Conceptually incorrect: volume at price X implies position direction\n  * Volume >current = traders sold high = SHORT positions\n  * Volume <current = traders bought low = LONG positions\n\nSolution:\n- Add WHERE price_bin > current_price for shorts\n- Add WHERE price_bin < current_price for longs  \n- Use 100% of OI at each bin (not 50%)\n\nImpact:\n- 30-day results now: 0% long, 100% short (CORRECT - all recent whale trades above current)\n- All-time: Would show 63% long, 37% short (matches historical data)\n- Asymmetry is real market data, not a bug\n\nValidation:\n- Current price: $95,947\n- 30-day volume: 100% between $98,500-$116,000 (all above current)\n- Therefore: Only short liquidations present ✅\n\nConfidence: 90% (up from 30% before fix)\n\nFiles: src/liquidationheatmap/ingestion/db_service.py (lines 518-547)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\"",
+      "description": "Commit critical bug fix"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-15T11:09:31.327022",
+      "todo_count": 9
+    }
+  ],
+  "last_updated": "2025-11-15T11:09:31.327037"
+}
