@@ -124,9 +124,18 @@ async def get_liquidation_levels(
 
             # Rename columns to match expected format
             if not bins_df.empty and "liq_price" in bins_df.columns:
-                # OI model returns liq_price, need to aggregate by price_bucket
+                # OI model returns liq_price - bin it and aggregate
+                # CRITICAL FIX: Use liq_price (actual liquidation levels), not price_bucket (entry prices)!
+                import numpy as np
+
+                # Bin liquidation prices to bin_size intervals
+                bins_df["liq_price_binned"] = (
+                    np.round(bins_df["liq_price"] / bin_size) * bin_size
+                ).astype(int)
+
+                # Aggregate by binned liquidation price, leverage, and side
                 bins_df = (
-                    bins_df.groupby(["price_bucket", "leverage", "side"])
+                    bins_df.groupby(["liq_price_binned", "leverage", "side"])
                     .agg(
                         {
                             "volume": "sum",
@@ -135,7 +144,10 @@ async def get_liquidation_levels(
                     .reset_index()
                 )
                 bins_df["count"] = 1  # Placeholder count
-                bins_df.rename(columns={"volume": "total_volume"}, inplace=True)
+                bins_df.rename(
+                    columns={"volume": "total_volume", "liq_price_binned": "price_bucket"},
+                    inplace=True,
+                )
         else:  # model == "aggtrades"
             # Legacy aggTrades-based model (kept for comparison)
             # NOTE: This model counts ALL trades (opens + closes), inflating volumes ~17x
