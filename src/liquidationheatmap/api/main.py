@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Literal, Optional
 
 from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 

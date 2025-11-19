@@ -501,12 +501,12 @@ class DuckDBService:
               AND open_time >= CURRENT_TIMESTAMP - INTERVAL '{lookback_days} days'
         ),
 
-        -- STEP 2: Calculate OI Delta BETWEEN consecutive timestamps using LAG()
-        -- OI data at exact 5min intervals → simple LAG() to get previous value
+        -- STEP 2: Get pre-calculated OI Delta (calculated during ingestion)
+        -- Uses oi_delta column populated by LAG() during CSV import
         OIDelta AS (
             SELECT
                 timestamp as candle_time,
-                open_interest_value - COALESCE(LAG(open_interest_value) OVER (ORDER BY timestamp), open_interest_value) as oi_delta
+                oi_delta
             FROM open_interest_history
             WHERE symbol = ?
               AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{lookback_days} days'
@@ -607,38 +607,39 @@ class DuckDBService:
             logger.info(f"OI-based model complete: {len(df)} liquidation levels returned")
 
             # Sanity check: sum of all volumes should approximately equal latest OI
-            if not df.empty:
-                total_distributed = df["volume"].sum()
-
-                # Get OI and total volume for validation
-                oi_result = self.conn.execute(
-                    "SELECT open_interest_value FROM open_interest_history WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1",
-                    [symbol],
-                ).fetchone()
-
-                total_volume_result = self.conn.execute(
-                    f"""
-                    SELECT SUM(gross_value) as total_volume
-                    FROM aggtrades_history
-                    WHERE symbol = ?
-                      AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{lookback_days} days'
-                    """,
-                    [symbol],
-                ).fetchone()
-
-                if oi_result and total_volume_result:
-                    latest_oi = float(oi_result[0])
-                    total_volume = float(total_volume_result[0])
-                    scaling_factor = latest_oi / total_volume if total_volume > 0 else 0
-
-                    logger.info(
-                        f"📊 Volume Profile Scaling:\n"
-                        f"  - Latest OI: ${latest_oi:,.0f}\n"
-                        f"  - {lookback_days}-day volume: ${total_volume:,.0f}\n"
-                        f"  - Scaling factor: {scaling_factor:.4f}\n"
-                        f"  - Total distributed: ${total_distributed:,.0f}\n"
-                        f"  - Coverage: {total_distributed / latest_oi:.2%}"
-                    )
+            # NOTE: Validation logging disabled for performance (skips 1.9B row aggtrades scan)
+            # if not df.empty:
+            #     total_distributed = df["volume"].sum()
+            #
+            #     # Get OI and total volume for validation
+            #     oi_result = self.conn.execute(
+            #         "SELECT open_interest_value FROM open_interest_history WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1",
+            #         [symbol],
+            #     ).fetchone()
+            #
+            #     total_volume_result = self.conn.execute(
+            #         f"""
+            #         SELECT SUM(gross_value) as total_volume
+            #         FROM aggtrades_history
+            #         WHERE symbol = ?
+            #           AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{lookback_days} days'
+            #         """,
+            #         [symbol],
+            #     ).fetchone()
+            #
+            #     if oi_result and total_volume_result:
+            #         latest_oi = float(oi_result[0])
+            #         total_volume = float(total_volume_result[0])
+            #         scaling_factor = latest_oi / total_volume if total_volume > 0 else 0
+            #
+            #         logger.info(
+            #             f"📊 Volume Profile Scaling:\n"
+            #             f"  - Latest OI: ${latest_oi:,.0f}\n"
+            #             f"  - {lookback_days}-day volume: ${total_volume:,.0f}\n"
+            #             f"  - Scaling factor: {scaling_factor:.4f}\n"
+            #             f"  - Total distributed: ${total_distributed:,.0f}\n"
+            #             f"  - Coverage: {total_distributed / latest_oi:.2%}"
+            #         )
 
             return df
         except Exception as e:
