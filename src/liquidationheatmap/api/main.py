@@ -61,9 +61,9 @@ async def health_check():
 @app.get("/liquidations/levels", response_model=LiquidationResponse)
 async def get_liquidation_levels(
     symbol: str = Query("BTCUSDT", description="Trading pair symbol"),
-    model: Literal["aggtrades", "openinterest"] = Query(
+    model: str = Query(
         "openinterest",
-        description="Calculation model: aggtrades (legacy) or openinterest (OI-based, recommended)",
+        description="Calculation model (reserved for future extensions, currently only 'openinterest' supported)",
     ),
     timeframe: int = Query(30, description="Timeframe in days"),
     whale_threshold: float = Query(
@@ -72,22 +72,29 @@ async def get_liquidation_levels(
         ge=0.0,
     ),
 ):
-    """Calculate liquidation levels for given symbol and model.
+    """Calculate liquidation levels using Open Interest distribution model.
 
     Returns liquidations BELOW current price (long positions) and
     ABOVE current price (short positions).
 
+    The OI-based model distributes current Open Interest across historical
+    volume profile, providing more realistic liquidation estimates than
+    legacy trade-counting approaches.
+
     Args:
         symbol: Trading pair (default: BTCUSDT)
-        model: Model type (binance_standard or ensemble)
+        model: Calculation model (currently only 'openinterest')
+        timeframe: Lookback period in days (1, 7, 30, or 90)
+        whale_threshold: Minimum position size filter
 
     Returns:
         LiquidationResponse with long and short liquidations
     """
     # Get real-time current price from Binance API
     import json
-    from datetime import datetime, timedelta
     from urllib.request import urlopen
+
+    import numpy as np
 
     try:
         with urlopen(
@@ -109,58 +116,34 @@ async def get_liquidation_levels(
     else:  # 90 days
         bin_size = 1500.0  # 90d: Low granularity
 
-    # Choose calculation model
+    # Calculate liquidations using OI-based model
     with DuckDBService() as db:
-        if model == "openinterest":
-            # OI-based model: distributes current Open Interest based on volume profile
-            # This is the RECOMMENDED model - more realistic than aggTrades
-            bins_df = db.calculate_liquidations_oi_based(
-                symbol=symbol,
-                current_price=current_price,
-                bin_size=bin_size,
-                lookback_days=timeframe,  # Use API timeframe parameter
-                whale_threshold=whale_threshold,  # Configurable threshold (requires cache rebuild)
+        # OI-based model: distributes current Open Interest based on volume profile
+        bins_df = db.calculate_liquidations_oi_based(
+            symbol=symbol,
+            current_price=current_price,
+            bin_size=bin_size,
+            lookback_days=timeframe,
+            whale_threshold=whale_threshold,
+        )
+
+        # Bin liquidation prices and aggregate
+        if not bins_df.empty and "liq_price" in bins_df.columns:
+            # CRITICAL: Use liq_price (actual liquidation levels), not price_bucket (entry prices)
+            bins_df["liq_price_binned"] = (
+                np.round(bins_df["liq_price"] / bin_size) * bin_size
+            ).astype(int)
+
+            # Aggregate by binned liquidation price, leverage, and side
+            bins_df = (
+                bins_df.groupby(["liq_price_binned", "leverage", "side"])
+                .agg({"volume": "sum"})
+                .reset_index()
             )
-
-            # Rename columns to match expected format
-            if not bins_df.empty and "liq_price" in bins_df.columns:
-                # OI model returns liq_price - bin it and aggregate
-                # CRITICAL FIX: Use liq_price (actual liquidation levels), not price_bucket (entry prices)!
-                import numpy as np
-
-                # Bin liquidation prices to bin_size intervals
-                bins_df["liq_price_binned"] = (
-                    np.round(bins_df["liq_price"] / bin_size) * bin_size
-                ).astype(int)
-
-                # Aggregate by binned liquidation price, leverage, and side
-                bins_df = (
-                    bins_df.groupby(["liq_price_binned", "leverage", "side"])
-                    .agg(
-                        {
-                            "volume": "sum",
-                        }
-                    )
-                    .reset_index()
-                )
-                bins_df["count"] = 1  # Placeholder count
-                bins_df.rename(
-                    columns={"volume": "total_volume", "liq_price_binned": "price_bucket"},
-                    inplace=True,
-                )
-        else:  # model == "aggtrades"
-            # Legacy aggTrades-based model (kept for comparison)
-            # NOTE: This model counts ALL trades (opens + closes), inflating volumes ~17x
-            end_time = datetime.now().isoformat()
-            start_time = (datetime.now() - timedelta(days=timeframe)).isoformat()
-
-            bins_df = db.calculate_liquidations_sql(
-                symbol=symbol,
-                current_price=current_price,
-                bin_size=bin_size,
-                min_gross_value=500000.0,  # $500k whale trades
-                start_datetime=start_time,
-                end_datetime=end_time,
+            bins_df["count"] = 1  # Placeholder count
+            bins_df.rename(
+                columns={"volume": "total_volume", "liq_price_binned": "price_bucket"},
+                inplace=True,
             )
 
     logger = logging.getLogger(__name__)
