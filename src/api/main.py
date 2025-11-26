@@ -1,59 +1,61 @@
 """
-FastAPI application for liquidation levels API.
+Main FastAPI application for Margin Tier API.
 
-Minimal implementation for MVP.
+Provides REST endpoints for:
+- Margin tier calculations
+- Liquidation price calculations
+- Tier information and comparison
 """
 
-from fastapi import FastAPI, Query
+from contextlib import asynccontextmanager
 
-from src.models.liquidation import BinanceLiquidationModel
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
+# Import routers
+from src.api.endpoints.margin import router as margin_router
+from src.api.endpoints.rollback import router as rollback_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan manager.
+
+    Handles startup and shutdown events.
+    """
+    # Startup
+    print("🚀 Starting Margin Tier API...")
+
+    yield
+
+    # Shutdown
+    print("👋 Shutting down Margin Tier API...")
+
+
+# Initialize FastAPI app
 app = FastAPI(
-    title="Liquidation Levels API",
-    description="Calculate cryptocurrency liquidation levels for multiple leverages",
-    version="0.1.0",
+    title="Margin Tier API",
+    description="Calculate margin requirements and liquidation prices for crypto futures with tiered margin system",
+    version="1.0.0",
+    lifespan=lifespan,
 )
+
+# CORS middleware (allow frontend access)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # TODO: Restrict in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(margin_router, prefix="/api")
+app.include_router(rollback_router, prefix="/api")
 
 
 @app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "ok", "service": "liquidation-levels-api"}
-
-
-@app.get("/liquidations/levels")
-async def get_liquidation_levels(
-    entry_price: float = Query(..., description="Entry or current price", gt=0),
-    leverage_levels: str = Query(
-        None, description="Comma-separated leverage values (e.g., '5,10,25')"
-    ),
-    maintenance_margin_rate: float = Query(
-        0.004, description="Maintenance margin rate (default 0.4%)", ge=0, le=1
-    ),
-):
-    """
-    Calculate liquidation levels for multiple leverages.
-
-    Args:
-        entry_price: Current or entry price
-        leverage_levels: Optional comma-separated leverage values (default: [5, 10, 25, 50, 100, 125])
-        maintenance_margin_rate: Maintenance margin rate (default: 0.004 = 0.4%)
-
-    Returns:
-        JSON with long_liquidations and short_liquidations lists
-    """
-    # Parse leverage levels if provided
-    if leverage_levels:
-        leverages = [int(lev.strip()) for lev in leverage_levels.split(",")]
-    else:
-        leverages = None  # Will use default [5, 10, 25, 50, 100, 125]
-
-    # Calculate liquidations
-    model = BinanceLiquidationModel()
-    result = model.calculate_liquidation_levels(
-        entry_price=entry_price,
-        leverage_levels=leverages,
-        maintenance_margin_rate=maintenance_margin_rate,
-    )
-
-    return result
+async def root_health():
+    """Root health check."""
+    return {"status": "ok", "service": "margin-tier-api", "version": "1.0.0"}

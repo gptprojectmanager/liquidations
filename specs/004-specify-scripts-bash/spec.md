@@ -92,14 +92,15 @@ API consumers need consistent liquidation calculations that match exchange stand
 
 - **FR-001**: System MUST implement Binance's official tier structure with rates from 0.5% to 5%
 - **FR-002**: System MUST calculate maintenance margin based on position notional value
-- **FR-003**: System MUST apply tier rates progressively without discontinuities
+- **FR-003**: System MUST apply tier rates progressively without discontinuities (threshold: <$0.01 difference at boundaries)
 - **FR-004**: System MUST support all Binance perpetual contract symbols
 - **FR-005**: System MUST update tier tables when exchange modifies them
-- **FR-006**: Calculation MUST complete within existing performance budgets (<100ms)
+- **FR-006**: Calculation MUST complete within performance budgets (<10ms single, <100ms batch)
 - **FR-007**: System MUST provide tier information in calculation results
-- **FR-008**: System MUST handle positions from $1 to $1 billion notional
-- **FR-009**: API responses MUST include applied tier details
+- **FR-008**: System MUST use Decimal128 precision (28 significant digits) for all margin calculations
+- **FR-009**: System MUST support atomic rollback of failed tier configuration updates
 - **FR-010**: System MUST maintain backward compatibility with flat-rate option
+- **FR-011**: System MUST handle positions from $0.01 to $1 billion notional value
 
 ### Key Entities
 
@@ -138,7 +139,14 @@ API consumers need consistent liquidation calculations that match exchange stand
 - Tier updates via configuration without code changes
 - Automated validation against exchange documentation
 - Alert on tier mismatch detection
-- Monthly reconciliation with exchange specs
+- Daily automated sync with exchange specifications (configurable frequency)
+
+### Security Requirements
+- **NFR-SEC-001**: Tier configuration updates MUST require authentication
+- **NFR-SEC-002**: All tier changes MUST be logged with user/system identity
+- **NFR-SEC-003**: Configuration validation MUST occur before activation
+- **NFR-SEC-004**: Rollback capability MUST be tested before each update
+- **NFR-SEC-005**: API endpoints MUST validate input ranges to prevent overflow
 
 ## Dependencies and Constraints
 

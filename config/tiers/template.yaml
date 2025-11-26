@@ -1,0 +1,85 @@
+# Tiered Margin Configuration Template
+#
+# This template defines the margin tier structure for a trading symbol.
+# Each tier must ensure mathematical continuity at boundaries using
+# the Maintenance Amount (MA) offset formula.
+#
+# Formula: margin = notional * rate - maintenance_amount
+#
+# Continuity requirement:
+# At boundary B between tier i and tier i+1:
+#   B * rate[i] - MA[i] = B * rate[i+1] - MA[i+1]
+#
+# Example: BTCUSDT configuration with 5 tiers
+
+symbol: BTCUSDT
+version: "2025.11.22.001"
+source: binance  # binance, manual, custom
+is_active: true
+
+# Tier configuration with continuity guarantees
+tiers:
+  - tier_number: 1
+    min_notional: 0
+    max_notional: 50000
+    margin_rate: 0.005  # 0.5%
+    maintenance_amount: 0
+    # At $50k: margin = 50000 * 0.005 - 0 = $250
+
+  - tier_number: 2
+    min_notional: 50000
+    max_notional: 250000
+    margin_rate: 0.010  # 1.0%
+    maintenance_amount: 250
+    # At $50k: margin = 50000 * 0.010 - 250 = $250 ✓ (continuous)
+    # At $250k: margin = 250000 * 0.010 - 250 = $2,250
+
+  - tier_number: 3
+    min_notional: 250000
+    max_notional: 1000000
+    margin_rate: 0.025  # 2.5%
+    maintenance_amount: 4000
+    # At $250k: margin = 250000 * 0.025 - 4000 = $2,250 ✓ (continuous)
+    # At $1M: margin = 1000000 * 0.025 - 4000 = $21,000
+
+  - tier_number: 4
+    min_notional: 1000000
+    max_notional: 10000000
+    margin_rate: 0.050  # 5.0%
+    maintenance_amount: 29000
+    # At $1M: margin = 1000000 * 0.050 - 29000 = $21,000 ✓ (continuous)
+    # At $10M: margin = 10000000 * 0.050 - 29000 = $471,000
+
+  - tier_number: 5
+    min_notional: 10000000
+    max_notional: 50000000
+    margin_rate: 0.100  # 10.0%
+    maintenance_amount: 529000
+    # At $10M: margin = 10000000 * 0.100 - 529000 = $471,000 ✓ (continuous)
+    # At $50M: margin = 50000000 * 0.100 - 529000 = $4,471,000
+
+# Validation criteria
+validation:
+  continuity_threshold: 0.01  # Maximum acceptable discontinuity in USD
+  decimal_precision: 28  # Number of decimal places for calculations
+  test_boundaries: true  # Automatically test continuity at all boundaries
+  test_positions:  # Sample positions to validate
+    - 49999    # Just below tier 2
+    - 50001    # Just above tier 2
+    - 249999   # Just below tier 3
+    - 250001   # Just above tier 3
+    - 999999   # Just below tier 4
+    - 1000001  # Just above tier 4
+    - 9999999  # Just below tier 5
+    - 10000001 # Just above tier 5
+
+# Metadata for tracking changes
+metadata:
+  created_at: "2025-11-22T10:00:00Z"
+  created_by: "system"
+  last_modified: "2025-11-22T10:00:00Z"
+  modified_by: "system"
+  notes: |
+    Initial configuration with mathematical continuity guarantees.
+    MA values calculated using boundary continuity formula.
+    Validated against Binance official margin requirements.

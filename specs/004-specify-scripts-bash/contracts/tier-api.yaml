@@ -1,0 +1,381 @@
+openapi: 3.0.0
+info:
+  title: Tiered Margin API
+  version: 1.0.0
+  description: API for position-based margin tier calculations with continuity
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+
+paths:
+  /api/margin/calculate:
+    get:
+      summary: Calculate margin for position
+      description: Returns margin requirements using tiered rates with continuity
+      parameters:
+        - name: notional
+          in: query
+          required: true
+          schema:
+            type: number
+            format: decimal
+            minimum: 0.01
+            maximum: 1000000000000
+          description: Position notional value in USD
+        - name: symbol
+          in: query
+          schema:
+            type: string
+            default: BTCUSDT
+          description: Trading symbol
+        - name: price
+          in: query
+          schema:
+            type: number
+            format: decimal
+            minimum: 0.01
+          description: Current asset price
+        - name: leverage
+          in: query
+          schema:
+            type: number
+            format: decimal
+            minimum: 1
+            maximum: 125
+          description: Position leverage
+      responses:
+        '200':
+          description: Successful calculation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notional_value:
+                    type: number
+                    format: decimal
+                    description: Input notional value
+                  margin_required:
+                    type: number
+                    format: decimal
+                    description: Total margin required (with MA offset)
+                  margin_rate_effective:
+                    type: number
+                    format: decimal
+                    description: Effective margin rate after MA
+                  tier_number:
+                    type: integer
+                    description: Tier applied (1-5)
+                  tier_details:
+                    type: object
+                    properties:
+                      min_notional:
+                        type: number
+                      max_notional:
+                        type: number
+                      margin_rate:
+                        type: number
+                      maintenance_amount:
+                        type: number
+                  liquidation_price:
+                    type: number
+                    format: decimal
+                    description: Calculated liquidation price
+                  calculation_method:
+                    type: string
+                    enum: [continuous, legacy]
+                    description: Method used for calculation
+              example:
+                notional_value: 75000
+                margin_required: 500
+                margin_rate_effective: 0.00667
+                tier_number: 2
+                tier_details:
+                  min_notional: 50000
+                  max_notional: 250000
+                  margin_rate: 0.01
+                  maintenance_amount: 250
+                liquidation_price: 94250.50
+                calculation_method: continuous
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Symbol not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/margin/tiers/{symbol}:
+    get:
+      summary: Get tier configuration for symbol
+      description: Returns all margin tiers with continuity validation
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Trading symbol
+      responses:
+        '200':
+          description: Tier configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  symbol:
+                    type: string
+                  version:
+                    type: string
+                    description: Configuration version
+                  last_updated:
+                    type: string
+                    format: date-time
+                  source:
+                    type: string
+                    enum: [binance, manual]
+                  is_active:
+                    type: boolean
+                  continuity_validated:
+                    type: boolean
+                    description: Confirms mathematical continuity
+                  tiers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        tier_number:
+                          type: integer
+                        min_notional:
+                          type: number
+                          format: decimal
+                        max_notional:
+                          type: number
+                          format: decimal
+                        margin_rate:
+                          type: number
+                          format: decimal
+                        maintenance_amount:
+                          type: number
+                          format: decimal
+                        boundary_continuous:
+                          type: boolean
+                          description: Continuity at upper boundary
+              example:
+                symbol: BTCUSDT
+                version: "2025.11.20.001"
+                last_updated: "2025-11-20T10:00:00Z"
+                source: binance
+                is_active: true
+                continuity_validated: true
+                tiers:
+                  - tier_number: 1
+                    min_notional: 0
+                    max_notional: 50000
+                    margin_rate: 0.005
+                    maintenance_amount: 0
+                    boundary_continuous: true
+                  - tier_number: 2
+                    min_notional: 50000
+                    max_notional: 250000
+                    margin_rate: 0.01
+                    maintenance_amount: 250
+                    boundary_continuous: true
+        '404':
+          description: Symbol not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/margin/tiers/sync:
+    post:
+      summary: Sync tier configurations with Binance
+      description: Updates all tier configurations from exchange
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                symbols:
+                  type: array
+                  items:
+                    type: string
+                  description: Specific symbols to sync (empty = all)
+                force:
+                  type: boolean
+                  description: Force update even if unchanged
+      responses:
+        '200':
+          description: Sync completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated_symbols:
+                    type: array
+                    items:
+                      type: string
+                  changes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        symbol:
+                          type: string
+                        old_version:
+                          type: string
+                        new_version:
+                          type: string
+                        tier_changes:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              tier_number:
+                                type: integer
+                              field:
+                                type: string
+                              old_value:
+                                type: number
+                              new_value:
+                                type: number
+                  continuity_checks:
+                    type: object
+                    additionalProperties:
+                      type: boolean
+                    description: Continuity validation per symbol
+              example:
+                updated_symbols: ["BTCUSDT", "ETHUSDT"]
+                changes:
+                  - symbol: BTCUSDT
+                    old_version: "2025.11.19.001"
+                    new_version: "2025.11.20.001"
+                    tier_changes:
+                      - tier_number: 3
+                        field: maintenance_amount
+                        old_value: 3750
+                        new_value: 4000
+                continuity_checks:
+                  BTCUSDT: true
+                  ETHUSDT: true
+        '500':
+          description: Sync failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/margin/validate:
+    post:
+      summary: Validate tier configuration
+      description: Checks mathematical continuity and consistency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                symbol:
+                  type: string
+                tiers:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      min_notional:
+                        type: number
+                      max_notional:
+                        type: number
+                      margin_rate:
+                        type: number
+                      maintenance_amount:
+                        type: number
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  checks:
+                    type: object
+                    properties:
+                      continuity:
+                        type: boolean
+                        description: All boundaries continuous
+                      coverage:
+                        type: boolean
+                        description: Full range covered
+                      monotonicity:
+                        type: boolean
+                        description: Rates non-decreasing
+                      precision:
+                        type: boolean
+                        description: Decimal precision adequate
+                  discontinuities:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        boundary:
+                          type: number
+                        margin_left:
+                          type: number
+                        margin_right:
+                          type: number
+                        difference:
+                          type: number
+                  recommendations:
+                    type: array
+                    items:
+                      type: string
+              example:
+                valid: false
+                checks:
+                  continuity: false
+                  coverage: true
+                  monotonicity: true
+                  precision: true
+                discontinuities:
+                  - boundary: 50000
+                    margin_left: 250
+                    margin_right: 500
+                    difference: 250
+                recommendations:
+                  - "Add maintenance_amount=250 to tier 2"
+        '400':
+          description: Invalid configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+      required:
+        - error
+        - message
