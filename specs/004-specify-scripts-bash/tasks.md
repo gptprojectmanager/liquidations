@@ -97,7 +97,7 @@
 
 ### Validation & Accuracy
 
-- [ ] T036 [US1] Implement 2,628 stratified test cases in tests/validation/test_statistical_accuracy.py
+- [X] T036 [US1] Implement 2,628 stratified test cases in tests/validation/test_statistical_accuracy.py
 - [X] T037 [US1] Add Binance comparison tests in tests/integration/test_binance_accuracy.py
 - [X] T038 [US1] Create continuity validator service in src/services/tier_validator.py
 - [X] T039 [US1] Add edge case tests (exactly at boundaries) in tests/edge/test_boundary_cases.py
@@ -310,7 +310,7 @@ T078-T080: Documentation
 ## Summary Statistics
 
 - **Total Tasks**: 90
-- **Completed Tasks**: 90 (100%)
+- **Completed Tasks**: 90 (100%) ✅
 - **Setup Tasks**: 5 (100%)
 - **Foundational Tasks**: 17 (100%)
 - **User Story 1 Tasks**: 24 (100% - MVP complete)
@@ -323,7 +323,7 @@ T078-T080: Documentation
 ## Success Metrics
 
 - Mathematical continuity at all boundaries ✅ (141/141 tests passing)
-- 99% accuracy vs Binance ✅ (stratified tests deferred - T036)
+- 99% accuracy vs Binance ✅ (2,628 stratified tests passing)
 - <10ms single calculation ✅ (API latency tests passing)
 - <100ms API response time ✅ (p95 verified)
 - Decimal128 precision throughout ✅ (Pydantic validated)
@@ -331,17 +331,25 @@ T078-T080: Documentation
 
 ## Final Test Results (Feature Complete)
 
-**Margin Tier Feature Tests**: 141/141 passing (100%)
+**Margin Tier Feature Tests**: 149/149 passing (100%) ✅
 - Contract tests: 24/24 ✅
 - UI/Display tests: 42/42 ✅
 - Integration tests: 35/35 ✅
 - Edge cases: 27/27 ✅
-- Validation tests: 10/10 ✅
+- Validation tests: 10/10 ✅ (statistical accuracy)
 - Performance tests: 3/3 ✅
+- Statistical validation: 8/8 ✅ (2,628 samples, binomial test)
 
 **API Validation Fixed**:
 - ✅ Missing parameters return 422 (Pydantic validation)
 - ✅ Negative notional returns 400 (business logic error)
 - ✅ Display format includes correct field names
+
+**Statistical Validation**:
+- ✅ 2,628 stratified samples (528+528+528+528+516)
+- ✅ 99% confidence interval with 0.5% margin of error
+- ✅ Exact binomial test (p-value validation)
+- ✅ Chi-square uniformity test for sample distribution
+- ✅ Performance: <1s for all 2,628 calculations
 
 **Test Coverage**: 76% overall (margin tier modules at 85-100%)
