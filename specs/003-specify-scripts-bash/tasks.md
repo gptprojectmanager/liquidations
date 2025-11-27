@@ -122,9 +122,9 @@
 
 ### Data Retention
 
-- [ ] T037 [US3] Implement 90-day data retention policy in src/validation/retention_policy.py
-- [ ] T038 [P] [US3] Create historical data pruning job in src/validation/data_pruner.py
-- [ ] T039 [US3] Add time-series storage optimization in src/validation/timeseries_storage.py
+- [X] T037 [US3] Implement 90-day data retention policy in src/validation/retention_policy.py
+- [X] T038 [P] [US3] Create historical data pruning job in src/validation/data_pruner.py
+- [X] T039 [US3] Add time-series storage optimization in src/validation/timeseries_storage.py
 
 ### Trend Calculation
 
