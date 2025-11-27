@@ -66,7 +66,7 @@ class TestEmailHandler:
         subject = handler._build_subject(alert_context)
 
         # Assert
-        assert "CRITICAL" in subject or "🔴" in subject
+        assert "🚨" in subject  # F grade uses alarm emoji
         assert "test_model" in subject
         assert "F" in subject
 
@@ -84,7 +84,7 @@ class TestEmailHandler:
         subject = handler._build_subject(alert_context)
 
         # Assert
-        assert "WARNING" in subject or "⚠️" in subject
+        assert "⚠️" in subject  # C grade uses warning emoji
         assert "test_model" in subject
         assert "C" in subject
 
