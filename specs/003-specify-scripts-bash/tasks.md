@@ -134,15 +134,15 @@
 
 ### Dashboard API
 
-- [ ] T043 [US3] Create trend data endpoint GET /api/validation/trends in src/api/trend_endpoints.py
-- [ ] T044 [US3] Add comparison endpoint GET /api/validation/compare in src/api/comparison_endpoints.py
-- [ ] T045 [US3] Implement dashboard data aggregation in src/api/dashboard_aggregator.py
+- [X] T043 [US3] Create trend data endpoint GET /api/validation/trends in src/api/trend_endpoints.py
+- [X] T044 [US3] Add comparison endpoint GET /api/validation/compare in src/api/comparison_endpoints.py
+- [X] T045 [US3] Implement dashboard data aggregation in src/api/dashboard_aggregator.py
 
 ### Visualization Support
 
-- [ ] T046 [P] [US3] Create chart data formatter in src/validation/visualization/chart_formatter.py
-- [ ] T047 [P] [US3] Add performance metrics calculator in src/validation/visualization/metrics.py
-- [ ] T048 [US3] Implement cache layer for dashboard queries in src/validation/visualization/cache.py
+- [X] T046 [P] [US3] Create chart data formatter in src/validation/visualization/chart_formatter.py
+- [X] T047 [P] [US3] Add performance metrics calculator in src/validation/visualization/metrics.py
+- [X] T048 [US3] Implement cache layer for dashboard queries in src/validation/visualization/cache.py
 
 **Checkpoint**: Historical trends viewable with 90-day history and comparison capabilities
 
