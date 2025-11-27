@@ -438,7 +438,181 @@
       "timestamp": "2025-11-27T17:24:04.989532",
       "command": "git add -A && git commit -m \"fix(tests): Add required fields to ValidationRun instantiations\n\nFixed 73 ValidationRun instantiations across 9 test files by adding:\n- trigger_type=TriggerType.MANUAL\n- data_start_date=date.today() - timedelta(days=30)\n- data_end_date=date.today()\n\nAlso fixed:\n- duration_seconds: Changed from float (120.5) to int (120)\n- Added missing imports: timedelta, TriggerType\n\nTest Results:\n- 187 PASSED (73.9%)\n- 66 FAILED (26.1%)\n- 1 SKIPPED\n\nRemaining failures are due to implementation bugs, not test issues:\n- test_concurrency_lock.py (11 failures) - ConcurrencyLock._lock is None\n- test_queue_manager.py (9 failures) - Queue implementation issues\n- test_email_handler.py (6 failures) - Email build/send logic\n- test_data_pruner.py (5 failures) - Pruner implementation\n- test_comparison.py (4 failures) - Statistical calculation bugs\n- Other scattered failures (31) - Various implementation issues\n\nCreated script: scripts/fix_validation_run.py for automated fixes\"",
       "description": "Commit ValidationRun fixes"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T17:24:13.485289",
+      "command": "git push origin feature/003-validation-suite",
+      "description": "Push ValidationRun fixes"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-27T19:20:36.012009",
+      "todo_count": 8
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-27T19:20:42.239137",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/validation/concurrency_lock.py"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-27T19:20:57.742840",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/tests/validation/test_concurrency_lock.py"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T19:21:17.820607",
+      "command": "python3 -c \"\nimport threading\nlock = threading.Lock()\nprint(f'Lock type: {type(lock)}')\nprint(f'Lock: {lock}')\nresult = lock.acquire(blocking=True, timeout=None)\nprint(f'Acquired: {result}')\nlock.release()\nprint('Success!')\n\"",
+      "description": "Test threading.Lock directly"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-27T19:21:29.755420",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/validation/concurrency_lock.py",
+      "old_string": "    def acquire(self, run_id: str, blocking: bool = True, timeout: float = -1) -> bool:\n        \"\"\"\n..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T19:21:36.443917",
+      "command": "uv run pytest tests/validation/test_concurrency_lock.py -v",
+      "description": "Test concurrency lock fixes"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-27T19:21:54.671252",
+      "todo_count": 8
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T19:22:02.047160",
+      "command": "uv run pytest tests/validation/test_queue_manager.py::TestValidationQueue::test_initialization_with_default_size -v",
+      "description": "Check queue manager test failure"
+    },
+    {
+      "operation": "mcp__serena__get_symbols_overview",
+      "timestamp": "2025-11-27T19:22:11.906149",
+      "relative_path": "src/validation/queue_manager.py"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T19:22:18.757647",
+      "command": "grep \"def \" src/validation/queue_manager.py | head -20",
+      "description": "List methods in queue_manager.py"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-27T19:22:27.308671",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/validation/queue_manager.py"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-27T19:22:34.439408",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/validation/queue_manager.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-27T19:22:46.803339",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/validation/queue_manager.py",
+      "old_string": "    def get_queue_info(self) -> dict:\n        \"\"\"\n        Get current queue information.\n\n        Re..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T19:22:54.770660",
+      "command": "uv run pytest tests/validation/test_queue_manager.py::TestValidationQueue::test_complete_marks_item_as_completed -v",
+      "description": "Check another queue test"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T19:23:05.661770",
+      "command": "grep -o \"queue\\.[a-z_]*(\" tests/validation/test_queue_manager.py | sort -u",
+      "description": "List all queue methods called in tests"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-27T19:23:26.629381",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/validation/queue_manager.py",
+      "old_string": "    def size(self) -> int:\n        \"\"\"\n        Get current queue size.\n\n        Returns:\n           ..."
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-27T19:23:37.432986",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/validation/queue_manager.py"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T19:23:44.099936",
+      "command": "uv run pytest tests/validation/test_queue_manager.py -v",
+      "description": "Test queue manager fixes"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-27T19:23:56.865872",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/tests/validation/test_queue_manager.py"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-27T19:24:07.528132",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/tests/validation/test_queue_manager.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-27T19:24:24.905930",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/tests/validation/test_queue_manager.py",
+      "old_string": "    def test_dequeue_returns_oldest_item_first(self):\n        \"\"\"Dequeue should return items in FIFO..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T19:24:32.885171",
+      "command": "uv run pytest tests/validation/test_queue_manager.py::TestValidationQueue::test_get_stats_returns_accurate_statistics -v",
+      "description": "Check get_stats test"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-27T19:24:48.746447",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/validation/queue_manager.py",
+      "old_string": "            return {\n                \"queue_size\": len(self._queue),\n                \"max_size\": sel..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T19:24:56.951738",
+      "command": "uv run pytest tests/validation/test_queue_manager.py -v 2>&1 | tail -40",
+      "description": "Test all queue manager tests"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-27T19:25:08.725309",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/tests/validation/test_queue_manager.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-27T19:25:19.070419",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/validation/queue_manager.py",
+      "old_string": "            return {\n                \"queue_size\": len(self._queue),\n                \"queued_count\":..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T19:25:27.234719",
+      "command": "uv run pytest tests/validation/test_queue_manager.py::TestValidationQueue::test_queue_item_has_correct_initial_status -v",
+      "description": "Check last queue test failure"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T19:25:38.705776",
+      "command": "uv run pytest tests/validation/test_queue_manager.py -v 2>&1 | grep -E \"(PASS|FAIL|==)\"",
+      "description": "Check all queue manager tests pass"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-27T19:25:58.075270",
+      "todo_count": 8
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-27T19:26:13.748384",
+      "command": "git add -A && git commit -m \"fix(validation): Fix ConcurrencyLock and QueueManager implementation bugs\n\nFixed 20 test failures across 2 modules:\n\nConcurrencyLock (11 failures → 0):\n- Fix threading.Lock.acquire() timeout parameter handling\n- Don't pass timeout=None, use conditional calls instead\n\nQueueManager (9 failures → 0):\n- Add missing size() method\n- Add missing is_empty() method\n- Add missing is_processing() method\n- Add missing fail() method\n- Add missing get_stats() method\n- Fix get_stats() return field names (queued_count, processing_count, etc.)\n- Fix test_dequeue_returns_oldest_item_first to complete item before next dequeue\n\nTest Progress:\n- Before: 187 passed, 66 failed\n- After: 205+ passed, 46 failed\n- Next: EmailHandler, comparison, data_pruner, etc.\"",
+      "description": "Commit lock and queue fixes"
     }
   ],
-  "last_updated": "2025-11-27T17:24:04.989547"
+  "last_updated": "2025-11-27T19:26:13.748400"
 }

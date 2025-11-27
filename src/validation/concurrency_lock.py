@@ -46,7 +46,13 @@ class ConcurrencyLock:
         Returns:
             True if lock acquired, False otherwise
         """
-        acquired = self._lock.acquire(blocking=blocking, timeout=timeout if timeout >= 0 else None)
+        # Handle timeout parameter carefully - threading.Lock doesn't accept timeout=None
+        if timeout < 0:
+            # No timeout - block indefinitely
+            acquired = self._lock.acquire(blocking=blocking)
+        else:
+            # With timeout
+            acquired = self._lock.acquire(blocking=blocking, timeout=timeout)
 
         if acquired:
             self._holder = run_id

@@ -254,6 +254,98 @@ class ValidationQueue:
 
             return None
 
+    def size(self) -> int:
+        """
+        Get current queue size.
+
+        Returns:
+            Number of items in queue
+        """
+        with self._lock:
+            return len(self._queue)
+
+    def is_empty(self) -> bool:
+        """
+        Check if queue is empty.
+
+        Returns:
+            True if queue has no items
+        """
+        with self._lock:
+            return len(self._queue) == 0
+
+    def is_processing(self) -> bool:
+        """
+        Check if an item is currently being processed.
+
+        Returns:
+            True if an item is being processed
+        """
+        with self._lock:
+            return self._processing is not None
+
+    def fail(self, queue_id: str, error_message: str = "") -> bool:
+        """
+        Mark processing item as failed.
+
+        Args:
+            queue_id: Queue item ID to fail
+            error_message: Optional error message
+
+        Returns:
+            True if item was found and marked as failed
+        """
+        with self._lock:
+            if self._processing and self._processing.queue_id == queue_id:
+                self._processing.status = QueueStatus.FAILED
+                self._processing.completed_at = datetime.utcnow()
+                self._processing.error_message = error_message
+
+                # Calculate duration
+                duration = (
+                    self._processing.completed_at - self._processing.queued_at
+                ).total_seconds()
+
+                logger.error(
+                    f"Failed validation run: queue_id={queue_id}, "
+                    f"error={error_message}, duration={duration:.1f}s"
+                )
+
+                # Move to history
+                self._history.append(self._processing)
+                self._processing = None
+
+                return True
+
+            return False
+
+    def get_stats(self) -> dict:
+        """
+        Get queue statistics.
+
+        Returns:
+            Dict with queue statistics
+        """
+        with self._lock:
+            completed_items = [
+                item for item in self._history if item.status == QueueStatus.COMPLETED
+            ]
+            failed_items = [item for item in self._history if item.status == QueueStatus.FAILED]
+            cancelled_items = [
+                item for item in self._history if item.status == QueueStatus.CANCELLED
+            ]
+
+            return {
+                "queue_size": len(self._queue),
+                "queued_count": len(self._queue),
+                "max_size": self.max_size,
+                "processing_count": 1 if self._processing is not None else 0,
+                "completed_count": len(completed_items),
+                "failed_count": len(failed_items),
+                "cancelled_count": len(cancelled_items),
+                "history_size": len(self._history),
+            }
+
     def get_queue_info(self) -> dict:
         """
         Get current queue information.

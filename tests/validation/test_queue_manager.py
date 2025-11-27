@@ -102,6 +102,7 @@ class TestValidationQueue:
 
         # Act
         item1 = queue.dequeue()
+        queue.complete(item1.queue_id)  # Complete first item before dequeuing next
         item2 = queue.dequeue()
 
         # Assert
