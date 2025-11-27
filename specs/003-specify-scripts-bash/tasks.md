@@ -66,9 +66,9 @@
 
 ### Scheduling & Automation
 
-- [ ] T019 [US1] Implement APScheduler integration in src/validation/scheduler.py
-- [ ] T020 [US1] Create weekly trigger at 2 AM UTC in src/validation/cron_jobs.py
-- [ ] T021 [US1] Add automatic retry logic with backoff in src/validation/retry_handler.py
+- [X] T019 [US1] Implement APScheduler integration in src/validation/scheduler.py
+- [X] T020 [US1] Create weekly trigger at 2 AM UTC in src/validation/cron_jobs.py
+- [X] T021 [US1] Add automatic retry logic with backoff in src/validation/retry_handler.py
 
 ### Report Generation
 
