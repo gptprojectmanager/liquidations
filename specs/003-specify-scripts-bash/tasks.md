@@ -53,7 +53,7 @@
 
 ### Core Validation Tests
 
-- [ ] T012 [P] [US1] Implement funding rate correlation test in src/validation/tests/funding_correlation.py
+- [X] T012 [P] [US1] Implement funding rate correlation test in src/validation/tests/funding_correlation.py
 - [ ] T013 [P] [US1] Implement OI conservation test in src/validation/tests/oi_conservation.py
 - [ ] T014 [P] [US1] Implement directional positioning test in src/validation/tests/directional_test.py
 - [ ] T015 [US1] Create test aggregator in src/validation/test_runner.py (depends on T012-T014)
