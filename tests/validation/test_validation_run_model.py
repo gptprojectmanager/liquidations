@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from src.models.validation_run import ValidationRun
+from src.models.validation_run import TriggerType, ValidationRun
 
 
 class TestValidationRunModel:

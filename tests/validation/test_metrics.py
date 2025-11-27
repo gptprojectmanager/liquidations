@@ -11,7 +11,7 @@ Tests cover:
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from datetime import date
+from datetime import date, timedelta
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
 from src.models.validation_test import ValidationTest
 from src.validation.visualization.metrics import MetricsCalculator, get_metrics_calculator
@@ -32,7 +32,10 @@ class TestMetricsCalculator:
                 overall_grade=ValidationGrade.A if i % 2 == 0 else ValidationGrade.B,
                 overall_score=Decimal(str(90.0 + i)),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=datetime.utcnow() - timedelta(days=i),
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             )
             for i in range(10)
         ]
@@ -60,7 +63,10 @@ class TestMetricsCalculator:
                 overall_grade=ValidationGrade.B,
                 overall_score=Decimal("80.0"),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=datetime.utcnow() - timedelta(days=10 - i),
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             )
             for i in range(5)
         ] + [
@@ -70,7 +76,10 @@ class TestMetricsCalculator:
                 overall_grade=ValidationGrade.A,
                 overall_score=Decimal("90.0"),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=datetime.utcnow() - timedelta(days=5 - i),
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             )
             for i in range(5)
         ]
@@ -134,7 +143,10 @@ class TestMetricsCalculator:
                 overall_grade=ValidationGrade.A,
                 overall_score=Decimal("90.0"),
                 status=ValidationStatus.COMPLETED if i < 8 else ValidationStatus.FAILED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=datetime.utcnow(),
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             )
             for i in range(10)
         ]

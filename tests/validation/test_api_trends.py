@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.endpoints.trends import router
-from datetime import date
+from datetime import date, timedelta
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
 
 app = FastAPI()
@@ -45,7 +45,10 @@ class TestTrendsAPI:
                 overall_grade=ValidationGrade.A,
                 overall_score=Decimal("90.0"),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=datetime.utcnow() - timedelta(days=i),
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             )
             for i in range(10)
         ]
@@ -100,7 +103,10 @@ class TestTrendsAPI:
             overall_grade=ValidationGrade.A,
             overall_score=Decimal("95.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         run2 = ValidationRun(
@@ -109,7 +115,10 @@ class TestTrendsAPI:
             overall_grade=ValidationGrade.B,
             overall_score=Decimal("85.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         def get_runs_in_date_range(model_name, start_date, end_date):
@@ -163,7 +172,10 @@ class TestTrendsAPI:
             overall_grade=ValidationGrade.A,
             overall_score=Decimal("92.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
             completed_at=datetime.utcnow(),
         )
 

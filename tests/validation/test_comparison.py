@@ -10,7 +10,7 @@ Tests cover:
 - Best model recommendation
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from datetime import date
@@ -33,7 +33,10 @@ class TestModelComparison:
             overall_score=Decimal("95.0"),
             overall_grade=ValidationGrade.A,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         run2 = ValidationRun(
@@ -42,7 +45,10 @@ class TestModelComparison:
             overall_score=Decimal("85.0"),
             overall_grade=ValidationGrade.B,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         runs = {"model1": run1, "model2": run2}
@@ -65,7 +71,10 @@ class TestModelComparison:
             overall_score=None,
             overall_grade=None,
             status=ValidationStatus.RUNNING,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         runs = {"model1": run}
@@ -87,7 +96,10 @@ class TestModelComparison:
             overall_score=Decimal("92.0"),
             overall_grade=ValidationGrade.A,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         run2 = ValidationRun(
@@ -96,7 +108,10 @@ class TestModelComparison:
             overall_score=Decimal("78.0"),
             overall_grade=ValidationGrade.C,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         runs = {"model1": run1, "model2": run2}
@@ -119,7 +134,10 @@ class TestModelComparison:
             overall_score=Decimal("85.0"),
             overall_grade=ValidationGrade.B,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         run2 = ValidationRun(
@@ -128,7 +146,10 @@ class TestModelComparison:
             overall_score=Decimal("95.0"),
             overall_grade=ValidationGrade.A,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         run3 = ValidationRun(
@@ -137,7 +158,10 @@ class TestModelComparison:
             overall_score=Decimal("75.0"),
             overall_grade=ValidationGrade.C,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         runs = {"model1": run1, "model2": run2, "model3": run3}
@@ -163,7 +187,10 @@ class TestModelComparison:
             overall_score=Decimal("80.0"),
             overall_grade=ValidationGrade.B,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         run2 = ValidationRun(
@@ -172,7 +199,10 @@ class TestModelComparison:
             overall_score=Decimal("90.0"),
             overall_grade=ValidationGrade.A,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         runs = {"model1": run1, "model2": run2}
@@ -195,7 +225,10 @@ class TestModelComparison:
             overall_score=Decimal("80.0"),
             overall_grade=ValidationGrade.B,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         run2 = ValidationRun(
@@ -204,7 +237,10 @@ class TestModelComparison:
             overall_score=Decimal("90.0"),
             overall_grade=ValidationGrade.A,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         runs = {"model1": run1, "model2": run2}
@@ -227,7 +263,10 @@ class TestModelComparison:
             overall_score=Decimal("85.0"),
             overall_grade=ValidationGrade.B,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         run2 = ValidationRun(
@@ -236,7 +275,10 @@ class TestModelComparison:
             overall_score=Decimal("88.0"),
             overall_grade=ValidationGrade.B,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         run3 = ValidationRun(
@@ -245,7 +287,10 @@ class TestModelComparison:
             overall_score=Decimal("30.0"),  # Extreme outlier
             overall_grade=ValidationGrade.F,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         runs = {"normal1": run1, "normal2": run2, "outlier": run3}
@@ -267,7 +312,10 @@ class TestModelComparison:
             overall_score=Decimal("92.0"),
             overall_grade=ValidationGrade.A,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         run2 = ValidationRun(
@@ -276,7 +324,10 @@ class TestModelComparison:
             overall_score=Decimal("98.0"),
             overall_grade=ValidationGrade.A,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         runs = {"good_model": run1, "best_model": run2}
@@ -321,7 +372,10 @@ class TestModelComparison:
             overall_score=Decimal("92.0"),
             overall_grade=ValidationGrade.A,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         run2 = ValidationRun(
@@ -330,7 +384,10 @@ class TestModelComparison:
             overall_score=Decimal("90.0"),
             overall_grade=ValidationGrade.A,
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         runs = {"model1": run1, "model2": run2}

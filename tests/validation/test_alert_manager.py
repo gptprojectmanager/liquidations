@@ -8,11 +8,10 @@ Tests cover:
 - Alert suppression logic
 """
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock
 
-from datetime import date
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
 from src.models.validation_test import ValidationTest
 from src.validation.alerts.alert_manager import AlertManager
@@ -31,7 +30,10 @@ class TestAlertManager:
             overall_grade=ValidationGrade.C,
             overall_score=Decimal("75.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         # Act
@@ -50,7 +52,10 @@ class TestAlertManager:
             overall_grade=ValidationGrade.F,
             overall_score=Decimal("50.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         # Act
@@ -69,7 +74,10 @@ class TestAlertManager:
             overall_grade=ValidationGrade.A,
             overall_score=Decimal("95.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         # Act
@@ -88,7 +96,10 @@ class TestAlertManager:
             overall_grade=ValidationGrade.B,
             overall_score=Decimal("85.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         # Act
@@ -107,7 +118,10 @@ class TestAlertManager:
             overall_grade=None,
             overall_score=None,
             status=ValidationStatus.RUNNING,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         # Act
@@ -126,9 +140,12 @@ class TestAlertManager:
             overall_grade=ValidationGrade.F,
             overall_score=Decimal("45.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
             completed_at=datetime.utcnow(),
-            duration_seconds=120.5,
+            duration_seconds=120,
         )
         tests = [
             ValidationTest(
@@ -171,7 +188,10 @@ class TestAlertManager:
             overall_grade=ValidationGrade.F,
             overall_score=Decimal("30.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
         tests = []
 
@@ -194,7 +214,10 @@ class TestAlertManager:
             overall_grade=ValidationGrade.A,
             overall_score=Decimal("95.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
         tests = []
 
@@ -219,7 +242,10 @@ class TestAlertManager:
             overall_grade=ValidationGrade.F,
             overall_score=Decimal("20.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
         tests = []
 
@@ -241,7 +267,10 @@ class TestAlertManager:
             overall_grade=ValidationGrade.C,
             overall_score=Decimal("75.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         run_f = ValidationRun(
@@ -250,7 +279,10 @@ class TestAlertManager:
             overall_grade=ValidationGrade.F,
             overall_score=Decimal("50.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         # Act
@@ -271,7 +303,10 @@ class TestAlertManager:
             overall_grade=ValidationGrade.F,
             overall_score=Decimal("40.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
         tests = [
             ValidationTest(

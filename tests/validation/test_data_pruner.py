@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
-from datetime import date
+from datetime import date, timedelta
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
 from src.validation.data_pruner import DataPruner
 
@@ -45,7 +45,10 @@ class TestDataPruner:
                     overall_grade=ValidationGrade.A,
                     overall_score=Decimal("90.0"),
                     status=ValidationStatus.COMPLETED,
+                    trigger_type=TriggerType.MANUAL,
                     started_at=datetime.utcnow() - timedelta(days=120),
+                    data_start_date=date.today() - timedelta(days=30),
+                    data_end_date=date.today(),
                 )
             ]
 
@@ -75,7 +78,10 @@ class TestDataPruner:
                     overall_grade=ValidationGrade.A,
                     overall_score=Decimal("90.0"),
                     status=ValidationStatus.COMPLETED,
+                    trigger_type=TriggerType.MANUAL,
                     started_at=datetime.utcnow() - timedelta(days=120),
+                    data_start_date=date.today() - timedelta(days=30),
+                    data_end_date=date.today(),
                 ),
                 ValidationRun(
                     run_id="old-run-2",
@@ -83,7 +89,10 @@ class TestDataPruner:
                     overall_grade=ValidationGrade.B,
                     overall_score=Decimal("85.0"),
                     status=ValidationStatus.COMPLETED,
+                    trigger_type=TriggerType.MANUAL,
                     started_at=datetime.utcnow() - timedelta(days=150),
+                    data_start_date=date.today() - timedelta(days=30),
+                    data_end_date=date.today(),
                 ),
             ]
 

@@ -7,7 +7,7 @@ Tests cover:
 - GET /api/validation/report/{run_id} (get report)
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
@@ -64,7 +64,10 @@ class TestValidationAPI:
             overall_grade=ValidationGrade.A,
             overall_score=Decimal("95.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
             completed_at=datetime.utcnow(),
         )
 
@@ -106,7 +109,10 @@ class TestValidationAPI:
             overall_grade=ValidationGrade.A,
             overall_score=Decimal("95.0"),
             status=ValidationStatus.COMPLETED,
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
             completed_at=datetime.utcnow(),
         )
 
@@ -135,7 +141,10 @@ class TestValidationAPI:
             overall_grade=None,
             overall_score=None,
             status=ValidationStatus.RUNNING,  # Still running
+            trigger_type=TriggerType.MANUAL,
             started_at=datetime.utcnow(),
+            data_start_date=date.today() - timedelta(days=30),
+            data_end_date=date.today(),
         )
 
         mock_storage.get_run.return_value = test_run
