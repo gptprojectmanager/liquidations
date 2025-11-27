@@ -94,21 +94,21 @@
 
 ### API Endpoints
 
-- [ ] T028 [US2] Create validation trigger endpoint POST /api/validation/run in src/api/validation_endpoints.py
-- [ ] T029 [US2] Add validation status endpoint GET /api/validation/status/{run_id} in src/api/validation_endpoints.py
-- [ ] T030 [US2] Implement result retrieval endpoint GET /api/validation/report/{run_id} in src/api/validation_endpoints.py
+- [X] T028 [US2] Create validation trigger endpoint POST /api/validation/run in src/api/validation_endpoints.py
+- [X] T029 [US2] Add validation status endpoint GET /api/validation/status/{run_id} in src/api/validation_endpoints.py
+- [X] T030 [US2] Implement result retrieval endpoint GET /api/validation/report/{run_id} in src/api/validation_endpoints.py
 
 ### Queue Management
 
-- [ ] T031 [US2] Implement validation queue with FIFO processing in src/validation/queue_manager.py
-- [ ] T032 [US2] Add queue size limit (max 10) and overflow handling in src/validation/queue_config.py
-- [ ] T033 [US2] Create concurrent run prevention in src/validation/concurrency_lock.py
+- [X] T031 [US2] Implement validation queue with FIFO processing in src/validation/queue_manager.py
+- [X] T032 [US2] Add queue size limit (max 10) and overflow handling in src/validation/queue_config.py
+- [X] T033 [US2] Create concurrent run prevention in src/validation/concurrency_lock.py
 
 ### Multi-Model Support
 
-- [ ] T034 [P] [US2] Add model selection parameter in validation runner in src/validation/model_selector.py
-- [ ] T035 [US2] Implement separate report generation per model in src/validation/reports/multi_model_reporter.py
-- [ ] T036 [P] [US2] Create model comparison utilities in src/validation/comparison.py
+- [X] T034 [P] [US2] Add model selection parameter in validation runner in src/validation/model_selector.py
+- [X] T035 [US2] Implement separate report generation per model in src/validation/reports/multi_model_reporter.py
+- [X] T036 [P] [US2] Create model comparison utilities in src/validation/comparison.py
 
 **Checkpoint**: Manual validation triggers work independently without disrupting scheduled runs
 
