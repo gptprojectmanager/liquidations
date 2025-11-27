@@ -72,9 +72,9 @@
 
 ### Report Generation
 
-- [ ] T022 [US1] Implement JSON report generator in src/validation/reports/json_reporter.py
-- [ ] T023 [P] [US1] Implement human-readable report in src/validation/reports/text_reporter.py
-- [ ] T024 [US1] Create report persistence in src/validation/reports/report_storage.py
+- [X] T022 [US1] Implement JSON report generator in src/validation/reports/json_reporter.py
+- [X] T023 [P] [US1] Implement human-readable report in src/validation/reports/text_reporter.py
+- [X] T024 [US1] Create report persistence in src/validation/reports/report_storage.py
 
 ### Alert System
 
