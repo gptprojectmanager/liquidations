@@ -60,9 +60,9 @@
 
 ### Grading System
 
-- [ ] T016 [US1] Implement grading calculator (A/B/C/F) in src/validation/grading.py
-- [ ] T017 [US1] Create weighted score aggregation in src/validation/scoring.py
-- [ ] T018 [US1] Add grade thresholds configuration in config/validation_thresholds.yaml
+- [X] T016 [US1] Implement grading calculator (A/B/C/F) in src/validation/grading.py
+- [X] T017 [US1] Create weighted score aggregation in src/validation/scoring.py
+- [X] T018 [US1] Add grade thresholds configuration in config/validation_thresholds.yaml
 
 ### Scheduling & Automation
 
@@ -78,9 +78,9 @@
 
 ### Alert System
 
-- [ ] T025 [US1] Implement alert trigger for C/F grades in src/validation/alerts/alert_manager.py
-- [ ] T026 [P] [US1] Create email notification handler in src/validation/alerts/email_handler.py
-- [ ] T027 [P] [US1] Add alert configuration in config/alert_settings.yaml
+- [X] T025 [US1] Implement alert trigger for C/F grades in src/validation/alerts/alert_manager.py
+- [X] T026 [P] [US1] Create email notification handler in src/validation/alerts/email_handler.py
+- [X] T027 [P] [US1] Add alert configuration in config/alert_settings.yaml
 
 **Checkpoint**: Automated weekly validation fully functional with alerts
 

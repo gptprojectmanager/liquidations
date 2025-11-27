@@ -1,0 +1,104 @@
+# Validation Alert Configuration
+# Settings for email notifications and alert triggers
+
+# Alert trigger settings
+alerts:
+  enabled: true
+
+  # Grades that trigger alerts (C and F)
+  trigger_grades:
+    - "C"
+    - "F"
+
+  # Alert cooldown (minutes) - prevent spam if multiple runs fail
+  cooldown_minutes: 30
+
+  # Maximum alerts per day (safety limit)
+  max_alerts_per_day: 10
+
+# Email notification settings
+email:
+  enabled: true
+
+  # SMTP server configuration
+  smtp:
+    host: "localhost"  # Change to your SMTP server
+    port: 587          # 587 for TLS, 465 for SSL, 25 for plain
+    use_tls: true      # Use TLS encryption
+
+    # Authentication (optional - set to null if not required)
+    username: null     # Set via environment variable: SMTP_USERNAME
+    password: null     # Set via environment variable: SMTP_PASSWORD
+
+  # Sender configuration
+  from:
+    email: "validation@liquidationheatmap.local"
+    name: "Liquidation Validation Suite"
+
+  # Recipients
+  recipients:
+    # Primary recipients (always notified)
+    primary:
+      - "alerts@example.com"
+      - "devops@example.com"
+
+    # Grade-specific recipients
+    grade_F:  # Critical failures
+      - "oncall@example.com"
+      - "engineering-leads@example.com"
+
+    grade_C:  # Warnings
+      - "ml-team@example.com"
+
+  # Email template settings
+  template:
+    include_test_details: true
+    include_diagnostics: true
+    include_recommendations: true
+
+# Alert channels (future extensions)
+channels:
+  slack:
+    enabled: false
+    webhook_url: null  # Set via environment variable: SLACK_WEBHOOK_URL
+    channel: "#validation-alerts"
+
+  pagerduty:
+    enabled: false
+    integration_key: null  # Set via environment variable: PAGERDUTY_KEY
+    severity: "error"  # For grade F
+
+  discord:
+    enabled: false
+    webhook_url: null  # Set via environment variable: DISCORD_WEBHOOK_URL
+
+  sms:
+    enabled: false
+    provider: "twilio"  # twilio, aws_sns
+    recipients: []
+
+# Alert severity mapping
+severity:
+  grade_A: "info"
+  grade_B: "info"
+  grade_C: "warning"
+  grade_F: "critical"
+
+# Retry settings for failed alert deliveries
+retry:
+  enabled: true
+  max_attempts: 3
+  backoff_seconds: 5
+  max_backoff_seconds: 60
+
+# Alert storage and history
+history:
+  enabled: true
+  retention_days: 90
+  storage_path: "data/processed/alert_history.duckdb"
+
+# Alert aggregation (batch multiple failures)
+aggregation:
+  enabled: false
+  window_minutes: 15  # Group alerts within 15-minute window
+  max_batch_size: 5   # Maximum alerts to batch together
