@@ -128,9 +128,9 @@
 
 ### Trend Calculation
 
-- [ ] T040 [US3] Implement trend calculator for each metric in src/validation/trends/trend_calculator.py
-- [ ] T041 [P] [US3] Create moving average calculations in src/validation/trends/moving_averages.py
-- [ ] T042 [P] [US3] Add degradation detection algorithm in src/validation/trends/degradation_detector.py
+- [X] T040 [US3] Implement trend calculator for each metric in src/validation/trends/trend_calculator.py
+- [X] T041 [P] [US3] Create moving average calculations in src/validation/trends/moving_averages.py
+- [X] T042 [P] [US3] Add degradation detection algorithm in src/validation/trends/degradation_detector.py
 
 ### Dashboard API
 
