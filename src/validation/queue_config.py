@@ -54,8 +54,9 @@ class QueueConfig:
         """
         # Validate and set max_size
         if max_size < self.MIN_SIZE or max_size > self.MAX_SIZE:
-            logger.warning(f"Invalid max_size {max_size}, using default {self.DEFAULT_MAX_SIZE}")
-            max_size = self.DEFAULT_MAX_SIZE
+            raise ValueError(
+                f"max_size must be between {self.MIN_SIZE} and {self.MAX_SIZE}, got {max_size}"
+            )
 
         self.max_size = max_size
         self.overflow_policy = overflow_policy

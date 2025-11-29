@@ -57,8 +57,9 @@ class TestValidationAPI:
         mock_storage = Mock()
         mock_storage_class.return_value.__enter__.return_value = mock_storage
 
+        test_run_id = "550e8400-e29b-41d4-a716-446655440000"
         test_run = ValidationRun(
-            run_id="test-run-123",
+            run_id=test_run_id,
             model_name="model",
             overall_grade=ValidationGrade.A,
             overall_score=Decimal("95.0"),
@@ -73,12 +74,12 @@ class TestValidationAPI:
         mock_storage.get_run.return_value = test_run
 
         # Act
-        response = client.get("/api/validation/status/test-run-123")
+        response = client.get(f"/api/validation/status/{test_run_id}")
 
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["run_id"] == "test-run-123"
+        assert data["run_id"] == test_run_id
         assert data["status"] == "completed"
 
     @patch("src.api.endpoints.validation.ValidationStorage")
@@ -89,8 +90,10 @@ class TestValidationAPI:
         mock_storage_class.return_value.__enter__.return_value = mock_storage
         mock_storage.get_run.return_value = None  # Not found
 
+        nonexistent_uuid = "550e8400-e29b-41d4-a716-446655440001"
+
         # Act
-        response = client.get("/api/validation/status/nonexistent")
+        response = client.get(f"/api/validation/status/{nonexistent_uuid}")
 
         # Assert
         assert response.status_code == 404
@@ -102,8 +105,9 @@ class TestValidationAPI:
         mock_storage = Mock()
         mock_storage_class.return_value.__enter__.return_value = mock_storage
 
+        test_run_id = "550e8400-e29b-41d4-a716-446655440000"
         test_run = ValidationRun(
-            run_id="test-run-123",
+            run_id=test_run_id,
             model_name="model",
             overall_grade=ValidationGrade.A,
             overall_score=Decimal("95.0"),
@@ -123,7 +127,7 @@ class TestValidationAPI:
             Mock(
                 report_content='{"test": "data"}',
                 format=ReportFormat.JSON,
-                run_id="test-run-123",
+                run_id=test_run_id,
                 summary={},
                 recommendations=[],
                 created_at=datetime.utcnow(),
@@ -131,7 +135,7 @@ class TestValidationAPI:
         ]
 
         # Act
-        response = client.get("/api/validation/report/test-run-123?format=json")
+        response = client.get(f"/api/validation/report/{test_run_id}?format=json")
 
         # Assert
         assert response.status_code == 200
@@ -145,8 +149,9 @@ class TestValidationAPI:
         mock_storage = Mock()
         mock_storage_class.return_value.__enter__.return_value = mock_storage
 
+        test_run_id = "550e8400-e29b-41d4-a716-446655440000"
         test_run = ValidationRun(
-            run_id="test-run-123",
+            run_id=test_run_id,
             model_name="model",
             overall_grade=None,
             overall_score=None,
@@ -160,7 +165,7 @@ class TestValidationAPI:
         mock_storage.get_run.return_value = test_run
 
         # Act
-        response = client.get("/api/validation/report/test-run-123")
+        response = client.get(f"/api/validation/report/{test_run_id}")
 
         # Assert
         assert response.status_code == 400

@@ -152,7 +152,7 @@ class TestRetentionEdgeCases:
         cutoff_date = policy.get_run_cutoff_date()
 
         # Act
-        result = policy.should_retain_run(cutoff_date)
+        result = policy.should_retain_run(cutoff_date, cutoff=cutoff_date)
 
         # Assert
         assert result is True  # Exactly at cutoff should be retained

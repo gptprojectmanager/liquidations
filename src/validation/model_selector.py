@@ -70,7 +70,8 @@ class ModelSelector:
             True if registration successful
         """
         if model_id in self._models:
-            logger.warning(f"Model {model_id} already registered - updating")
+            logger.warning(f"Model {model_id} already registered - rejecting duplicate")
+            return False
 
         model_info = ModelInfo(
             model_id=model_id,

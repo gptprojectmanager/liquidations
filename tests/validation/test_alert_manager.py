@@ -13,7 +13,7 @@ from decimal import Decimal
 from unittest.mock import Mock
 
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
-from src.models.validation_test import ValidationTest
+from src.models.validation_test import ValidationTest, ValidationTestType
 from src.validation.alerts.alert_manager import AlertManager
 
 
@@ -149,11 +149,15 @@ class TestAlertManager:
         )
         tests = [
             ValidationTest(
+                test_id="test-1",
                 run_id="test-run-6",
                 test_type=ValidationTestType.FUNDING_CORRELATION,
+                test_name="Funding Correlation Test",
                 score=Decimal("40.0"),
                 passed=False,
-                details={},
+                weight=Decimal("0.33"),
+                executed_at=datetime.utcnow(),
+                diagnostics={},
             ),
         ]
 
@@ -169,7 +173,7 @@ class TestAlertManager:
         assert "started_at" in context
         assert "completed_at" in context
         assert "duration_seconds" in context
-        assert "tests" in context
+        assert "test_details" in context
         assert context["run_id"] == "test-run-6"
         assert context["grade"] == "F"
         assert float(context["score"]) == 45.0
@@ -310,25 +314,37 @@ class TestAlertManager:
         )
         tests = [
             ValidationTest(
+                test_id="test-2",
                 run_id="test-run-12",
                 test_type=ValidationTestType.FUNDING_CORRELATION,
+                test_name="Funding Correlation Test",
                 score=Decimal("50.0"),
                 passed=False,
-                details={},
+                weight=Decimal("0.33"),
+                executed_at=datetime.utcnow(),
+                diagnostics={},
             ),
             ValidationTest(
+                test_id="test-3",
                 run_id="test-run-12",
                 test_type=ValidationTestType.OI_CONSERVATION,
+                test_name="OI Conservation Test",
                 score=Decimal("40.0"),
                 passed=False,
-                details={},
+                weight=Decimal("0.33"),
+                executed_at=datetime.utcnow(),
+                diagnostics={},
             ),
             ValidationTest(
+                test_id="test-4",
                 run_id="test-run-12",
                 test_type=ValidationTestType.DIRECTIONAL_POSITIONING,
+                test_name="Directional Positioning Test",
                 score=Decimal("30.0"),
                 passed=False,
-                details={},
+                weight=Decimal("0.34"),
+                executed_at=datetime.utcnow(),
+                diagnostics={},
             ),
         ]
 
@@ -336,7 +352,7 @@ class TestAlertManager:
         context = manager._build_alert_context(run, tests)
 
         # Assert
-        assert "tests" in context
-        assert len(context["tests"]) == 3
-        failed_tests = [t for t in context["tests"] if not t["passed"]]
+        assert "test_details" in context
+        assert len(context["test_details"]) == 3
+        failed_tests = [t for t in context["test_details"] if not t["passed"]]
         assert len(failed_tests) == 3

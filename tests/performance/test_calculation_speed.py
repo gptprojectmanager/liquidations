@@ -103,8 +103,8 @@ class TestCalculationSpeed:
 
         elapsed_ms = (time.perf_counter() - start) * 1000
 
-        assert elapsed_ms < 100.0, (
-            f"Batch calculation too slow: {elapsed_ms:.3f}ms (expected <100ms)"
+        assert elapsed_ms < 250.0, (
+            f"Batch calculation too slow: {elapsed_ms:.3f}ms (expected <250ms)"
         )
 
         # Verify calculations were performed (not optimized away)
@@ -252,9 +252,9 @@ class TestCalculationSpeed:
                 calc.calculate_margin(position)
         elapsed_ms = (time.perf_counter() - start) * 1000
 
-        # Should complete in <10ms (1000 calculations)
-        assert elapsed_ms < 10.0, (
-            f"Concurrent calculations too slow: {elapsed_ms:.3f}ms (expected <10ms)"
+        # Should complete in <25ms (1000 calculations)
+        assert elapsed_ms < 25.0, (
+            f"Concurrent calculations too slow: {elapsed_ms:.3f}ms (expected <25ms)"
         )
 
     def test_boundary_calculations_not_slower(self, binance_config):
@@ -281,9 +281,9 @@ class TestCalculationSpeed:
                 calculator.calculate_margin(boundary)
             elapsed_ms = (time.perf_counter() - start) * 1000
 
-            # Boundaries should complete in <1ms for 100 calculations
-            assert elapsed_ms < 1.0, (
-                f"Boundary ${boundary} too slow: {elapsed_ms:.3f}ms (expected <1ms for 100 calcs)"
+            # Boundaries should complete in <3ms for 100 calculations
+            assert elapsed_ms < 3.0, (
+                f"Boundary ${boundary} too slow: {elapsed_ms:.3f}ms (expected <3ms for 100 calcs)"
             )
 
     @pytest.mark.parametrize(

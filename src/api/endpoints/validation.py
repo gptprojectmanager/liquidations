@@ -5,11 +5,12 @@ Provides REST API endpoints for triggering validation runs,
 checking status, and retrieving reports.
 """
 
+import re
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Path, Query
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.models.validation_run import ValidationStatus
 from src.validation.logger import logger
@@ -22,14 +23,65 @@ router = APIRouter(prefix="/api/validation", tags=["validation"])
 class ValidationTriggerRequest(BaseModel):
     """Request to trigger a validation run."""
 
-    model_name: str = Field(..., description="Name of model to validate")
-    triggered_by: str = Field(default="api", description="User ID or system identifier")
+    model_name: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Name of model to validate",
+        pattern=r"^[a-zA-Z0-9_\-\.]+$",
+    )
+    triggered_by: str = Field(
+        default="api", min_length=1, max_length=200, description="User ID or system identifier"
+    )
     data_start_date: Optional[str] = Field(
-        None, description="Start date for validation data (ISO format)"
+        None, description="Start date for validation data (ISO format: YYYY-MM-DD)"
     )
     data_end_date: Optional[str] = Field(
-        None, description="End date for validation data (ISO format)"
+        None, description="End date for validation data (ISO format: YYYY-MM-DD)"
     )
+
+    @field_validator("model_name")
+    @classmethod
+    def validate_model_name(cls, v: str) -> str:
+        """Validate and sanitize model name."""
+        # Remove any potential injection characters
+        sanitized = re.sub(r"[^\w\-\.]", "", v)
+        if not sanitized:
+            raise ValueError("model_name must contain at least one alphanumeric character")
+        if len(sanitized) > 100:
+            raise ValueError("model_name must be at most 100 characters")
+        return sanitized
+
+    @field_validator("data_start_date", "data_end_date")
+    @classmethod
+    def validate_date_format(cls, v: Optional[str]) -> Optional[str]:
+        """Validate ISO date format."""
+        if v is None:
+            return None
+        try:
+            datetime.fromisoformat(v.replace("Z", "+00:00"))
+            return v
+        except ValueError:
+            raise ValueError(
+                f"Invalid date format: {v}. Expected ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
+            )
+
+    @model_validator(mode="after")
+    def validate_date_range(self):
+        """Validate that end_date is after start_date."""
+        if self.data_start_date and self.data_end_date:
+            start = datetime.fromisoformat(self.data_start_date.replace("Z", "+00:00"))
+            end = datetime.fromisoformat(self.data_end_date.replace("Z", "+00:00"))
+
+            if end < start:
+                raise ValueError("data_end_date must be after data_start_date")
+
+            # Validate reasonable date range (max 2 years)
+            delta = end - start
+            if delta.days > 730:
+                raise ValueError("Date range cannot exceed 2 years (730 days)")
+
+        return self
 
 
 class ValidationTriggerResponse(BaseModel):
@@ -135,7 +187,15 @@ async def trigger_validation(
 
 
 @router.get("/status/{run_id}", response_model=ValidationStatusResponse)
-async def get_validation_status(run_id: str) -> ValidationStatusResponse:
+async def get_validation_status(
+    run_id: str = Path(
+        ...,
+        min_length=36,
+        max_length=36,
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        description="UUID of the validation run",
+    ),
+) -> ValidationStatusResponse:
     """
     Get status of a validation run.
 
@@ -181,8 +241,18 @@ async def get_validation_status(run_id: str) -> ValidationStatusResponse:
 
 @router.get("/report/{run_id}", response_model=ValidationReportResponse)
 async def get_validation_report(
-    run_id: str,
-    format: str = "json",  # json, text, html
+    run_id: str = Path(
+        ...,
+        min_length=36,
+        max_length=36,
+        pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        description="UUID of the validation run",
+    ),
+    format: str = Query(
+        default="json",
+        pattern=r"^(json|text|html)$",
+        description="Report format: json, text, or html",
+    ),
 ) -> ValidationReportResponse:
     """
     Get validation report for a completed run.
@@ -200,13 +270,6 @@ async def get_validation_report(
     logger.debug(f"Report request for run: {run_id}, format: {format}")
 
     try:
-        # Validate format
-        if format not in ["json", "text", "html"]:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid format: {format}. Must be 'json', 'text', or 'html'",
-            )
-
         # Retrieve run and report from storage
         with ValidationStorage() as storage:
             run = storage.get_run(run_id)

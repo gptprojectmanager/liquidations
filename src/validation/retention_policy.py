@@ -78,17 +78,20 @@ class RetentionPolicy:
         logger.debug(f"Alert cutoff date: {cutoff.isoformat()}")
         return cutoff
 
-    def should_retain_run(self, created_at: datetime) -> bool:
+    def should_retain_run(self, created_at: datetime, cutoff: Optional[datetime] = None) -> bool:
         """
         Check if validation run should be retained.
 
         Args:
             created_at: Run creation datetime
+            cutoff: Optional cutoff date (if None, will be calculated)
 
         Returns:
             True if should be retained, False if should be deleted
         """
-        cutoff = self.get_run_cutoff_date()
+        if cutoff is None:
+            cutoff = self.get_run_cutoff_date()
+
         should_retain = created_at >= cutoff
 
         logger.debug(
@@ -172,21 +175,27 @@ class RetentionPolicy:
             "runs": {
                 "total": len(run_dates),
                 "to_keep": runs_to_keep,
+                "retained": runs_to_keep,  # Alias for to_keep
                 "to_delete": runs_to_delete,
+                "deleted": runs_to_delete,  # Alias for to_delete
                 "retention_days": self.run_retention_days,
                 "cutoff_date": run_cutoff.isoformat(),
             },
             "reports": {
                 "total": len(report_dates),
                 "to_keep": reports_to_keep,
+                "retained": reports_to_keep,  # Alias for to_keep
                 "to_delete": reports_to_delete,
+                "deleted": reports_to_delete,  # Alias for to_delete
                 "retention_days": self.report_retention_days,
                 "cutoff_date": report_cutoff.isoformat(),
             },
             "alerts": {
                 "total": len(alert_dates),
                 "to_keep": alerts_to_keep,
+                "retained": alerts_to_keep,  # Alias for to_keep
                 "to_delete": alerts_to_delete,
+                "deleted": alerts_to_delete,  # Alias for to_delete
                 "retention_days": self.alert_retention_days,
                 "cutoff_date": alert_cutoff.isoformat(),
             },

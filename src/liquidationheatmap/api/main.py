@@ -320,6 +320,17 @@ async def get_liquidation_history(
     db = DuckDBService()
 
     try:
+        # Check if liquidation_history table exists
+        table_check = db.conn.execute("""
+            SELECT COUNT(*) as count
+            FROM information_schema.tables
+            WHERE table_name = 'liquidation_history'
+        """).fetchone()
+
+        # If table doesn't exist, return empty list
+        if table_check[0] == 0:
+            return []
+
         if aggregate:
             # Aggregated query for time-series visualization
             query = """

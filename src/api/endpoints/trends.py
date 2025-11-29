@@ -46,9 +46,19 @@ class ComparisonResponse(BaseModel):
 # API Endpoints
 @router.get("/trends", response_model=TrendDataResponse)
 async def get_trends(
-    model_name: str = Query("liquidation_model_v1", description="Model to analyze"),
+    model_name: str = Query(
+        "liquidation_model_v1",
+        min_length=1,
+        max_length=100,
+        pattern=r"^[a-zA-Z0-9_\-\.]+$",
+        description="Model to analyze",
+    ),
     days: int = Query(90, ge=7, le=365, description="Days of historical data"),
-    resolution: str = Query("daily", regex="^(daily|weekly|monthly)$"),
+    resolution: str = Query(
+        "daily",
+        pattern=r"^(daily|weekly|monthly)$",
+        description="Time resolution: daily, weekly, or monthly",
+    ),
     include_ma: bool = Query(True, description="Include moving averages"),
     include_degradation: bool = Query(True, description="Include degradation detection"),
 ) -> TrendDataResponse:
@@ -151,7 +161,13 @@ async def get_trends(
 
 @router.get("/compare", response_model=ComparisonResponse)
 async def compare_models(
-    model_names: str = Query(..., description="Comma-separated model names"),
+    model_names: str = Query(
+        ...,
+        min_length=1,
+        max_length=500,
+        pattern=r"^[a-zA-Z0-9_\-\., ]+$",
+        description="Comma-separated model names (e.g., model1,model2,model3)",
+    ),
     days: int = Query(30, ge=7, le=365, description="Days of historical data"),
 ) -> ComparisonResponse:
     """
@@ -242,7 +258,13 @@ async def compare_models(
 
 @router.get("/dashboard")
 async def get_dashboard_data(
-    model_name: str = Query("liquidation_model_v1", description="Model name"),
+    model_name: str = Query(
+        "liquidation_model_v1",
+        min_length=1,
+        max_length=100,
+        pattern=r"^[a-zA-Z0-9_\-\.]+$",
+        description="Model name",
+    ),
     days: int = Query(90, ge=7, le=365, description="Days of data"),
 ) -> dict:
     """

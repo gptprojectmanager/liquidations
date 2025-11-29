@@ -69,11 +69,15 @@ class BinanceStandardModel(AbstractLiquidationModel):
         timestamp = datetime.now()
         mmr = self._get_mmr(open_interest)
         logger = logging.getLogger(__name__)
-        logger.info(f"BinanceStandardModel: current_price={current_price}, OI={open_interest}, large_trades={'None' if large_trades is None else len(large_trades)}")
+        logger.info(
+            f"BinanceStandardModel: current_price={current_price}, OI={open_interest}, large_trades={'None' if large_trades is None else len(large_trades)}"
+        )
 
         # MODE 1: Use REAL trade data if provided (asymmetric, market-driven)
         if large_trades is not None and not large_trades.empty:
-            logger.info(f"MODE 1: Processing {len(large_trades)} real trades (buy: {len(large_trades[large_trades['side']=='buy'])}, sell: {len(large_trades[large_trades['side']=='sell'])})")
+            logger.info(
+                f"MODE 1: Processing {len(large_trades)} real trades (buy: {len(large_trades[large_trades['side'] == 'buy'])}, sell: {len(large_trades[large_trades['side'] == 'sell'])})"
+            )
             for _, trade in large_trades.iterrows():
                 entry_price = Decimal(str(trade["price"]))
                 trade_volume = Decimal(str(trade["gross_value"]))
@@ -89,7 +93,8 @@ class BinanceStandardModel(AbstractLiquidationModel):
                                     timestamp=timestamp,
                                     symbol=symbol,
                                     price_level=liq_price,
-                                    liquidation_volume=trade_volume / len(leverage_tiers),  # Split across leverages
+                                    liquidation_volume=trade_volume
+                                    / len(leverage_tiers),  # Split across leverages
                                     leverage_tier=f"{leverage}x",
                                     side="long",
                                     confidence=self.confidence_score(),
@@ -110,7 +115,9 @@ class BinanceStandardModel(AbstractLiquidationModel):
                                 )
                             )
 
-            logger.info(f"MODE 1 complete: {len(liquidations)} liquidations (long: {len([l for l in liquidations if l.side=='long'])}, short: {len([l for l in liquidations if l.side=='short'])})")
+            logger.info(
+                f"MODE 1 complete: {len(liquidations)} liquidations (long: {len([l for l in liquidations if l.side == 'long'])}, short: {len([l for l in liquidations if l.side == 'short'])})"
+            )
             return liquidations
 
         # MODE 2: Fallback to synthetic Gaussian binning (symmetric, for testing)
@@ -125,15 +132,21 @@ class BinanceStandardModel(AbstractLiquidationModel):
             entry_range_long = np.linspace(
                 float(current_price) * 1.01,  # 1% above
                 float(current_price) * 1.15,  # 15% above
-                num_bins
+                num_bins,
             )
 
             # Gaussian distribution for realistic volume clustering
-            entry_weights_long = np.exp(-0.5 * ((entry_range_long - float(current_price) * 1.05) / (float(current_price) * 0.03)) ** 2)
+            entry_weights_long = np.exp(
+                -0.5
+                * ((entry_range_long - float(current_price) * 1.05) / (float(current_price) * 0.03))
+                ** 2
+            )
             entry_weights_long = entry_weights_long / entry_weights_long.sum()
 
             for entry_price, weight in zip(entry_range_long, entry_weights_long):
-                liq_price = self._calculate_long_liquidation(Decimal(str(entry_price)), leverage, mmr)
+                liq_price = self._calculate_long_liquidation(
+                    Decimal(str(entry_price)), leverage, mmr
+                )
                 liquidations.append(
                     LiquidationLevel(
                         timestamp=timestamp,
@@ -146,19 +159,29 @@ class BinanceStandardModel(AbstractLiquidationModel):
                     )
                 )
 
-            # SHORT positions: Entry prices distributed BELOW current price
+            # SHORT positions: Entry prices distributed slightly BELOW current price
+            # Entry must be >91% of current to ensure liq > current for 10x leverage
             entry_range_short = np.linspace(
-                float(current_price) * 0.85,  # 15% below
+                float(current_price) * 0.91,  # 9% below (ensures liq > current)
                 float(current_price) * 0.99,  # 1% below
-                num_bins
+                num_bins,
             )
 
             # Gaussian distribution
-            entry_weights_short = np.exp(-0.5 * ((entry_range_short - float(current_price) * 0.95) / (float(current_price) * 0.03)) ** 2)
+            entry_weights_short = np.exp(
+                -0.5
+                * (
+                    (entry_range_short - float(current_price) * 0.95)
+                    / (float(current_price) * 0.03)
+                )
+                ** 2
+            )
             entry_weights_short = entry_weights_short / entry_weights_short.sum()
 
             for entry_price, weight in zip(entry_range_short, entry_weights_short):
-                liq_price = self._calculate_short_liquidation(Decimal(str(entry_price)), leverage, mmr)
+                liq_price = self._calculate_short_liquidation(
+                    Decimal(str(entry_price)), leverage, mmr
+                )
                 liquidations.append(
                     LiquidationLevel(
                         timestamp=timestamp,

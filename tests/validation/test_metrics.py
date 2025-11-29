@@ -8,12 +8,11 @@ Tests cover:
 - Reliability metrics
 """
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from datetime import date, timedelta
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
-from src.models.validation_test import ValidationTest
+from src.models.validation_test import ValidationTest, ValidationTestType
 from src.validation.visualization.metrics import MetricsCalculator, get_metrics_calculator
 
 
@@ -100,25 +99,37 @@ class TestMetricsCalculator:
 
         tests = [
             ValidationTest(
+                test_id="test-1",
                 run_id="run-1",
                 test_type=ValidationTestType.FUNDING_CORRELATION,
+                test_name="Funding Correlation Test",
                 score=Decimal("90.0"),
                 passed=True,
-                details={},
+                weight=Decimal("0.33"),
+                executed_at=datetime.utcnow(),
+                diagnostics={},
             ),
             ValidationTest(
+                test_id="test-2",
                 run_id="run-2",
                 test_type=ValidationTestType.FUNDING_CORRELATION,
+                test_name="Funding Correlation Test",
                 score=Decimal("85.0"),
                 passed=True,
-                details={},
+                weight=Decimal("0.33"),
+                executed_at=datetime.utcnow(),
+                diagnostics={},
             ),
             ValidationTest(
+                test_id="test-3",
                 run_id="run-3",
                 test_type=ValidationTestType.OI_CONSERVATION,
+                test_name="OI Conservation Test",
                 score=Decimal("95.0"),
                 passed=True,
-                details={},
+                weight=Decimal("0.34"),
+                executed_at=datetime.utcnow(),
+                diagnostics={},
             ),
         ]
 

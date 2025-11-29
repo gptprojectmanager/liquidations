@@ -16,25 +16,19 @@ class TestBinanceStandardModel:
         """
         model = BinanceStandardModel()
 
-        current_price = Decimal("67000.00")
+        entry_price = Decimal("67000.00")
         open_interest = Decimal("40000.00")  # <50k USDT → MMR 0.4%
+        leverage = 10
 
-        liquidations = model.calculate_liquidations(
-            current_price=current_price,
-            open_interest=open_interest,
-            symbol="BTCUSDT",
-            leverage_tiers=[10],
-        )
+        # Get MMR for this position size
+        mmr = model._get_mmr(open_interest)  # Should be 0.004 (0.4%)
 
-        # Filter for 10x long position
-        long_10x = [
-            liq for liq in liquidations if liq.leverage_tier == "10x" and liq.side == "long"
-        ]
-        assert len(long_10x) == 1
+        # Calculate liquidation price
+        liq_price = model._calculate_long_liquidation(entry_price, leverage, mmr)
 
         # Should liquidate at ~90% (with MMR adjustment ~90.04%)
-        expected_liq = current_price * Decimal("0.9004")
-        assert abs(long_10x[0].price_level - expected_liq) < Decimal("10.00")  # ±$10 tolerance
+        expected_liq = entry_price * Decimal("0.9004")
+        assert abs(liq_price - expected_liq) < Decimal("1.00")  # ±$1 tolerance
 
     def test_short_100x_liquidation_at_101_percent_of_entry(self):
         """Test that 100x short position liquidates at ~101% of entry price.
@@ -44,25 +38,19 @@ class TestBinanceStandardModel:
         """
         model = BinanceStandardModel()
 
-        current_price = Decimal("67000.00")
+        entry_price = Decimal("67000.00")
         open_interest = Decimal("40000.00")  # <50k USDT → MMR 0.4%
+        leverage = 100
 
-        liquidations = model.calculate_liquidations(
-            current_price=current_price,
-            open_interest=open_interest,
-            symbol="BTCUSDT",
-            leverage_tiers=[100],
-        )
+        # Get MMR for this position size
+        mmr = model._get_mmr(open_interest)  # Should be 0.004 (0.4%)
 
-        # Filter for 100x short position
-        short_100x = [
-            liq for liq in liquidations if liq.leverage_tier == "100x" and liq.side == "short"
-        ]
-        assert len(short_100x) == 1
+        # Calculate liquidation price
+        liq_price = model._calculate_short_liquidation(entry_price, leverage, mmr)
 
         # Should liquidate at ~101% (with MMR adjustment ~100.996%)
-        expected_liq = current_price * Decimal("1.00996")
-        assert abs(short_100x[0].price_level - expected_liq) < Decimal("10.00")  # ±$10 tolerance
+        expected_liq = entry_price * Decimal("1.00996")
+        assert abs(liq_price - expected_liq) < Decimal("1.00")  # ±$1 tolerance
 
     def test_mmr_tier_changes_with_position_size(self):
         """Test that MMR changes based on position size (Open Interest).
@@ -76,12 +64,12 @@ class TestBinanceStandardModel:
 
         # Small position: OI < 50k → MMR 0.4%
         liq_small = model.calculate_liquidations(
-            current_price, Decimal("40000"), leverage_tiers=[10]
+            current_price, Decimal("40000"), leverage_tiers=[10], num_bins=1
         )[0]  # First = long
 
         # Large position: OI 5M → MMR 2.5%
         liq_large = model.calculate_liquidations(
-            current_price, Decimal("5000000"), leverage_tiers=[10]
+            current_price, Decimal("5000000"), leverage_tiers=[10], num_bins=1
         )[0]  # First = long
 
         # Large position should have different liquidation price (higher MMR = closer to entry)
