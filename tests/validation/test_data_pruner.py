@@ -9,11 +9,10 @@ Tests cover:
 - Statistics tracking
 """
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
-from datetime import date, timedelta
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
 from src.validation.data_pruner import DataPruner
 
@@ -132,8 +131,13 @@ class TestDataPruner:
             mock_storage_instance = Mock()
             mock_storage.return_value.__enter__.return_value = mock_storage_instance
 
-            # Mock old reports
-            mock_storage_instance.get_reports_before_date.return_value = ["report1", "report2"]
+            # Mock old reports with report_id attribute
+            mock_report1 = Mock(report_id="report1")
+            mock_report2 = Mock(report_id="report2")
+            mock_storage_instance.get_reports_before_date.return_value = [
+                mock_report1,
+                mock_report2,
+            ]
 
             # Act
             stats = pruner.prune_reports()
@@ -151,8 +155,15 @@ class TestDataPruner:
             mock_storage_instance = Mock()
             mock_storage.return_value.__enter__.return_value = mock_storage_instance
 
-            # Mock orphaned tests
-            mock_storage_instance.get_orphaned_tests.return_value = ["test1", "test2", "test3"]
+            # Mock old tests with test_id attribute
+            mock_test1 = Mock(test_id="test1")
+            mock_test2 = Mock(test_id="test2")
+            mock_test3 = Mock(test_id="test3")
+            mock_storage_instance.get_tests_before_date.return_value = [
+                mock_test1,
+                mock_test2,
+                mock_test3,
+            ]
 
             # Act
             stats = pruner.prune_tests()
@@ -164,7 +175,7 @@ class TestDataPruner:
 class TestScheduledPruning:
     """Test scheduled pruning functionality."""
 
-    @patch("src.validation.data_pruner.BackgroundScheduler")
+    @patch("apscheduler.schedulers.background.BackgroundScheduler")
     def test_schedule_pruning_job_configures_scheduler(self, mock_scheduler_class):
         """schedule_pruning_job should configure daily job at 3 AM UTC."""
         # Arrange
@@ -184,11 +195,15 @@ class TestScheduledPruning:
         trigger = call_args[1].get("trigger")
         assert trigger is not None
 
+    @patch("apscheduler.schedulers.background.BackgroundScheduler")
     @patch("src.validation.data_pruner.DataPruner")
-    def test_pruning_job_runs_without_errors(self, mock_pruner_class):
+    def test_pruning_job_runs_without_errors(self, mock_pruner_class, mock_scheduler_class):
         """Scheduled pruning job should execute successfully."""
         # Arrange
-        from src.validation.data_pruner import _run_pruning_job
+        from src.validation.data_pruner import schedule_pruning_job
+
+        mock_scheduler = Mock()
+        mock_scheduler_class.return_value = mock_scheduler
 
         mock_pruner = Mock()
         mock_pruner_class.return_value = mock_pruner
@@ -199,8 +214,15 @@ class TestScheduledPruning:
             "total_deleted": 18,
         }
 
-        # Act
-        _run_pruning_job()
+        # Act - Schedule the job and invoke the scheduled function
+        schedule_pruning_job()
+
+        # Get the function that was scheduled
+        assert mock_scheduler.add_job.called
+        scheduled_func = mock_scheduler.add_job.call_args[0][0]
+
+        # Execute the scheduled function
+        scheduled_func()
 
         # Assert
         mock_pruner.prune_all.assert_called_once()

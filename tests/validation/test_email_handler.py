@@ -101,12 +101,13 @@ class TestEmailHandler:
             "started_at": datetime(2025, 11, 27, 10, 0, 0),
             "completed_at": datetime(2025, 11, 27, 10, 5, 0),
             "duration_seconds": 300.0,
-            "tests": [
+            "test_details": [
                 {
-                    "test_type": "funding_correlation",
+                    "name": "funding_correlation",
                     "score": 40.0,
                     "passed": False,
-                    "details": {},
+                    "weight": 0.33,
+                    "error": "Correlation below threshold",
                 }
             ],
         }
@@ -295,10 +296,10 @@ class TestEmailHandler:
             "score": Decimal("72.0"),
             "status": "completed",
             "started_at": datetime.utcnow(),
-            "tests": [
-                {"test_type": "funding_correlation", "score": 70.0, "passed": True},
-                {"test_type": "oi_conservation", "score": 65.0, "passed": False},
-                {"test_type": "directional_positioning", "score": 80.0, "passed": True},
+            "test_details": [
+                {"name": "funding_correlation", "score": 70.0, "passed": True, "weight": 0.33},
+                {"name": "oi_conservation", "score": 65.0, "passed": False, "weight": 0.33},
+                {"name": "directional_positioning", "score": 80.0, "passed": True, "weight": 0.34},
             ],
         }
 

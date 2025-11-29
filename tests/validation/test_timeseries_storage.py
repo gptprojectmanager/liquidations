@@ -9,10 +9,9 @@ Tests cover:
 - Resolution support
 """
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from datetime import date, timedelta
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
 from src.validation.timeseries_storage import TimeSeriesStorage, get_timeseries_storage
 
@@ -35,7 +34,10 @@ class TestTimeSeriesStorage:
                 overall_grade=ValidationGrade.A,
                 overall_score=Decimal("95.0"),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=today,
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             ),
             ValidationRun(
                 run_id="run-2",
@@ -43,7 +45,10 @@ class TestTimeSeriesStorage:
                 overall_grade=ValidationGrade.B,
                 overall_score=Decimal("85.0"),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=yesterday,
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             ),
         ]
 
@@ -71,7 +76,10 @@ class TestTimeSeriesStorage:
                 overall_grade=ValidationGrade.A,
                 overall_score=Decimal("90.0"),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=today,
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             )
         ]
 
@@ -100,7 +108,10 @@ class TestTimeSeriesStorage:
                 overall_grade=ValidationGrade.A,
                 overall_score=Decimal("90.0"),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=today - timedelta(days=i),
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             )
             for i in range(7)
         ]
@@ -129,7 +140,10 @@ class TestTimeSeriesStorage:
                 overall_grade=ValidationGrade.A,
                 overall_score=Decimal("90.0"),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=today - timedelta(days=i * 30),
+                data_start_date=date.today() - timedelta(days=90),
+                data_end_date=date.today(),
             )
             for i in range(3)
         ]
@@ -189,7 +203,10 @@ class TestTimeSeriesAggregation:
                 overall_grade=ValidationGrade.A,
                 overall_score=Decimal("90.0"),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=today,
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             ),
             ValidationRun(
                 run_id="run-2",
@@ -197,7 +214,10 @@ class TestTimeSeriesAggregation:
                 overall_grade=ValidationGrade.A,
                 overall_score=Decimal("100.0"),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=later_today,
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             ),
         ]
 
@@ -230,7 +250,10 @@ class TestTimeSeriesAggregation:
                 overall_grade=ValidationGrade.A,
                 overall_score=Decimal("90.0"),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=start_date + timedelta(days=3),
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             ),
             # Outside range (too old)
             ValidationRun(
@@ -239,7 +262,10 @@ class TestTimeSeriesAggregation:
                 overall_grade=ValidationGrade.A,
                 overall_score=Decimal("95.0"),
                 status=ValidationStatus.COMPLETED,
+                trigger_type=TriggerType.MANUAL,
                 started_at=start_date - timedelta(days=10),
+                data_start_date=date.today() - timedelta(days=30),
+                data_end_date=date.today(),
             ),
         ]
 
@@ -251,7 +277,8 @@ class TestTimeSeriesAggregation:
         )
 
         # Assert
-        # Should only have run-1, not run-2
-        all_runs = [run for day_runs in daily_data.values() for run in day_runs]
-        assert len(all_runs) == 1
-        assert all_runs[0].run_id == "run-1"
+        # Should only have run-1, not run-2 (converted to TimeSeriesPoint)
+        all_points = [point for day_points in daily_data.values() for point in day_points]
+        assert len(all_points) == 1
+        assert all_points[0].model_name == "model"
+        assert all_points[0].score == Decimal("90.0")

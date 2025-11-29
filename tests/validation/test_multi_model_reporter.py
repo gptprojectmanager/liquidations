@@ -10,7 +10,7 @@ Tests cover:
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from datetime import date
+from datetime import date, timedelta
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
 from src.models.validation_test import ValidationTest
 from src.validation.reports.multi_model_reporter import MultiModelReporter, ReportFormat

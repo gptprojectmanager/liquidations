@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.endpoints.validation import router
-from datetime import date
+from datetime import date, timedelta
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
 
 app = FastAPI()

@@ -69,6 +69,8 @@ class DataPruner:
             + test_stats.get("deleted", 0)
         )
 
+        stats["total_deleted"] = total_deleted
+
         logger.info(
             f"Data pruning completed: {total_deleted} items deleted in {duration:.1f}s "
             f"(dry_run={self.dry_run})"

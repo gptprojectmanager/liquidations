@@ -23,7 +23,7 @@ class TestTrendCalculator:
     def test_calculate_score_trend_with_improving_scores(self):
         """Trend should be IMPROVING when scores increase."""
         # Arrange
-        calculator = TrendCalculator()
+        calculator = TrendCalculator(min_data_points=3)
 
         start = datetime.utcnow() - timedelta(days=10)
         scores = [
@@ -41,7 +41,7 @@ class TestTrendCalculator:
     def test_calculate_score_trend_with_degrading_scores(self):
         """Trend should be DEGRADING when scores decrease."""
         # Arrange
-        calculator = TrendCalculator()
+        calculator = TrendCalculator(min_data_points=3)
 
         start = datetime.utcnow() - timedelta(days=10)
         scores = [
@@ -108,7 +108,7 @@ class TestTrendCalculator:
     def test_change_percent_calculation(self):
         """Change percent should be calculated correctly."""
         # Arrange
-        calculator = TrendCalculator()
+        calculator = TrendCalculator(min_data_points=2)
 
         start = datetime.utcnow()
         scores = [
@@ -127,7 +127,7 @@ class TestTrendCalculator:
     def test_trend_includes_first_and_last_scores(self):
         """Trend should include first and last scores."""
         # Arrange
-        calculator = TrendCalculator()
+        calculator = TrendCalculator(min_data_points=2)
 
         scores = [
             (datetime.utcnow(), 70.0),

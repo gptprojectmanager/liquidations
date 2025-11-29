@@ -69,14 +69,15 @@ class EmailHandler:
             body = self._build_body(alert_context)
 
             # Send email
-            self._send_email(subject, body)
+            success = self._send_email(subject, body)
 
-            logger.info(
-                f"Alert email sent to {len(self.to_emails)} recipients "
-                f"for run {alert_context.get('run_id')}"
-            )
+            if success:
+                logger.info(
+                    f"Alert email sent to {len(self.to_emails)} recipients "
+                    f"for run {alert_context.get('run_id')}"
+                )
 
-            return True
+            return success
 
         except Exception as e:
             logger.error(f"Failed to send alert email: {e}", exc_info=True)
@@ -290,7 +291,7 @@ class EmailHandler:
 
         return html
 
-    def _send_email(self, subject: str, body: str) -> None:
+    def _send_email(self, subject: str, body: str) -> bool:
         """
         Send email via SMTP.
 
@@ -298,8 +299,8 @@ class EmailHandler:
             subject: Email subject
             body: Email body (HTML)
 
-        Raises:
-            Exception: If email sending fails
+        Returns:
+            True if email sent successfully, False otherwise
         """
         # Create message
         msg = MIMEMultipart("alternative")
@@ -313,27 +314,23 @@ class EmailHandler:
 
         # Connect and send
         try:
-            if self.use_tls:
-                # TLS connection
-                server = smtplib.SMTP(self.smtp_host, self.smtp_port)
-                server.starttls()
-            else:
-                # Plain or SSL connection
-                server = smtplib.SMTP(self.smtp_host, self.smtp_port)
+            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                if self.use_tls:
+                    server.starttls()
 
-            # Authenticate if credentials provided
-            if self.smtp_user and self.smtp_password:
-                server.login(self.smtp_user, self.smtp_password)
+                # Authenticate if credentials provided
+                if self.smtp_user and self.smtp_password:
+                    server.login(self.smtp_user, self.smtp_password)
 
-            # Send email
-            server.sendmail(self.from_email, self.to_emails, msg.as_string())
-            server.quit()
+                # Send email
+                server.send_message(msg)
 
             logger.debug(f"Email sent successfully to {self.to_emails}")
+            return True
 
         except Exception as e:
             logger.error(f"SMTP error: {e}", exc_info=True)
-            raise
+            return False
 
     def test_connection(self) -> bool:
         """
