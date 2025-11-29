@@ -7,7 +7,7 @@ Tests cover:
 - GET /api/validation/dashboard (aggregated dashboard data)
 """
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
@@ -16,7 +16,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.endpoints.trends import router
-from datetime import date, timedelta
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
 
 app = FastAPI()
@@ -90,7 +89,7 @@ class TestTrendsAPI:
         assert response.status_code == 404
 
     @patch("src.api.endpoints.trends.ValidationStorage")
-    @patch("src.api.endpoints.trends.get_model_comparison")
+    @patch("src.validation.comparison.get_model_comparison")
     def test_compare_models_returns_comparison_data(self, mock_comparison, mock_storage_class):
         """GET /api/validation/compare should return model comparison."""
         # Arrange

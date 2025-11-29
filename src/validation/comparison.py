@@ -233,7 +233,7 @@ class ModelComparison:
 
         stats = {
             "count": len(scores),
-            "mean": mean,
+            "mean_score": mean,
             "median": median,
             "std_dev": std_dev,
             "min": min(scores),

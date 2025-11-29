@@ -7,7 +7,7 @@ Tests cover:
 - GET /api/validation/report/{run_id} (get report)
 """
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
@@ -16,7 +16,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.endpoints.validation import router
-from datetime import date, timedelta
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
 
 app = FastAPI()
@@ -28,7 +27,7 @@ class TestValidationAPI:
     """Test validation API endpoints."""
 
     @patch("src.api.endpoints.validation.ValidationStorage")
-    @patch("src.api.endpoints.validation.ValidationTestRunner")
+    @patch("src.validation.test_runner.ValidationTestRunner")
     def test_trigger_validation_returns_202_accepted(self, mock_runner_class, mock_storage):
         """POST /api/validation/run should return 202 Accepted."""
         # Arrange
@@ -118,7 +117,18 @@ class TestValidationAPI:
 
         mock_storage.get_run.return_value = test_run
         mock_storage.get_tests_for_run.return_value = []
-        mock_storage.get_report.return_value = Mock(content='{"test": "data"}', format="json")
+        from src.models.validation_report import ReportFormat
+
+        mock_storage.get_reports_for_run.return_value = [
+            Mock(
+                report_content='{"test": "data"}',
+                format=ReportFormat.JSON,
+                run_id="test-run-123",
+                summary={},
+                recommendations=[],
+                created_at=datetime.utcnow(),
+            )
+        ]
 
         # Act
         response = client.get("/api/validation/report/test-run-123?format=json")

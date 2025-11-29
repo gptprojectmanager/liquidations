@@ -7,12 +7,11 @@ Tests cover:
 - Comparison summary generation
 """
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from datetime import date, timedelta
 from src.models.validation_run import TriggerType, ValidationGrade, ValidationRun, ValidationStatus
-from src.models.validation_test import ValidationTest
+from src.models.validation_test import ValidationTest, ValidationTestType
 from src.validation.reports.multi_model_reporter import MultiModelReporter, ReportFormat
 
 
@@ -47,11 +46,15 @@ class TestMultiModelReporter:
 
         tests = [
             ValidationTest(
+                test_id="test-1",
                 run_id="run-1",
                 test_type=ValidationTestType.FUNDING_CORRELATION,
+                test_name="Funding Correlation Test",
                 score=Decimal("95.0"),
                 passed=True,
-                details={},
+                weight=Decimal("0.33"),
+                executed_at=datetime.utcnow(),
+                diagnostics={},
             )
         ]
 
@@ -145,7 +148,7 @@ class TestMultiModelReporter:
         # Assert
         json_report = reports["model1"][0]
         assert json_report.format == ReportFormat.JSON
-        assert "run_id" in json_report.content or '"run_id"' in json_report.content
+        assert "run_id" in json_report.report_content or '"run_id"' in json_report.report_content
 
     def test_generate_model_reports_with_text_format(self):
         """Reports should be generated in TEXT format."""
@@ -177,7 +180,10 @@ class TestMultiModelReporter:
         # Assert
         text_report = reports["model1"][0]
         assert text_report.format == ReportFormat.TEXT
-        assert "Validation Report" in text_report.content or "VALIDATION" in text_report.content
+        assert (
+            "Validation Report" in text_report.report_content
+            or "VALIDATION" in text_report.report_content
+        )
 
     def test_generate_comparison_summary_for_multiple_models(self):
         """generate_comparison_summary should create comparison table."""
@@ -212,20 +218,28 @@ class TestMultiModelReporter:
         all_tests = {
             "model_a": [
                 ValidationTest(
+                    test_id="test-2",
                     run_id="run-1",
                     test_type=ValidationTestType.FUNDING_CORRELATION,
+                    test_name="Funding Correlation Test",
                     score=Decimal("95.0"),
                     passed=True,
-                    details={},
+                    weight=Decimal("0.33"),
+                    executed_at=datetime.utcnow(),
+                    diagnostics={},
                 )
             ],
             "model_b": [
                 ValidationTest(
+                    test_id="test-3",
                     run_id="run-2",
                     test_type=ValidationTestType.FUNDING_CORRELATION,
+                    test_name="Funding Correlation Test",
                     score=Decimal("80.0"),
                     passed=True,
-                    details={},
+                    weight=Decimal("0.33"),
+                    executed_at=datetime.utcnow(),
+                    diagnostics={},
                 )
             ],
         }
