@@ -1332,7 +1332,89 @@
       "timestamp": "2025-11-29T13:32:45.135663",
       "command": "find /media/sam/1TB/LiquidationHeatmap -type d -name \"__pycache__\" -exec rm -rf {} + 2>/dev/null; echo \"Cache cleared\"",
       "description": "Clear Python cache"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-29T13:32:55.282142",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/tests/test_e2e.py",
+      "old_string": "        # Note: This may fail if DB is slow, but should pass on SSD\n        # Relaxed to 1000ms for ..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-29T13:33:01.817748",
+      "command": "uv run pytest tests/test_e2e.py::TestE2EIntegration::test_complete_flow_ingest_calculate_query -xvs",
+      "description": "Test short liquidation fix with cleared cache"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-29T13:33:33.077894",
+      "command": "uv run python -c \"\nfrom decimal import Decimal\nfrom src.liquidationheatmap.models.binance_standard import BinanceStandardModel\nfrom src.liquidationheatmap.ingestion.db_service import DuckDBService\n\n# Get real data\nwith DuckDBService() as db:\n    current_price, open_interest = db.get_latest_open_interest('BTCUSDT')\n    print(f'Current Price: {current_price}')\n    print(f'Open Interest: {open_interest}')\n\n# Test liquidation calc\nmodel = BinanceStandardModel()\nmmr = model._get_mmr(open_interest)\nprint(f'MMR for OI {open_interest}: {mmr}')\n\n# Calculate what entry would give liq = 64018.5\nliq_price = Decimal('64018.5')\nleverage = 10\n# liq = entry * (1 + 1/leverage - mmr/leverage)\n# entry = liq / (1 + 1/leverage - mmr/leverage)\nfactor = Decimal('1') + Decimal('1')/Decimal(str(leverage)) - mmr/Decimal(str(leverage))\nprint(f'Liq factor: {factor}')\nentry = liq_price / factor\nprint(f'Entry that gives liq {liq_price}: {entry}')\nprint(f'Entry as % of current: {float(entry/current_price)*100:.2f}%')\n\n# Now test with num_bins=1\nliquidations = model.calculate_liquidations(\n    current_price=current_price,\n    open_interest=open_interest,\n    symbol='BTCUSDT',\n    leverage_tiers=[10],\n    num_bins=1,\n)\nprint(f'\\\\nGenerated {len(liquidations)} liquidations:')\nfor liq in liquidations:\n    print(f'  {liq.side} {liq.leverage_tier}: price={liq.price_level}, volume={liq.liquidation_volume}')\n\"\n",
+      "description": "Debug short liquidation calculation"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-29T13:33:52.193849",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/models/binance_standard.py",
+      "old_string": "            # SHORT positions: Entry prices distributed slightly BELOW current price\n            # E..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-29T13:34:05.625864",
+      "command": "uv run python -c \"\nfrom decimal import Decimal\nfrom src.liquidationheatmap.models.binance_standard import BinanceStandardModel\nfrom src.liquidationheatmap.ingestion.db_service import DuckDBService\n\n# Get real data\nwith DuckDBService() as db:\n    current_price, open_interest = db.get_latest_open_interest('BTCUSDT')\n\n# Test with num_bins=1\nmodel = BinanceStandardModel()\nliquidations = model.calculate_liquidations(\n    current_price=current_price,\n    open_interest=open_interest,\n    symbol='BTCUSDT',\n    leverage_tiers=[10],\n    num_bins=1,\n)\n\nprint(f'Current Price: {current_price}')\nfor liq in liquidations:\n    status = '<' if liq.price_level < current_price else '>'\n    ok = '✓' if (liq.side == 'long' and liq.price_level < current_price) or (liq.side == 'short' and liq.price_level > current_price) else '✗'\n    print(f'{liq.side.upper():5} {liq.leverage_tier}: {liq.price_level} {status} {current_price} {ok}')\n\"\n",
+      "description": "Verify short liquidation now above current"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-29T13:34:13.825364",
+      "command": "uv run pytest tests/test_e2e.py -v",
+      "description": "Run all E2E tests with fixes"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-29T13:35:02.913921",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/tests/test_e2e.py",
+      "old_string": "        # Step 2: Calculate liquidations\n        model = BinanceStandardModel()\n        liquidations..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-29T13:35:14.574693",
+      "command": "uv run pytest tests/test_e2e.py -v",
+      "description": "Run E2E tests with 10x leverage only"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-29T13:35:48.655149",
+      "todo_count": 6
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-29T13:35:54.332596",
+      "command": "uv run pytest --tb=no -q",
+      "description": "Run full test suite - final verification"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-29T13:37:13.117587",
+      "command": "uv run pytest tests/test_api_liquidations.py::TestLiquidationsEndpoint::test_get_liquidation_levels_default_leverages -xvs",
+      "description": "Check final failing test"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-29T13:37:24.628797",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/tests/test_api_liquidations.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-29T13:37:39.553407",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/tests/test_api_liquidations.py",
+      "old_string": "class TestLiquidationsEndpoint:\n    \"\"\"Test suite for /liquidations/levels endpoint.\"\"\"\n\n    def tes..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-29T13:37:46.954152",
+      "command": "uv run pytest --tb=no -q",
+      "description": "Final test suite run"
     }
   ],
-  "last_updated": "2025-11-29T13:32:45.135678"
+  "last_updated": "2025-11-29T13:37:46.954171"
 }

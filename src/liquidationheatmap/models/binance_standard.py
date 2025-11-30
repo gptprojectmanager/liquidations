@@ -160,9 +160,10 @@ class BinanceStandardModel(AbstractLiquidationModel):
                 )
 
             # SHORT positions: Entry prices distributed slightly BELOW current price
-            # Entry must be >91% of current to ensure liq > current for 10x leverage
+            # Entry must be >95% of current to ensure liq > current with high MMR (50%)
             entry_range_short = np.linspace(
-                float(current_price) * 0.91,  # 9% below (ensures liq > current)
+                float(current_price)
+                * 0.953,  # 4.7% below (ensures liq > current even with 50% MMR)
                 float(current_price) * 0.99,  # 1% below
                 num_bins,
             )
