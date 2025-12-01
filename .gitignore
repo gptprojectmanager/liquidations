@@ -60,6 +60,11 @@ Thumbs.db
 .serena/cache/
 .specify/memory/
 
+# Claude Code session data
+.claude/context_bundles/
+.claude/stats/
+.hypothesis/
+
 # Backups
 *.backup
 *.bak
