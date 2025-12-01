@@ -1,0 +1,25 @@
+{
+  "session_id": "65b8207b-93b8-469b-91e1-c4dfb0909def",
+  "created_at": "2025-10-30T00:43:53.853157",
+  "operations": [
+    {
+      "operation": "edit",
+      "timestamp": "2025-10-30T00:43:53.853177",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py",
+      "old_string": "    finally:\n        db.close()"
+    },
+    {
+      "operation": "write",
+      "timestamp": "2025-10-30T00:44:22.516638",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/scripts/serve_history_api.py",
+      "content_length": 1480
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-10-30T00:44:50.855544",
+      "command": "uv run python << 'EOF'\nimport duckdb\nimport json\n\nconn = duckdb.connect('data/processed/liquidations.duckdb')\n\n# Query historical liquidations\ndf = conn.execute(\"\"\"\n    SELECT \n        timestamp,\n        symbol,\n        price,\n        quantity,\n        side,\n        leverage,\n        model\n    FROM liquidation_history\n    WHERE symbol = 'BTCUSDT'\n    ORDER BY timestamp DESC\n    LIMIT 10\n\"\"\").df()\n\nprint(f\"📊 Historical Liquidations Sample (10/{len(df)}):\\n\")\n\n# Pretty print\nfor _, row in df.head(10).iterrows():\n    print(f\"  {row['timestamp']} | {row['side']:5} | {row['leverage']}x | ${row['price']:.2f} | Vol: {row['quantity']:.2f}\")\n\nprint(f\"\\n✅ Total historical records: {len(df)}\")\nconn.close()\nEOF",
+      "description": "Query and display historical liquidations"
+    }
+  ],
+  "last_updated": "2025-10-30T00:44:50.855562"
+}

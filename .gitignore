@@ -36,6 +36,7 @@ env/
 .coverage
 htmlcov/
 .tox/
+.hypothesis/
 
 # Data (IMPORTANT: Don't commit processed data)
 data/processed/

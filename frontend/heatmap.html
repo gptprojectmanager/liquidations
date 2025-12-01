@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC/USDT Liquidation Heatmap</title>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>BTC/USDT Liquidation Heatmap</h1>
+    <div class="controls">
+        <button onclick="loadHeatmap()">Load Heatmap</button>
+    </div>
+    <div id="heatmap"></div>
+
+    <script>
+        async function loadHeatmap() {
+            try {
+                const response = await fetch('http://localhost:8888/liquidations/heatmap?symbol=BTCUSDT&model=binance_standard');
+                const data = await response.json();
+                
+                if (!data.data || data.data.length === 0) {
+                    alert('No heatmap data available. Run: python scripts/generate_heatmap_cache.py');
+                    return;
+                }
+                
+                // Extract unique times and prices
+                const times = [...new Set(data.data.map(d => d.time))].sort();
+                const prices = [...new Set(data.data.map(d => d.price_bucket))].sort((a, b) => a - b);
+                
+                // Build 2D density matrix
+                const densities = prices.map(price => 
+                    times.map(time => {
+                        const point = data.data.find(d => d.time === time && d.price_bucket === price);
+                        return point ? point.density : 0;
+                    })
+                );
+                
+                // Plotly heatmap
+                const trace = {
+                    z: densities,
+                    x: times,
+                    y: prices,
+                    type: 'heatmap',
+                    colorscale: [
+                        [0, '#1a1a2e'],
+                        [0.25, '#9b59b6'],
+                        [0.5, '#3498db'],
+                        [0.75, '#1abc9c'],
+                        [1, '#f0b90b']
+                    ],
+                    hovertemplate: 'Time: %{x}<br>Price: $%{y}<br>Density: %{z}<extra></extra>'
+                };
+                
+                // Add current price line if available
+                const shapes = data.current_price ? [{
+                    type: 'line',
+                    x0: times[0],
+                    x1: times[times.length - 1],
+                    y0: data.current_price,
+                    y1: data.current_price,
+                    line: {
+                        color: '#e74c3c',
+                        width: 2,
+                        dash: 'dash'
+                    }
+                }] : [];
+                
+                const layout = {
+                    title: `Liquidation Heatmap - ${data.symbol}`,
+                    xaxis: { title: 'Time' },
+                    yaxis: { title: 'Price (USDT)' },
+                    paper_bgcolor: '#0d1117',
+                    plot_bgcolor: '#161b22',
+                    font: { color: '#c9d1d9' },
+                    shapes: shapes
+                };
+                
+                Plotly.newPlot('heatmap', [trace], layout);
+                
+            } catch (error) {
+                console.error('Error loading heatmap:', error);
+                alert('Error loading heatmap. Check console for details.');
+            }
+        }
+    </script>
+</body>
+</html>

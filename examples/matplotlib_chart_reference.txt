@@ -1,0 +1,57 @@
+Liquidation Chart Visualization Reference
+Source: https://github.com/StephanAkkerman/liquidations-chart
+
+APPROACH:
+Use CCXT library to fetch Binance Futures historical data, then visualize
+with matplotlib candlestick charts and volume overlays.
+
+DEPENDENCIES:
+- ccxt (multi-exchange API wrapper)
+- pandas (data manipulation)
+- matplotlib / mplfinance (visualization)
+
+DATA FETCHING:
+exchange = ccxt.binance({
+    'enableRateLimit': True,
+    'options': {'defaultType': 'um'}  # USDT-M futures
+})
+
+ohlcv = exchange.fetch_ohlcv('BTCUSDT', '1h', since=timestamp)
+# Returns: [[timestamp, open, high, low, close, volume], ...]
+
+VISUALIZATION:
+mpf.plot(df, type='candle', style='yahoo', volume=True)
+
+CHART TYPES:
+1. Candlestick chart with volume bars
+2. Price line chart with liquidation overlays
+3. Comparison chart (price vs volume side-by-side)
+
+KEY INSIGHT:
+This approach shows HISTORICAL PRICE DATA, not actual liquidation events.
+For real liquidation visualization, must integrate with:
+- WebSocket liquidation stream (binance_websocket_tracker.py)
+- Historical liquidation data (if available from exchange)
+
+ALTERNATIVE FOR OUR PROJECT:
+Instead of matplotlib (heavyweight, 100+ lines), use Plotly.js:
+- Interactive by default (zoom, pan, hover)
+- ~50 lines of JavaScript
+- Better for web-based dashboards
+- Easier customization
+
+PLOTLY.JS EQUIVALENT:
+Plotly.newPlot('chart', [{
+    type: 'candlestick',
+    x: timestamps,
+    open: open_prices,
+    high: high_prices,
+    low: low_prices,
+    close: close_prices
+}], {
+    title: 'BTC/USDT Liquidation Chart'
+});
+
+CONCLUSION:
+Use this as conceptual reference for chart structure, but implement
+with Plotly.js for simpler codebase (KISS principle).

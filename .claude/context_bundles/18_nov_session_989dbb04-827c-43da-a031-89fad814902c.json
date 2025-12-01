@@ -1,0 +1,165 @@
+{
+  "session_id": "989dbb04-827c-43da-a031-89fad814902c",
+  "created_at": "2025-11-18T17:21:30.674921",
+  "operations": [
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-18T17:21:30.674936",
+      "todo_count": 9
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-18T17:21:43.657053",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-18T17:21:53.851124",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-18T17:22:15.654401",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py",
+      "old_string": "@app.get(\"/liquidations/levels\", response_model=LiquidationResponse)\nasync def get_liquidation_level..."
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-18T17:22:29.731929",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/api/main.py",
+      "old_string": "            bins_df = db.calculate_liquidations_oi_based(\n                symbol=symbol,\n           ..."
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-18T17:22:42.546532",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py"
+    },
+    {
+      "operation": "edit",
+      "timestamp": "2025-11-18T17:22:56.440235",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/src/liquidationheatmap/ingestion/db_service.py",
+      "old_string": "    def calculate_liquidations_oi_based(\n        self,\n        symbol: str = \"BTCUSDT\",\n        curr..."
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-18T17:23:15.206094",
+      "command": "git add src/liquidationheatmap/api/main.py src/liquidationheatmap/ingestion/db_service.py && git commit -m \"$(cat <<'EOF'\nfeat(api): Add configurable whale_threshold parameter\n\nAdd whale_threshold parameter to OpenInterest model API endpoint to allow\nconfigurable minimum trade size filtering for volume profile generation.\n\nChanges:\n- API: Add whale_threshold query parameter (default: $500k, min: 0)\n- db_service: Add whale_threshold parameter to calculate_liquidations_oi_based()\n- Enables future sensitivity analysis with different thresholds\n\nNote: Currently uses pre-cached volume_profile_daily (hardcoded $500k).\nFor runtime threshold changes, cache must be rebuilt or query moved to aggtrades_history.\n\nFiles: src/liquidationheatmap/api/main.py, src/liquidationheatmap/ingestion/db_service.py\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\"",
+      "description": "Commit whale threshold configuration feature"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-18T17:23:35.576706",
+      "todo_count": 8
+    },
+    {
+      "operation": "write",
+      "timestamp": "2025-11-18T17:25:02.736306",
+      "file_path": "/tmp/SESSION_SUMMARY_15NOV2025.md",
+      "content_length": 9001
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-18T17:27:26.577447",
+      "todo_count": 8
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-18T17:29:26.780631",
+      "todo_count": 5
+    },
+    {
+      "operation": "glob",
+      "timestamp": "2025-11-18T17:29:37.801952",
+      "pattern": "frontend/*.html"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-18T17:29:39.255300",
+      "command": "curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=90\" | jq '{model, current_price, timeframe: \"90d\", long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length), long_volume_GB: ([.long_liquidations[].volume | tonumber] | add / 1e9), short_volume_GB: ([.short_liquidations[].volume | tonumber] | add / 1e9)}'",
+      "description": "Test 90-day timeframe for balance check"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-18T17:30:50.408967",
+      "command": "curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=90\" > /tmp/oi_90d_test.json && echo \"=== 90-DAY TIMEFRAME TEST ===\" && cat /tmp/oi_90d_test.json | jq '{model, current_price, timeframe: \"90d\", long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length), long_volume_GB: (if (.long_liquidations | length) > 0 then ([.long_liquidations[].volume | tonumber] | add / 1e9) else 0 end), short_volume_GB: (if (.short_liquidations | length) > 0 then ([.short_liquidations[].volume | tonumber] | add / 1e9) else 0 end)}'",
+      "description": "Test 90-day timeframe with null handling"
+    },
+    {
+      "operation": "read",
+      "timestamp": "2025-11-18T17:31:47.098779",
+      "file_path": "/media/sam/1TB/LiquidationHeatmap/frontend/liquidation_map.html"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-18T17:32:19.030978",
+      "todo_count": 5
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-18T17:32:20.514256",
+      "command": "echo \"=== TIMEFRAME SENSITIVITY ANALYSIS ===\" && echo \"\" && echo \"30-day:\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=30\" | jq -c '{long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length)}' && echo \"\" && echo \"90-day:\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=90\" | jq -c '{long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length)}' && echo \"\" && echo \"180-day:\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=180\" | jq -c '{long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length)}'",
+      "description": "Compare timeframes 30d/90d/180d"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-18T17:33:28.924184",
+      "command": "echo \"=== WHALE THRESHOLD SENSITIVITY (30-day) ===\" && echo \"\" && echo \"Threshold $500k (default):\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=30&whale_threshold=500000\" | jq -c '{long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length)}' && echo \"\" && echo \"Threshold $100k:\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=30&whale_threshold=100000\" | jq -c '{long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length)}' && echo \"\" && echo \"Threshold $0 (all trades):\" && curl -s \"http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=openinterest&timeframe=30&whale_threshold=0\" | jq -c '{long_bins: (.long_liquidations | length), short_bins: (.short_liquidations | length)}'",
+      "description": "Test whale threshold sensitivity"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-18T17:35:51.162652",
+      "bash_id": "74b609"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-18T17:36:04.878163",
+      "command": "sleep 30",
+      "description": "Wait for background tests to complete"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-18T17:36:46.678180",
+      "bash_id": "74b609"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-18T17:37:13.579200",
+      "bash_id": "a908c3"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-11-18T17:37:25.580240",
+      "command": "sleep 30 && echo \"Waited 30 seconds\"",
+      "description": "Wait for whale threshold test to complete"
+    },
+    {
+      "operation": "bashoutput",
+      "timestamp": "2025-11-18T17:38:03.840312",
+      "bash_id": "a908c3"
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-18T17:39:19.822993",
+      "todo_count": 4
+    },
+    {
+      "operation": "write",
+      "timestamp": "2025-11-18T17:39:21.178888",
+      "file_path": "/tmp/CRITICAL_WHALE_THRESHOLD_BUG_18NOV2025.md",
+      "content_length": 7499
+    },
+    {
+      "operation": "write",
+      "timestamp": "2025-11-18T17:40:29.944462",
+      "file_path": "/tmp/SESSION_SUMMARY_18NOV2025_CORRECTED.md",
+      "content_length": 9249
+    },
+    {
+      "operation": "todowrite",
+      "timestamp": "2025-11-18T17:40:44.859200",
+      "todo_count": 5
+    }
+  ],
+  "last_updated": "2025-11-18T17:40:44.859217"
+}

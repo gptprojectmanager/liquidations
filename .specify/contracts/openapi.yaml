@@ -1,0 +1,524 @@
+openapi: 3.0.3
+info:
+  title: Liquidation Heatmap API
+  description: |
+    REST API for cryptocurrency liquidation level predictions and heatmap visualization.
+
+    ## Features
+    - **Predictive liquidation levels** from Open Interest data
+    - **3 calculation models**: Binance Standard, Funding Adjusted, Ensemble
+    - **Heatmap aggregation**: Time × Price density visualization
+    - **Historical analysis**: Query past liquidation patterns
+
+    ## Data Sources
+    - Binance Futures historical CSV (trades, Open Interest, funding rates)
+    - DuckDB analytics database
+
+    ## Rate Limiting
+    - 100 requests per minute per IP
+    - Cached responses (1 hour TTL)
+  version: 1.0.0
+  contact:
+    name: liquidation-development team
+    email: dev@liquidationheatmap.local
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://api.liquidationheatmap.local
+    description: Production server (future)
+
+tags:
+  - name: liquidations
+    description: Liquidation level calculations and heatmap data
+  - name: health
+    description: Service health and status
+
+paths:
+  /liquidations/heatmap:
+    get:
+      summary: Get liquidation heatmap data
+      description: |
+        Returns aggregated liquidation data in 2D buckets (time × price) for heatmap visualization.
+
+        **Use Case**: Plotly.js heatmap rendering
+        **Response Size**: ~300KB for 7 days (300 time buckets × 100 price buckets)
+        **Cache**: 1 hour TTL
+      operationId: getHeatmap
+      tags:
+        - liquidations
+      parameters:
+        - $ref: '#/components/parameters/symbol'
+        - $ref: '#/components/parameters/model'
+        - $ref: '#/components/parameters/timeframe'
+        - $ref: '#/components/parameters/start'
+        - $ref: '#/components/parameters/end'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeatmapResponse'
+              examples:
+                btcusdt_ensemble_1d:
+                  summary: BTC/USDT Ensemble Model (1 day)
+                  value:
+                    symbol: BTCUSDT
+                    model: ensemble
+                    timeframe: 1d
+                    current_price: 67234.56
+                    data:
+                      - time: '2024-10-29T00:00:00Z'
+                        price_bucket: 66000.00
+                        density: 42
+                        volume: 5678901.23
+                      - time: '2024-10-29T01:00:00Z'
+                        price_bucket: 66100.00
+                        density: 38
+                        volume: 4321098.76
+                    metadata:
+                      total_liquidation_volume: 123456789.01
+                      highest_density_price: 66000.00
+                      num_buckets: 300
+                      data_quality_score: 0.94
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /liquidations/levels:
+    get:
+      summary: Get current liquidation price levels
+      description: |
+        Returns liquidation prices for active Open Interest positions, grouped by leverage tier.
+
+        **Use Case**: Price level indicators, trading signals
+        **Response Size**: ~10KB (50-100 levels)
+        **Cache**: 10 minutes TTL
+      operationId: getLiquidationLevels
+      tags:
+        - liquidations
+      parameters:
+        - $ref: '#/components/parameters/symbol'
+        - $ref: '#/components/parameters/model'
+        - name: leverage
+          in: query
+          description: Filter by leverage tier (optional)
+          required: false
+          schema:
+            type: string
+            enum: ['5x', '10x', '25x', '50x', '100x']
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiquidationLevelsResponse'
+              examples:
+                btcusdt_10x:
+                  summary: BTC/USDT 10x Leverage
+                  value:
+                    symbol: BTCUSDT
+                    model: binance_standard
+                    current_price: 67234.56
+                    levels:
+                      - price: 60511.10
+                        volume: 12345678.90
+                        side: long
+                        leverage: '10x'
+                        confidence: 0.95
+                      - price: 73958.02
+                        volume: 9876543.21
+                        side: short
+                        leverage: '10x'
+                        confidence: 0.95
+                    timestamp: '2024-10-29T12:00:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /liquidations/compare-models:
+    get:
+      summary: Compare liquidation predictions across models
+      description: |
+        Returns liquidation levels from all 3 models side-by-side for comparison.
+
+        **Use Case**: Model validation, research
+        **Response Size**: ~30KB (3 models × 10KB each)
+        **Cache**: 1 hour TTL
+      operationId: compareModels
+      tags:
+        - liquidations
+      parameters:
+        - $ref: '#/components/parameters/symbol'
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelComparisonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /health:
+    get:
+      summary: Service health check
+      description: Returns service status and component health
+      operationId: healthCheck
+      tags:
+        - health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+                version: 1.0.0
+                components:
+                  duckdb: healthy
+                  cache: healthy
+                timestamp: '2024-10-29T12:00:00Z'
+
+components:
+  parameters:
+    symbol:
+      name: symbol
+      in: query
+      description: Trading pair symbol
+      required: false
+      schema:
+        type: string
+        default: BTCUSDT
+        pattern: '^[A-Z]+USDT$'
+        example: BTCUSDT
+
+    model:
+      name: model
+      in: query
+      description: Liquidation calculation model
+      required: false
+      schema:
+        type: string
+        enum:
+          - binance_standard
+          - funding_adjusted
+          - py_liquidation_map
+          - ensemble
+        default: ensemble
+
+    timeframe:
+      name: timeframe
+      in: query
+      description: Time period for data aggregation
+      required: false
+      schema:
+        type: string
+        enum: ['1h', '4h', '12h', '1d', '7d', '30d']
+        default: '1d'
+
+    start:
+      name: start
+      in: query
+      description: Start timestamp (ISO 8601 format)
+      required: false
+      schema:
+        type: string
+        format: date-time
+        example: '2024-10-01T00:00:00Z'
+
+    end:
+      name: end
+      in: query
+      description: End timestamp (ISO 8601 format)
+      required: false
+      schema:
+        type: string
+        format: date-time
+        example: '2024-10-29T23:59:59Z'
+
+  schemas:
+    HeatmapDataPoint:
+      type: object
+      required:
+        - time
+        - price_bucket
+        - density
+        - volume
+      properties:
+        time:
+          type: string
+          format: date-time
+          description: Time bucket timestamp
+        price_bucket:
+          type: number
+          format: double
+          description: Price bucket center ($100 increments)
+          example: 66000.00
+        density:
+          type: integer
+          description: Number of liquidations in bucket
+          minimum: 0
+          example: 42
+        volume:
+          type: number
+          format: double
+          description: Total liquidation volume in bucket (USDT)
+          minimum: 0
+          example: 5678901.23
+
+    HeatmapMetadata:
+      type: object
+      required:
+        - total_liquidation_volume
+        - highest_density_price
+        - num_buckets
+        - data_quality_score
+      properties:
+        total_liquidation_volume:
+          type: number
+          format: double
+          description: Sum of all liquidation volumes
+          example: 123456789.01
+        highest_density_price:
+          type: number
+          format: double
+          description: Price level with highest liquidation density
+          example: 66000.00
+        num_buckets:
+          type: integer
+          description: Total number of heatmap buckets
+          example: 300
+        data_quality_score:
+          type: number
+          format: double
+          description: Data completeness score (0-1)
+          minimum: 0
+          maximum: 1
+          example: 0.94
+
+    HeatmapResponse:
+      type: object
+      required:
+        - symbol
+        - model
+        - timeframe
+        - current_price
+        - data
+        - metadata
+      properties:
+        symbol:
+          type: string
+          example: BTCUSDT
+        model:
+          type: string
+          enum: [binance_standard, funding_adjusted, py_liquidation_map, ensemble]
+          example: ensemble
+        timeframe:
+          type: string
+          example: 1d
+        current_price:
+          type: number
+          format: double
+          description: Current market price
+          example: 67234.56
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/HeatmapDataPoint'
+        metadata:
+          $ref: '#/components/schemas/HeatmapMetadata'
+
+    LiquidationLevelData:
+      type: object
+      required:
+        - price
+        - volume
+        - side
+        - leverage
+        - confidence
+      properties:
+        price:
+          type: number
+          format: double
+          description: Liquidation price level
+          example: 60511.10
+        volume:
+          type: number
+          format: double
+          description: Liquidation volume at this level (USDT)
+          example: 12345678.90
+        side:
+          type: string
+          enum: [long, short]
+          description: Position side
+          example: long
+        leverage:
+          type: string
+          description: Leverage tier
+          pattern: '^\d+x$'
+          example: '10x'
+        confidence:
+          type: number
+          format: double
+          description: Model confidence score (0-1)
+          minimum: 0
+          maximum: 1
+          example: 0.95
+
+    LiquidationLevelsResponse:
+      type: object
+      required:
+        - symbol
+        - model
+        - current_price
+        - levels
+        - timestamp
+      properties:
+        symbol:
+          type: string
+          example: BTCUSDT
+        model:
+          type: string
+          enum: [binance_standard, funding_adjusted, py_liquidation_map, ensemble]
+        current_price:
+          type: number
+          format: double
+          example: 67234.56
+        levels:
+          type: array
+          items:
+            $ref: '#/components/schemas/LiquidationLevelData'
+        timestamp:
+          type: string
+          format: date-time
+          description: Calculation timestamp
+          example: '2024-10-29T12:00:00Z'
+
+    ModelComparisonResponse:
+      type: object
+      required:
+        - symbol
+        - models
+      properties:
+        symbol:
+          type: string
+          example: BTCUSDT
+        models:
+          type: array
+          items:
+            type: object
+            required:
+              - name
+              - levels
+              - avg_confidence
+            properties:
+              name:
+                type: string
+                enum: [binance_standard, funding_adjusted, py_liquidation_map]
+              levels:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LiquidationLevelData'
+              avg_confidence:
+                type: number
+                format: double
+                description: Average confidence across all levels
+                example: 0.95
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - version
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: healthy
+        version:
+          type: string
+          example: 1.0.0
+        components:
+          type: object
+          properties:
+            duckdb:
+              type: string
+              enum: [healthy, unhealthy]
+            cache:
+              type: string
+              enum: [healthy, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              example: INVALID_TIMEFRAME
+            message:
+              type: string
+              example: 'Timeframe must be one of: 1h, 4h, 12h, 1d, 7d, 30d'
+            details:
+              type: object
+              additionalProperties: true
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: INVALID_PARAMETER
+              message: 'Invalid timeframe: 2h'
+              details:
+                parameter: timeframe
+                valid_values: ['1h', '4h', '12h', '1d', '7d', '30d']
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error:
+              code: DATABASE_ERROR
+              message: 'Failed to query DuckDB'
+              details:
+                error_type: ConnectionError
+                retry_after: 60
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication (future feature)
+
+security: []
