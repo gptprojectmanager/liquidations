@@ -1,0 +1,96 @@
+# Funding Rate Bias Adjustment Configuration
+# Feature: LIQHEAT-005
+# Description: Controls how funding rate influences long/short position distribution
+
+bias_adjustment:
+  # Master switch for bias adjustment feature
+  enabled: true
+
+  # Trading symbol to track (must match Binance format)
+  symbol: "BTCUSDT"
+
+  # Sensitivity factor for tanh transformation (range: 10.0 to 100.0)
+  # Higher values = more sensitive to small funding changes
+  # Default: 50.0 provides balanced response
+  sensitivity: 50.0
+
+  # Maximum deviation from baseline 50/50 distribution
+  # 0.20 = ±20% adjustment (long_ratio ∈ [0.30, 0.70])
+  max_adjustment: 0.20
+
+  # Cap for outlier funding rates to prevent extreme adjustments
+  # Values beyond ±0.10 (±10%) are considered anomalies
+  outlier_cap: 0.10
+
+  # Cache time-to-live in seconds (5 minutes)
+  # Reduces API calls while respecting 8-hour funding periods
+  cache_ttl_seconds: 300
+
+  # Threshold for extreme sentiment alerts
+  # Triggers warning when funding rate exceeds ±0.05 (±5%)
+  extreme_alert_threshold: 0.05
+
+  # Moving average configuration for smoothing
+  smoothing:
+    enabled: false
+    periods: 3  # Use last 3 funding periods (24 hours)
+    weights: [0.5, 0.3, 0.2]  # Most recent has highest weight
+
+# API Configuration
+api:
+  # Binance Futures API endpoint
+  base_url: "https://fapi.binance.com"
+
+  # Funding rate endpoint path
+  funding_endpoint: "/fapi/v1/fundingRate"
+
+  # Request timeout in seconds
+  timeout: 10
+
+  # Retry configuration for resilience
+  retry:
+    max_attempts: 3
+    backoff_factor: 2.0  # Exponential backoff multiplier
+    max_wait: 60  # Maximum wait between retries (seconds)
+
+# Historical Data Configuration
+historical:
+  # Data retention period in days
+  retention_days: 90
+
+  # Batch size for historical queries
+  batch_size: 1000
+
+  # Enable automatic pruning of old data
+  auto_prune: true
+
+  # Pruning schedule (cron format: daily at 2 AM)
+  prune_schedule: "0 2 * * *"
+
+# Performance Configuration
+performance:
+  # Enable batch processing optimizations
+  batch_optimization: true
+
+  # Maximum concurrent API requests
+  max_concurrent_requests: 10
+
+  # Enable performance metrics collection
+  collect_metrics: true
+
+  # Metrics export interval (seconds)
+  metrics_interval: 60
+
+# Logging Configuration
+logging:
+  # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  level: "INFO"
+
+  # Log bias adjustments
+  log_adjustments: true
+
+  # Log extreme sentiment alerts
+  log_alerts: true
+
+  # Include funding rate in logs
+  include_funding_rate: true

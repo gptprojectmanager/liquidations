@@ -17,6 +17,8 @@ dependencies = [
     "scipy>=1.11.0",
     "pyyaml>=6.0.3",
     "apscheduler>=3.10.0",
+    "httpx>=0.25.0",
+    "cachetools>=5.3.0",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +42,7 @@ packages = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "--cov=src --cov-report=term-missing --cov-report=html"
+# addopts = "--cov=src --cov-report=term-missing --cov-report=html"
 
 [tool.ruff]
 line-length = 100
