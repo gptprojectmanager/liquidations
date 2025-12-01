@@ -1,0 +1,19 @@
+{
+  "session_id": "3d2f691b-8ebc-4609-b308-b5ef7345a241",
+  "created_at": "2025-12-01T16:33:01.673194",
+  "operations": [
+    {
+      "operation": "bash",
+      "timestamp": "2025-12-01T16:33:01.673222",
+      "command": "grep \"0.953\" src/liquidationheatmap/models/binance_standard.py 2>/dev/null && echo \"✅ Changes present\" || echo \"❌ Changes missing\"",
+      "description": "Verify changes are present"
+    },
+    {
+      "operation": "bash",
+      "timestamp": "2025-12-01T16:33:17.129668",
+      "command": "grep -A2 \"SHORT positions: Entry\" src/liquidationheatmap/models/binance_standard.py",
+      "description": "Check current entry range value"
+    }
+  ],
+  "last_updated": "2025-12-01T16:33:17.129685"
+}
