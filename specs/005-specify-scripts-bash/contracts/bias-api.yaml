@@ -1,0 +1,712 @@
+openapi: 3.0.3
+info:
+  title: Funding Rate Bias Adjustment API
+  description: |
+    REST API for fetching funding rates, calculating bias adjustments, and retrieving
+    market sentiment indicators. This API enhances liquidation prediction models by
+    dynamically adjusting long/short position distributions based on real-time funding rate data.
+  version: 1.0.0
+  contact:
+    name: LiquidationHeatmap API Support
+    url: https://github.com/yourorg/liquidationheatmap
+
+servers:
+  - url: https://api.liquidationheatmap.com/v1
+    description: Production server
+  - url: http://localhost:8000/api
+    description: Local development server
+
+tags:
+  - name: funding
+    description: Funding rate data retrieval
+  - name: bias
+    description: Bias adjustment calculations
+  - name: sentiment
+    description: Market sentiment indicators
+  - name: config
+    description: Configuration management
+
+paths:
+  /bias/funding/{symbol}:
+    get:
+      summary: Get current funding rate
+      description: |
+        Retrieves the most recent funding rate for a given perpetual futures symbol.
+        Data is cached for 5 minutes to minimize API calls to the exchange.
+      operationId: getFundingRate
+      tags:
+        - funding
+      parameters:
+        - $ref: '#/components/parameters/SymbolPathParam'
+      responses:
+        '200':
+          description: Funding rate retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FundingRateResponse'
+              examples:
+                bullish:
+                  summary: Positive funding (bullish sentiment)
+                  value:
+                    symbol: BTCUSDT
+                    rate: "0.00030000"
+                    funding_time: "2025-12-01T08:00:00Z"
+                    source: binance
+                    cached: true
+                    cache_expires_at: "2025-12-01T08:05:00Z"
+                bearish:
+                  summary: Negative funding (bearish sentiment)
+                  value:
+                    symbol: BTCUSDT
+                    rate: "-0.00020000"
+                    funding_time: "2025-12-01T08:00:00Z"
+                    source: binance
+                    cached: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /bias/adjustment/{symbol}:
+    get:
+      summary: Get bias adjustment calculation
+      description: |
+        Calculates the long/short ratio adjustment based on current funding rate.
+        Includes confidence score and sentiment classification.
+      operationId: getBiasAdjustment
+      tags:
+        - bias
+      parameters:
+        - $ref: '#/components/parameters/SymbolPathParam'
+        - name: scale_factor
+          in: query
+          description: Tanh scale factor (overrides config default)
+          required: false
+          schema:
+            type: number
+            format: float
+            minimum: 1.0
+            maximum: 100.0
+            default: 50.0
+        - name: max_adjustment
+          in: query
+          description: Maximum ratio deviation from 0.5 (overrides config)
+          required: false
+          schema:
+            type: number
+            format: float
+            minimum: 0.05
+            maximum: 0.30
+            default: 0.20
+      responses:
+        '200':
+          description: Bias adjustment calculated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BiasAdjustmentResponse'
+              examples:
+                typical_bull:
+                  summary: Typical bull market (+0.03% funding)
+                  value:
+                    funding_input: "0.00030000"
+                    long_ratio: "0.68100000"
+                    short_ratio: "0.31900000"
+                    confidence: 0.85
+                    applied_at: "2025-12-01T12:34:56Z"
+                    scale_factor: 50.0
+                    max_adjustment: 0.20
+                    sentiment:
+                      classification: bullish
+                      long_bias_pct: 18.1
+                      threshold_exceeded: false
+                      alert_message: null
+                neutral:
+                  summary: Neutral market (near-zero funding)
+                  value:
+                    funding_input: "0.00001000"
+                    long_ratio: "0.50100000"
+                    short_ratio: "0.49900000"
+                    confidence: 0.52
+                    applied_at: "2025-12-01T12:35:00Z"
+                    scale_factor: 50.0
+                    max_adjustment: 0.20
+                    sentiment:
+                      classification: neutral
+                      long_bias_pct: 0.1
+                      threshold_exceeded: false
+                      alert_message: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /bias/sentiment/{symbol}:
+    get:
+      summary: Get market sentiment indicator
+      description: |
+        Returns the classified market sentiment based on funding rate.
+        Used for UI display and alert triggering.
+      operationId: getSentimentIndicator
+      tags:
+        - sentiment
+      parameters:
+        - $ref: '#/components/parameters/SymbolPathParam'
+      responses:
+        '200':
+          description: Sentiment indicator retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SentimentIndicatorResponse'
+              examples:
+                extreme_bullish:
+                  summary: Extreme bullish sentiment (alert triggered)
+                  value:
+                    classification: extreme_bullish
+                    funding_rate: "0.06000000"
+                    long_bias_pct: 19.8
+                    threshold_exceeded: true
+                    alert_message: "Extreme long bias detected - high liquidation cascade risk"
+                bullish:
+                  summary: Bullish sentiment (no alert)
+                  value:
+                    classification: bullish
+                    funding_rate: "0.00030000"
+                    long_bias_pct: 18.1
+                    threshold_exceeded: false
+                    alert_message: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /bias/override:
+    post:
+      summary: Manually override bias factor
+      description: |
+        Allows manual override of the bias adjustment for testing or
+        emergency situations. Override persists for specified duration.
+      operationId: overrideBias
+      tags:
+        - bias
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BiasOverrideRequest'
+            examples:
+              force_neutral:
+                summary: Force neutral distribution
+                value:
+                  symbol: BTCUSDT
+                  long_ratio: "0.50000000"
+                  short_ratio: "0.50000000"
+                  duration_seconds: 3600
+                  reason: "Suspected funding manipulation, forcing neutral"
+              custom_bias:
+                summary: Custom bias for testing
+                value:
+                  symbol: ETHUSDT
+                  long_ratio: "0.65000000"
+                  short_ratio: "0.35000000"
+                  duration_seconds: 300
+                  reason: "Testing 65/35 distribution"
+      responses:
+        '200':
+          description: Override applied successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BiasOverrideResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /bias/correlation:
+    get:
+      summary: Get historical correlation statistics
+      description: |
+        Returns correlation analysis between funding rates and actual
+        long/short distributions over a specified period.
+      operationId: getCorrelationStats
+      tags:
+        - bias
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Z]{3,10}USDT$'
+            example: BTCUSDT
+        - name: days
+          in: query
+          description: Number of days to analyze (default 30)
+          required: false
+          schema:
+            type: integer
+            minimum: 7
+            maximum: 90
+            default: 30
+      responses:
+        '200':
+          description: Correlation statistics calculated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CorrelationStatsResponse'
+              example:
+                symbol: BTCUSDT
+                period_days: 30
+                sample_size: 90
+                pearson_correlation: 0.742
+                p_value: 0.001
+                confidence_interval_95:
+                  lower: 0.621
+                  upper: 0.832
+                mean_funding_rate: "0.00015000"
+                mean_long_ratio: 0.585
+                target_met: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /bias/config:
+    get:
+      summary: Get current configuration
+      description: Returns the active bias adjustment configuration
+      operationId: getConfig
+      tags:
+        - config
+      responses:
+        '200':
+          description: Configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdjustmentConfigResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      summary: Update configuration
+      description: |
+        Hot-reload configuration parameters. Requires admin authentication.
+      operationId: updateConfig
+      tags:
+        - config
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdjustmentConfigUpdate'
+      responses:
+        '200':
+          description: Configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdjustmentConfigResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  parameters:
+    SymbolPathParam:
+      name: symbol
+      in: path
+      required: true
+      description: Perpetual futures trading pair symbol
+      schema:
+        type: string
+        pattern: '^[A-Z]{3,10}USDT$'
+        example: BTCUSDT
+
+  schemas:
+    FundingRateResponse:
+      type: object
+      required:
+        - symbol
+        - rate
+        - funding_time
+        - source
+        - cached
+      properties:
+        symbol:
+          type: string
+          description: Trading pair symbol
+          example: BTCUSDT
+        rate:
+          type: string
+          format: decimal
+          description: Funding rate as decimal string
+          example: "0.00030000"
+        funding_time:
+          type: string
+          format: date-time
+          description: UTC timestamp when funding applied
+          example: "2025-12-01T08:00:00Z"
+        source:
+          type: string
+          description: Data source identifier
+          example: binance
+          enum:
+            - binance
+            - binance_testnet
+        cached:
+          type: boolean
+          description: Whether result is from cache
+        cache_expires_at:
+          type: string
+          format: date-time
+          description: When cache entry expires (if cached=true)
+
+    BiasAdjustmentResponse:
+      type: object
+      required:
+        - funding_input
+        - long_ratio
+        - short_ratio
+        - confidence
+        - applied_at
+        - scale_factor
+        - max_adjustment
+        - sentiment
+      properties:
+        funding_input:
+          type: string
+          format: decimal
+          description: Input funding rate
+          example: "0.00030000"
+        long_ratio:
+          type: string
+          format: decimal
+          description: Adjusted long position ratio
+          example: "0.68100000"
+        short_ratio:
+          type: string
+          format: decimal
+          description: Adjusted short position ratio
+          example: "0.31900000"
+        confidence:
+          type: number
+          format: float
+          description: Confidence score [0, 1]
+          minimum: 0.0
+          maximum: 1.0
+          example: 0.85
+        applied_at:
+          type: string
+          format: date-time
+          description: UTC timestamp of calculation
+        scale_factor:
+          type: number
+          format: float
+          description: Tanh scale factor used
+          example: 50.0
+        max_adjustment:
+          type: number
+          format: float
+          description: Maximum deviation from 0.5
+          example: 0.20
+        sentiment:
+          $ref: '#/components/schemas/SentimentIndicatorResponse'
+
+    SentimentIndicatorResponse:
+      type: object
+      required:
+        - classification
+        - funding_rate
+        - long_bias_pct
+        - threshold_exceeded
+      properties:
+        classification:
+          type: string
+          description: Sentiment category
+          enum:
+            - extreme_bullish
+            - bullish
+            - neutral
+            - bearish
+            - extreme_bearish
+          example: bullish
+        funding_rate:
+          type: string
+          format: decimal
+          description: Funding rate that determined classification
+          example: "0.00030000"
+        long_bias_pct:
+          type: number
+          format: float
+          description: Long bias as percentage deviation from 50%
+          example: 18.1
+        threshold_exceeded:
+          type: boolean
+          description: Whether extreme threshold was exceeded
+        alert_message:
+          type: string
+          description: Alert message if threshold_exceeded=true
+          nullable: true
+          example: "Extreme long bias detected - high liquidation cascade risk"
+
+    BiasOverrideRequest:
+      type: object
+      required:
+        - symbol
+        - long_ratio
+        - short_ratio
+        - duration_seconds
+      properties:
+        symbol:
+          type: string
+          pattern: '^[A-Z]{3,10}USDT$'
+          example: BTCUSDT
+        long_ratio:
+          type: string
+          format: decimal
+          description: Override long ratio
+          example: "0.50000000"
+        short_ratio:
+          type: string
+          format: decimal
+          description: Override short ratio (must sum to 1.0 with long_ratio)
+          example: "0.50000000"
+        duration_seconds:
+          type: integer
+          description: How long override persists (seconds)
+          minimum: 60
+          maximum: 86400
+          example: 3600
+        reason:
+          type: string
+          description: Reason for override (audit trail)
+          maxLength: 200
+          example: "Suspected funding manipulation"
+
+    BiasOverrideResponse:
+      type: object
+      required:
+        - symbol
+        - override_active
+        - expires_at
+      properties:
+        symbol:
+          type: string
+          example: BTCUSDT
+        override_active:
+          type: boolean
+        long_ratio:
+          type: string
+          format: decimal
+          example: "0.50000000"
+        short_ratio:
+          type: string
+          format: decimal
+          example: "0.50000000"
+        expires_at:
+          type: string
+          format: date-time
+          description: When override expires
+        reason:
+          type: string
+
+    CorrelationStatsResponse:
+      type: object
+      required:
+        - symbol
+        - period_days
+        - sample_size
+        - pearson_correlation
+        - p_value
+        - confidence_interval_95
+        - target_met
+      properties:
+        symbol:
+          type: string
+          example: BTCUSDT
+        period_days:
+          type: integer
+          description: Analysis period in days
+          example: 30
+        sample_size:
+          type: integer
+          description: Number of data points analyzed
+          example: 90
+        pearson_correlation:
+          type: number
+          format: float
+          description: Pearson correlation coefficient
+          example: 0.742
+        p_value:
+          type: number
+          format: float
+          description: Statistical significance (p < 0.05 is significant)
+          example: 0.001
+        confidence_interval_95:
+          type: object
+          properties:
+            lower:
+              type: number
+              format: float
+            upper:
+              type: number
+              format: float
+        mean_funding_rate:
+          type: string
+          format: decimal
+          description: Mean funding rate over period
+        mean_long_ratio:
+          type: number
+          format: float
+          description: Mean long ratio over period
+        target_met:
+          type: boolean
+          description: Whether correlation > 0.7 target was met
+
+    AdjustmentConfigResponse:
+      type: object
+      required:
+        - enabled
+        - symbol
+        - sensitivity
+        - max_adjustment
+        - outlier_cap
+        - cache_ttl_seconds
+        - extreme_alert_threshold
+      properties:
+        enabled:
+          type: boolean
+          description: Master enable/disable switch
+        symbol:
+          type: string
+          example: BTCUSDT
+        sensitivity:
+          type: number
+          format: float
+          description: Tanh scale factor
+          example: 50.0
+        max_adjustment:
+          type: number
+          format: float
+          description: Maximum deviation from 0.5
+          example: 0.20
+        outlier_cap:
+          type: string
+          format: decimal
+          description: Funding rate outlier cap
+          example: "0.10"
+        cache_ttl_seconds:
+          type: integer
+          description: Cache TTL in seconds
+          example: 300
+        extreme_alert_threshold:
+          type: string
+          format: decimal
+          description: Extreme sentiment alert threshold
+          example: "0.05"
+
+    AdjustmentConfigUpdate:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        sensitivity:
+          type: number
+          format: float
+          minimum: 1.0
+          maximum: 100.0
+        max_adjustment:
+          type: number
+          format: float
+          minimum: 0.05
+          maximum: 0.30
+        cache_ttl_seconds:
+          type: integer
+          minimum: 60
+          maximum: 3600
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: bad_request
+            message: "Invalid symbol format. Must match pattern: ^[A-Z]{3,10}USDT$"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: not_found
+            message: "No funding rate data found for symbol INVALID"
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: unauthorized
+            message: "API key required for this endpoint"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: internal_server_error
+            message: "Failed to fetch funding rate from Binance API"
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for admin operations (override, config update)
+
+security:
+  - ApiKeyAuth: []
