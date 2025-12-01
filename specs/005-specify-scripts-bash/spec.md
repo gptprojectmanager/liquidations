@@ -4,7 +4,7 @@
 **Priority**: MEDIUM
 **Status**: APPROVED
 **Created**: 2025-11-20
-**Branch**: feature/005-funding-rate-bias
+**Branch**: 005-funding-rate-bias
 
 ## Executive Summary
 
@@ -138,8 +138,42 @@ Analysts need to validate that funding-based adjustments actually improve model 
 ### Integration Requirements
 - Works as optional enhancement to any model
 - Clean API for bias factor retrieval
-- Configurable sensitivity parameters
+- Configurable sensitivity parameters (range: 10.0 to 100.0)
 - Enable/disable toggle per model
+
+## Development Process Requirements
+
+### Test-Driven Development (TDD)
+Per project constitution, all implementation MUST follow TDD principles:
+- **Red Phase**: Write failing tests first (T031-T033, T045-T046, T058-T059)
+- **Green Phase**: Implement minimal code to pass tests
+- **Refactor Phase**: Clean up while maintaining green tests
+- **Coverage Target**: 95% for critical paths (bias calculation, OI conservation)
+- **Property Testing**: Use hypothesis for mathematical invariants
+
+### Mathematical Validation
+- Tanh formula continuity proven mathematically
+- OI conservation validated: long_ratio + short_ratio = 1.0 exactly
+- Boundary conditions tested at funding rate extremes (±0.10%)
+- No discontinuities or jumps in adjustment curve
+
+**Core Formula Proof**:
+```
+long_ratio = 0.5 + (tanh(funding_rate × scale_factor) × max_adjustment)
+short_ratio = 1.0 - long_ratio
+
+Proof of continuity:
+- tanh(x) is continuous for all x ∈ ℝ
+- Linear scaling preserves continuity
+- Addition/subtraction preserves continuity
+∴ long_ratio is continuous for all funding_rate values
+
+Proof of boundedness:
+- tanh(x) ∈ [-1, 1] for all x
+- With max_adjustment = 0.20:
+  long_ratio ∈ [0.5 - 0.20, 0.5 + 0.20] = [0.30, 0.70]
+∴ Ratios bounded to [30%, 70%] range
+```
 
 ## Dependencies and Constraints
 
@@ -153,7 +187,7 @@ Analysts need to validate that funding-based adjustments actually improve model 
 - Funding rate updates every 8 hours only
 - API rate limits on funding queries
 - Must maintain total OI conservation
-- Cannot exceed ±30% adjustment from baseline
+- Cannot exceed ±20% adjustment from baseline (long_ratio ∈ [0.30, 0.70])
 
 ## Assumptions
 - Funding rate correlates with actual positioning
@@ -166,7 +200,7 @@ Analysts need to validate that funding-based adjustments actually improve model 
 
 | Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
-| Funding manipulation by whales | HIGH | LOW | Cap maximum adjustment at ±30% |
+| Funding manipulation by whales | HIGH | LOW | Cap maximum adjustment at ±20% |
 | API downtime blocks adjustments | MEDIUM | LOW | Cache last known values for 24h |
 | Incorrect bias during transitions | MEDIUM | MEDIUM | Use moving average smoothing |
 | Overreaction to temporary spikes | LOW | HIGH | Apply outlier detection |
