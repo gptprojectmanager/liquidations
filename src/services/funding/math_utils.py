@@ -73,9 +73,12 @@ def calculate_confidence(funding_rate: Decimal) -> float:
     # Use absolute value for confidence
     abs_rate = abs(float(funding_rate))
 
+    # Convert to percentage (multiply by 100)
+    abs_rate_percentage = abs_rate * 100
+
     # Scale confidence: 0 at rate=0, approaching 1 as rate increases
-    # Using tanh for smooth scaling
-    confidence = math.tanh(abs_rate * 200)  # 200 chosen for good scaling
+    # Using tanh for smooth scaling (2.0 chosen for good scaling)
+    confidence = math.tanh(abs_rate_percentage * 2.0)
 
     # Ensure bounds
     return min(max(confidence, 0.0), 1.0)

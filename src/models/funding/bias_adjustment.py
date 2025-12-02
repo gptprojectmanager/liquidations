@@ -5,7 +5,7 @@ Task: T011 - Implement BiasAdjustment model
 """
 
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -46,6 +46,32 @@ class BiasAdjustment(BaseModel):
 
     max_adjustment: Optional[float] = Field(
         default=None, description="Maximum adjustment from baseline used"
+    )
+
+    # Extended fields for complete adjustment tracking
+    symbol: Optional[str] = Field(default=None, description="Trading symbol (e.g., BTCUSDT)")
+
+    total_oi: Optional[Decimal] = Field(
+        default=None, description="Total open interest", ge=Decimal("0")
+    )
+
+    long_oi: Optional[Decimal] = Field(
+        default=None, description="Long open interest", ge=Decimal("0")
+    )
+
+    short_oi: Optional[Decimal] = Field(
+        default=None, description="Short open interest", ge=Decimal("0")
+    )
+
+    confidence_score: Optional[Decimal] = Field(
+        default=None,
+        description="Confidence score as Decimal (for consistency)",
+        ge=Decimal("0"),
+        le=Decimal("1"),
+    )
+
+    metadata: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Additional metadata"
     )
 
     @field_validator("long_ratio")
