@@ -14,12 +14,12 @@
 
 **Purpose**: Install dependencies and configure project structure
 
-- [ ] T001 Install Python dependencies (httpx, cachetools) in pyproject.toml
-- [ ] T002 [P] Create configuration structure in config/bias_settings.yaml
-- [ ] T003 [P] Create src/models/funding/ directory for new model classes
-- [ ] T004 [P] Create src/services/funding/ directory for service classes
-- [ ] T005 [P] Create tests/unit/funding/ directory for unit tests
-- [ ] T006 [P] Create tests/integration/funding/ directory for integration tests
+- [X] T001 Install Python dependencies (httpx, cachetools) in pyproject.toml
+- [X] T002 [P] Create configuration structure in config/bias_settings.yaml
+- [X] T003 [P] Create src/models/funding/ directory for new model classes
+- [X] T004 [P] Create src/services/funding/ directory for service classes
+- [X] T005 [P] Create tests/unit/funding/ directory for unit tests
+- [X] T006 [P] Create tests/integration/funding/ directory for integration tests
 
 ---
 
@@ -29,21 +29,21 @@
 
 ### Mathematical Foundation
 
-- [ ] T007 Implement tanh conversion formula in src/services/funding/math_utils.py
-- [ ] T008 Create configuration loader in src/services/funding/adjustment_config.py
-- [ ] T009 Implement OI conservation validation in src/services/funding/validators.py
+- [X] T007 Implement tanh conversion formula in src/services/funding/math_utils.py
+- [X] T008 Create configuration loader in src/services/funding/adjustment_config.py
+- [X] T009 Implement OI conservation validation in src/services/funding/validators.py
 
 ### Data Models
 
-- [ ] T010 [P] Implement FundingRate model in src/models/funding/funding_rate.py
-- [ ] T011 [P] Implement BiasAdjustment model in src/models/funding/bias_adjustment.py
+- [X] T010 [P] Implement FundingRate model in src/models/funding/funding_rate.py
+- [X] T011 [P] Implement BiasAdjustment model in src/models/funding/bias_adjustment.py
 - [ ] T012 [P] Implement SentimentIndicator model in src/models/funding/sentiment_indicator.py
-- [ ] T013 [P] Implement AdjustmentConfig model in src/models/funding/adjustment_config.py
+- [X] T013 [P] Implement AdjustmentConfig model in src/models/funding/adjustment_config.py
 
 ### Caching Infrastructure
 
-- [ ] T014 Implement TTL cache wrapper in src/services/funding/cache_manager.py
-- [ ] T015 Configure cachetools with 5-minute TTL in cache_manager.py
+- [X] T014 Implement TTL cache wrapper in src/services/funding/cache_manager.py
+- [X] T015 Configure cachetools with 5-minute TTL in cache_manager.py
 
 ---
 
@@ -54,28 +54,28 @@
 
 ### Binance API Integration
 
-- [ ] T016 [US1] Implement Binance funding rate API client in src/services/funding/funding_fetcher.py
-- [ ] T017 [US1] Add rate limiting with exponential backoff in funding_fetcher.py
-- [ ] T018 [US1] Implement funding rate caching logic in funding_fetcher.py
+- [X] T016 [US1] Implement Binance funding rate API client in src/services/funding/funding_fetcher.py
+- [X] T017 [US1] Add rate limiting with exponential backoff in funding_fetcher.py
+- [X] T018 [US1] Implement funding rate caching logic in funding_fetcher.py
 
 ### Bias Calculation Service
 
-- [ ] T019 [US1] Implement BiasCalculator class in src/services/funding/bias_calculator.py
-- [ ] T020 [US1] Add tanh-based conversion method in bias_calculator.py
-- [ ] T021 [US1] Implement confidence score calculation in bias_calculator.py
-- [ ] T022 [US1] Add OI conservation check in bias_calculator.py
+- [X] T019 [US1] Implement BiasCalculator class in src/services/funding/bias_calculator.py
+- [X] T020 [US1] Add tanh-based conversion method in bias_calculator.py
+- [X] T021 [US1] Implement confidence score calculation in bias_calculator.py
+- [X] T022 [US1] Add OI conservation check in bias_calculator.py
 
 ### Model Integration
 
-- [ ] T023 [US1] Add bias adjustment to BinanceStandardModel in src/liquidationheatmap/models/binance_standard.py
+- [X] T023 [US1] Add bias adjustment to BinanceStandardModel in src/liquidationheatmap/models/binance_standard.py
 - [ ] T024 [US1] Add bias adjustment to EnsembleModel in src/liquidationheatmap/models/ensemble.py
 - [ ] T025 [US1] Refactor FundingAdjustedModel in src/liquidationheatmap/models/funding_adjusted.py
 
 ### API Endpoints
 
-- [ ] T026 [US1] Implement GET /api/bias/funding/{symbol} endpoint in src/api/endpoints/bias.py
-- [ ] T027 [US1] Implement GET /api/bias/adjustment/{symbol} endpoint in src/api/endpoints/bias.py
-- [ ] T028 [US1] Add OpenAPI schema validation in bias.py endpoints
+- [X] T026 [US1] Implement GET /api/bias/funding/{symbol} endpoint in src/api/endpoints/bias.py
+- [X] T027 [US1] Implement GET /api/bias/adjustment/{symbol} endpoint in src/api/endpoints/bias.py
+- [X] T028 [US1] Add OpenAPI schema validation in bias.py endpoints
 
 ### Database Storage
 
@@ -84,9 +84,9 @@
 
 ### Testing (Optional)
 
-- [ ] T031 [P] [US1] Unit test tanh formula in tests/unit/funding/test_bias_calculator.py
-- [ ] T032 [P] [US1] Unit test OI conservation in tests/unit/funding/test_validators.py
-- [ ] T033 [P] [US1] Integration test Binance API in tests/integration/funding/test_binance_api.py
+- [X] T031 [P] [US1] Unit test tanh formula in tests/unit/funding/test_bias_calculator.py
+- [X] T032 [P] [US1] Unit test OI conservation in tests/unit/funding/test_validators.py
+- [X] T033 [P] [US1] Integration test Binance API in tests/integration/funding/test_binance_api.py
 
 ---
 
