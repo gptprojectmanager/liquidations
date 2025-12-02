@@ -47,12 +47,12 @@ def tanh_conversion(
     # Center at 0.5, adjust by tanh result scaled by max_adjustment
     long_ratio_float = 0.5 + (tanh_value * max_adjustment)
 
-    # Ensure short ratio maintains OI conservation
-    short_ratio_float = 1.0 - long_ratio_float
-
-    # Convert back to Decimal for precision
+    # Convert to Decimal first
     long_ratio = Decimal(str(long_ratio_float))
-    short_ratio = Decimal(str(short_ratio_float))
+
+    # Calculate short ratio to GUARANTEE OI conservation (exact 1.0 sum)
+    # This ensures long_ratio + short_ratio = 1.0 EXACTLY (no floating point error)
+    short_ratio = Decimal("1.0") - long_ratio
 
     return long_ratio, short_ratio
 

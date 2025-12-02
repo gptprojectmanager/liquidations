@@ -219,8 +219,8 @@ class BinanceStandardBiasModel(BinanceStandardModel):
         logger.info(
             f"MODE 2 complete with bias adjustment: "
             f"{len(liquidations)} liquidations "
-            f"(long: {len([l for l in liquidations if l.side == 'long'])}, "
-            f"short: {len([l for l in liquidations if l.side == 'short'])})"
+            f"(long: {len([liq for liq in liquidations if liq.side == 'long'])}, "
+            f"short: {len([liq for liq in liquidations if liq.side == 'short'])})"
         )
 
         return liquidations

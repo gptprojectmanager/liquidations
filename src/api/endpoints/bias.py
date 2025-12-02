@@ -183,7 +183,8 @@ async def get_bias_adjustment(
                     response.funding_time = datetime.fromisoformat(
                         adjustment.metadata["funding_time"]
                     )
-                except:
+                except (ValueError, TypeError):
+                    # Invalid timestamp format - skip
                     pass
 
         return response
