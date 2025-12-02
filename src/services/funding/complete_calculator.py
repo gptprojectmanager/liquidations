@@ -57,6 +57,11 @@ class CompleteBiasCalculator:
         self._history: List[BiasAdjustment] = []
         self._max_history = 10
 
+        # Initialize smoother if enabled
+        from src.services.funding.smoothing import HistoricalSmoother
+
+        self._smoother = HistoricalSmoother(config) if config.smoothing_enabled else None
+
     async def calculate_bias_adjustment(self, symbol: str, total_oi: Decimal) -> BiasAdjustment:
         """
         Calculate bias adjustment for symbol.
@@ -87,6 +92,10 @@ class CompleteBiasCalculator:
 
             # Calculate bias adjustment
             adjustment = self._calculate_from_funding(funding, total_oi)
+
+            # Apply smoothing if enabled
+            if self._smoother and self._history:
+                adjustment = self._smoother.smooth_adjustment(adjustment, self._history)
 
             # Cache the result
             self._adjustment_cache.set(cache_key, adjustment)
