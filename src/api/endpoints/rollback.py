@@ -30,7 +30,7 @@ class RollbackToSnapshotRequest(BaseModel):
 
     snapshot_id: UUID = Field(..., description="UUID of snapshot to rollback to")
     created_by: Optional[str] = Field(None, description="User/system performing rollback")
-    validate: bool = Field(True, description="Whether to validate before rollback")
+    should_validate: bool = Field(True, description="Whether to validate before rollback")
 
 
 class RollbackToPreviousRequest(BaseModel):
@@ -38,7 +38,7 @@ class RollbackToPreviousRequest(BaseModel):
 
     symbol: str = Field(..., description="Trading pair symbol")
     created_by: Optional[str] = Field(None, description="User/system performing rollback")
-    validate: bool = Field(True, description="Whether to validate before rollback")
+    should_validate: bool = Field(True, description="Whether to validate before rollback")
 
 
 class RollbackResponse(BaseModel):
@@ -108,7 +108,7 @@ async def rollback_to_snapshot(request: RollbackToSnapshotRequest):
     result = service.rollback_to_snapshot(
         snapshot_id=request.snapshot_id,
         created_by=request.created_by,
-        validate=request.validate,
+        validate=request.should_validate,
     )
 
     if not result.success:
@@ -137,7 +137,7 @@ async def rollback_to_previous(request: RollbackToPreviousRequest):
     result = service.rollback_to_previous(
         symbol=request.symbol,
         created_by=request.created_by,
-        validate=request.validate,
+        validate=request.should_validate,
     )
 
     if not result.success:
@@ -226,7 +226,7 @@ async def rollback_health():
     Returns basic status and service availability.
     """
     try:
-        service = get_global_rollback_service()
+        _ = get_global_rollback_service()  # Verify service availability
         return {
             "status": "healthy",
             "service": "TierRollbackService",

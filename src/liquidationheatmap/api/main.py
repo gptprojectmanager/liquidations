@@ -102,8 +102,9 @@ async def get_liquidation_levels(
         ) as resp:
             data = json.loads(resp.read().decode())
             current_price = float(data["price"])
-    except:
+    except Exception as e:
         # Fallback to historical price if API fails
+        logging.warning(f"Binance API price fetch failed for {symbol}: {e}")
         with DuckDBService() as db_fallback:
             price_decimal, _ = db_fallback.get_latest_open_interest(symbol)
             current_price = float(price_decimal)
@@ -419,7 +420,7 @@ async def compare_models(
     # Fetch data from DuckDB
     with DuckDBService() as db:
         current_price, open_interest = db.get_latest_open_interest(symbol)
-        funding_rate = db.get_latest_funding_rate(symbol)
+        _ = db.get_latest_funding_rate(symbol)  # Reserved for future use
 
     # Initialize all 3 models
     binance_model = BinanceStandardModel()

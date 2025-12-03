@@ -117,7 +117,6 @@ class EmailHandler:
         score = alert_context.get("score", 0)
         failed_tests = alert_context.get("failed_tests", 0)
         total_tests = alert_context.get("total_tests", 0)
-        failed_test_names = alert_context.get("failed_test_names", [])
         test_details = alert_context.get("test_details", [])
 
         # Grade styling
