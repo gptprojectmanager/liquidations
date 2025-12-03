@@ -104,11 +104,11 @@
 
 ### Frontend Visualization
 
-- [ ] T029 [P] [US2] Add cluster toggle button in frontend/heatmap.html
-- [ ] T030 [US2] Implement fetchAndShowClusters() function in frontend/heatmap.html
-- [ ] T031 [US2] Implement Plotly shapes for zone rectangles in frontend/heatmap.html
-- [ ] T032 [US2] Implement color gradient based on total_volume in frontend/heatmap.html
-- [ ] T033 [US2] Implement zone click handler for details in frontend/heatmap.html
+- [x] T029 [P] [US2] Add cluster toggle button in frontend/heatmap.html
+- [x] T030 [US2] Implement fetchAndShowClusters() function in frontend/heatmap.html
+- [x] T031 [US2] Implement Plotly shapes for zone rectangles in frontend/heatmap.html
+- [x] T032 [US2] Implement color gradient based on total_volume in frontend/heatmap.html
+- [x] T033 [US2] Implement zone click handler for details in frontend/heatmap.html
 
 **Checkpoint**: API returns clusters, frontend displays zones with toggle
 
