@@ -9,7 +9,7 @@ logging.basicConfig(
 from decimal import Decimal
 from typing import Literal, Optional
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -18,6 +18,20 @@ from ..ingestion.db_service import DuckDBService
 from ..models.binance_standard import BinanceStandardModel
 from ..models.ensemble import EnsembleModel
 from ..models.funding_adjusted import FundingAdjustedModel
+
+# Supported trading pairs (whitelist)
+SUPPORTED_SYMBOLS = {
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "ADAUSDT",
+    "DOGEUSDT",
+    "XRPUSDT",
+    "SOLUSDT",
+    "DOTUSDT",
+    "MATICUSDT",
+    "LINKUSDT",
+}
 
 app = FastAPI(
     title="Liquidation Heatmap API",
@@ -60,12 +74,17 @@ async def health_check():
 
 @app.get("/liquidations/levels", response_model=LiquidationResponse)
 async def get_liquidation_levels(
-    symbol: str = Query("BTCUSDT", description="Trading pair symbol"),
+    symbol: str = Query(
+        ...,
+        description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)",
+        pattern="^[A-Z]{6,12}$",
+        example="BTCUSDT",
+    ),
     model: str = Query(
         "openinterest",
         description="Calculation model (reserved for future extensions, currently only 'openinterest' supported)",
     ),
-    timeframe: int = Query(30, description="Timeframe in days"),
+    timeframe: int = Query(..., ge=1, le=365, description="Timeframe in days (1-365)", example=30),
     whale_threshold: float = Query(
         500000.0,
         description="Minimum trade size in USD (CURRENTLY FIXED AT $500K - parameter non-functional due to pre-aggregated cache limitation)",
@@ -90,6 +109,13 @@ async def get_liquidation_levels(
     Returns:
         LiquidationResponse with long and short liquidations
     """
+    # Validate symbol against whitelist
+    if symbol not in SUPPORTED_SYMBOLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid symbol '{symbol}'. Supported symbols: {sorted(SUPPORTED_SYMBOLS)}",
+        )
+
     # Get real-time current price from Binance API
     import json
     from urllib.request import urlopen
@@ -184,7 +210,12 @@ async def get_liquidation_levels(
 
 @app.get("/liquidations/heatmap")
 async def get_heatmap(
-    symbol: str = Query("BTCUSDT", description="Trading pair symbol"),
+    symbol: str = Query(
+        ...,
+        description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)",
+        pattern="^[A-Z]{6,12}$",
+        example="BTCUSDT",
+    ),
     model: Literal["binance_standard", "ensemble"] = Query(
         "ensemble", description="Liquidation model to use"
     ),
@@ -203,6 +234,13 @@ async def get_heatmap(
     Returns:
         HeatmapResponse with data points and metadata
     """
+    # Validate symbol against whitelist
+    if symbol not in SUPPORTED_SYMBOLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid symbol '{symbol}'. Supported symbols: {sorted(SUPPORTED_SYMBOLS)}",
+        )
+
     from .heatmap_models import HeatmapDataPoint, HeatmapMetadata, HeatmapResponse
 
     # Connect to database
