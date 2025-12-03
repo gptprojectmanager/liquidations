@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import routers
+from src.api.endpoints.clustering import router as clustering_router
 from src.api.endpoints.margin import router as margin_router
 from src.api.endpoints.rollback import router as rollback_router
 
@@ -53,6 +54,7 @@ app.add_middleware(
 # Include routers
 app.include_router(margin_router, prefix="/api")
 app.include_router(rollback_router, prefix="/api")
+app.include_router(clustering_router, prefix="/api")
 
 
 @app.get("/health")

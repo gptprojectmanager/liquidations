@@ -93,14 +93,14 @@
 
 ### TDD RED: API Tests First
 
-- [ ] T024 [P] [US2] Write API contract test for GET /liquidations/clusters in tests/test_api_clustering.py
-- [ ] T025 [P] [US2] Write test for error responses (400, 404, 500) in tests/test_api_clustering.py
+- [x] T024 [P] [US2] Write API contract test for GET /liquidations/clusters in tests/test_api_clustering.py
+- [x] T025 [P] [US2] Write test for error responses (400, 404, 500) in tests/test_api_clustering.py
 
 ### TDD GREEN: API Implementation
 
-- [ ] T026 [US2] Create Pydantic response models in src/api/schemas/clustering.py
-- [ ] T027 [US2] Implement GET /liquidations/clusters endpoint in src/api/routes/clustering.py
-- [ ] T028 [US2] Register clustering router in src/api/main.py
+- [x] T026 [US2] Create Pydantic response models in src/api/schemas/clustering.py
+- [x] T027 [US2] Implement GET /liquidations/clusters endpoint in src/api/endpoints/clustering.py
+- [x] T028 [US2] Register clustering router in src/api/main.py
 
 ### Frontend Visualization
 
