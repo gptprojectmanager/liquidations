@@ -172,8 +172,6 @@
                 const newClusterCount = newData.clusters.length;
 
                 if (oldClusterCount !== newClusterCount) {
-                    console.log(`Cluster count changed: ${oldClusterCount} → ${newClusterCount}`);
-
                     // T038: Smooth transition - fade out old, fade in new
                     clusterData = newData;
                     renderClustersOnHeatmap(newData);
