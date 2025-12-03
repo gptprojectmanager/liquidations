@@ -229,7 +229,7 @@ class ClusteringService:
             mask = labels == cluster_id
             cluster_prices = prices[mask]
             cluster_volumes = volumes[mask]
-            cluster_features = features[mask]
+            # cluster_features = features[mask]  # Not used, density computed from price spread
 
             # Compute statistics
             price_min = float(cluster_prices.min())

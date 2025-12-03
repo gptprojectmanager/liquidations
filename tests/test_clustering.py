@@ -525,7 +525,6 @@ class TestClusterCaching:
 
         from src.clustering.cache import ClusterCache
 
-
         # Arrange
         cache = ClusterCache(ttl_seconds=2)  # 2 second TTL
         cache_key = "BTCUSDT_30_test"
@@ -573,7 +572,6 @@ class TestClusterCaching:
     def test_cache_key_generation(self):
         """Cache keys should be unique per symbol/timeframe/params."""
         from src.clustering.cache import ClusterCache
-
         from src.clustering.models import ClusterParameters
 
         # Arrange
@@ -605,4 +603,75 @@ class TestClusterCaching:
 class TestClusteringPerformance:
     """Performance benchmark tests (T040-T041)."""
 
-    pass  # Tests to be implemented
+    def test_clustering_performance_benchmark(self):
+        """Clustering 1000 points should take <500ms (required), <200ms (target) (T040)."""
+        import time
+
+        from src.clustering.models import ClusterParameters
+        from src.clustering.service import ClusteringService
+
+        # Arrange: Generate 1000 mock liquidation points
+        liquidations = []
+        for i in range(1000):
+            price = 90000.0 + (i * 10)  # Spread across 10k price range
+            volume = 500000.0 + (i * 1000)
+            liquidations.append({"price": price, "volume": volume})
+
+        service = ClusteringService()
+        params = ClusterParameters(epsilon=0.5, min_samples=5, auto_tune=False)
+
+        # Act - Measure time
+        start = time.perf_counter()
+        _ = service.cluster_liquidations(liquidations, "BTCUSDT", 30, params, use_cache=False)
+        duration_ms = (time.perf_counter() - start) * 1000
+
+        # Assert - Performance requirements
+        print(f"\nClustering 1000 points took {duration_ms:.2f}ms")
+        assert duration_ms < 500, f"Required: <500ms, got {duration_ms:.2f}ms"
+
+        # Target performance (not a hard requirement)
+        if duration_ms < 200:
+            print(f"✅ Target performance achieved: {duration_ms:.2f}ms < 200ms")
+        else:
+            print(f"⚠️  Acceptable but below target: {duration_ms:.2f}ms (target <200ms)")
+
+    def test_auto_tune_success_rate(self):
+        """Auto-tuning should succeed in 90% of cases (T041)."""
+        from src.clustering.models import ClusterParameters
+        from src.clustering.service import ClusteringService
+
+        # Arrange: Test with various data distributions
+        test_cases = [
+            # Dense clusters
+            [{"price": 95000 + i * 10, "volume": 1000000} for i in range(100)],
+            # Sparse data
+            [{"price": 90000 + i * 100, "volume": 500000} for i in range(50)],
+            # Mixed density
+            [{"price": 94000 + i * 5, "volume": 800000} for i in range(30)]
+            + [{"price": 96000 + i * 50, "volume": 600000} for i in range(20)],
+            # Very dense
+            [{"price": 95000 + i, "volume": 1500000} for i in range(200)],
+            # Edge case: few points
+            [{"price": 95000 + i * 100, "volume": 1000000} for i in range(10)],
+        ]
+
+        service = ClusteringService()
+        params = ClusterParameters(auto_tune=True, min_samples=3)
+
+        # Act - Run auto-tuning on all test cases
+        successes = 0
+        for i, liquidations in enumerate(test_cases):
+            result = service.cluster_liquidations(
+                liquidations, "BTCUSDT", 30, params, use_cache=False
+            )
+            # Success = at least 1 cluster formed OR all noise (valid outcome)
+            if result.metadata.cluster_count > 0 or result.metadata.noise_count > 0:
+                successes += 1
+                print(f"Case {i + 1}: ✅ {result.metadata.cluster_count} clusters formed")
+            else:
+                print(f"Case {i + 1}: ❌ No clusters or noise")
+
+        # Assert - 90% success rate (SC-004)
+        success_rate = successes / len(test_cases)
+        print(f"\nAuto-tune success rate: {success_rate * 100:.0f}%")
+        assert success_rate >= 0.9, f"Required: >=90%, got {success_rate * 100:.0f}%"

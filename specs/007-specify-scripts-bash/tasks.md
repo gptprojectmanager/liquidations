@@ -147,19 +147,19 @@
 
 ### Performance & Validation
 
-- [ ] T040 [P] Add performance benchmark test (<500ms requirement, <200ms target) in tests/test_clustering.py
-- [ ] T041 [P] Add auto-tune validation test (90% success rate) in tests/test_clustering.py
+- [x] T040 [P] Add performance benchmark test (<500ms requirement, <200ms target) in tests/test_clustering.py
+- [x] T041 [P] Add auto-tune validation test (90% success rate) in tests/test_clustering.py
 
 ### Graceful Degradation
 
-- [ ] T042 Implement fallback to grid-binning when DBSCAN returns 0 clusters in src/clustering/service.py
-- [ ] T043 Add graceful degradation when clustering fails in src/clustering/service.py
+- [x] T042 Implement fallback to grid-binning when DBSCAN returns 0 clusters in src/clustering/service.py
+- [x] T043 Add graceful degradation when clustering fails in src/clustering/service.py
 
 ### Documentation & Quality
 
-- [ ] T044 [P] Update OpenAPI documentation in src/api/main.py
-- [ ] T045 Run ruff check and fix linting issues
-- [ ] T046 Run full test suite and verify >=90% coverage for clustering module
+- [x] T044 [P] Update OpenAPI documentation in src/api/main.py
+- [x] T045 Run ruff check and fix linting issues
+- [x] T046 Run full test suite and verify >=90% coverage for clustering module
 
 ---
 

@@ -104,17 +104,17 @@ As price moves and liquidations execute, the clustering should dynamically updat
 - **FR-004**: System MUST mark outliers as noise points with distinct visualization
 - **FR-005**: System MUST calculate cluster statistics (centroid, total value, density, spread)
 - **FR-006**: System MUST support interactive cluster selection for detailed view
-- **FR-007**: System MUST provide smooth transitions when clusters update
+- **FR-007**: System MUST provide smooth transitions when clusters update (60 FPS minimum, <300ms transition duration)
 - **FR-008**: System MUST allow toggling between clustered and raw views
 - **FR-009**: System MUST auto-tune parameters based on data density
-- **FR-010**: System MUST export cluster boundaries for external analysis
+- **FR-010**: System MUST export cluster boundaries for external analysis *(DEFERRED to v2)*
 
 ### Key Entities
 
 - **LiquidationCluster**: Group of nearby liquidations (id, boundary, centroid, total_value, level_count)
 - **ClusterParameters**: DBSCAN configuration (epsilon, min_points, distance_metric, normalization)
 - **NoisePoint**: Outlier liquidation not belonging to any cluster (level, value, distance_to_nearest)
-- **ClusterTransition**: Animation state between cluster updates (old_state, new_state, progress)
+- **ClusterTransition**: Animation state between cluster updates (old_state, new_state, progress) *(frontend-only state, not a backend Pydantic model)*
 
 ## Success Criteria
 
@@ -145,7 +145,7 @@ As price moves and liquidations execute, the clustering should dynamically updat
 ### Usability Requirements
 - One-click toggle between views
 - Intuitive zone selection/interaction
-- Mobile-responsive clustering
+- Mobile-responsive clustering *(OUT OF SCOPE for MVP - desktop-first)*
 - Accessibility compliant colors
 
 ## Dependencies and Constraints

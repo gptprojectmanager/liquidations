@@ -34,11 +34,19 @@ async def lifespan(app: FastAPI):
     print("👋 Shutting down Margin Tier API...")
 
 
-# Initialize FastAPI app
+# Initialize FastAPI app (T044: Updated docs with clustering endpoints)
 app = FastAPI(
-    title="Margin Tier API",
-    description="Calculate margin requirements and liquidation prices for crypto futures with tiered margin system",
-    version="1.0.0",
+    title="Liquidation Heatmap API",
+    description="""
+    Calculate margin requirements, liquidation prices, and cluster liquidation zones.
+
+    **Key Features:**
+    - Margin tier calculations with Binance rules
+    - DBSCAN clustering for liquidation zone identification
+    - Real-time cluster updates with caching
+    - Auto-tuning for optimal clustering parameters
+    """,
+    version="1.1.0",  # Incremented for clustering feature
     lifespan=lifespan,
 )
 
