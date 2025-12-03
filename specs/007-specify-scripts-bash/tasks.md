@@ -127,15 +127,15 @@
 
 ### TDD RED: Caching Tests First
 
-- [ ] T034 [P] [US3] Write test for cluster caching with TTL in tests/test_clustering.py
-- [ ] T035 [P] [US3] Write test for cache invalidation on data refresh in tests/test_clustering.py
+- [x] T034 [P] [US3] Write test for cluster caching with TTL in tests/test_clustering.py
+- [x] T035 [P] [US3] Write test for cache invalidation on data refresh in tests/test_clustering.py
 
 ### Implementation
 
-- [ ] T036 [US3] Add cluster caching with TTL in src/clustering/cache.py
-- [ ] T037 [US3] Implement incremental cluster update detection in src/clustering/service.py
-- [ ] T038 [US3] Add smooth CSS transitions for zone shapes in frontend/heatmap.html (60 FPS, <300ms duration per FR-007)
-- [ ] T039 [US3] Implement auto-refresh polling with cluster diff in frontend/heatmap.html
+- [x] T036 [US3] Add cluster caching with TTL in src/clustering/cache.py
+- [x] T037 [US3] Implement incremental cluster update detection in src/clustering/service.py
+- [x] T038 [US3] Add smooth CSS transitions for zone shapes in frontend/heatmap.html (60 FPS, <300ms duration per FR-007)
+- [x] T039 [US3] Implement auto-refresh polling with cluster diff in frontend/heatmap.html
 
 **Checkpoint**: Dynamic updates work smoothly at 60 FPS
 

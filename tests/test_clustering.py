@@ -519,7 +519,82 @@ class TestClusteringService:
 class TestClusterCaching:
     """Tests for cluster caching behavior (T034-T035)."""
 
-    pass  # TDD RED: Tests to be implemented
+    def test_cluster_cache_with_ttl(self):
+        """Cache should store results and expire after TTL (T034)."""
+        import time
+
+        from src.clustering.cache import ClusterCache
+
+
+        # Arrange
+        cache = ClusterCache(ttl_seconds=2)  # 2 second TTL
+        cache_key = "BTCUSDT_30_test"
+        mock_result = {"clusters": [], "metadata": {}}
+
+        # Act - Set cache
+        cache.set(cache_key, mock_result)
+
+        # Assert - Should be cached immediately
+        cached = cache.get(cache_key)
+        assert cached is not None
+        assert cached == mock_result
+
+        # Wait for TTL to expire
+        time.sleep(2.1)
+
+        # Assert - Cache should be expired
+        expired = cache.get(cache_key)
+        assert expired is None
+
+    def test_cache_invalidation_on_data_refresh(self):
+        """Cache should be invalidated when data is refreshed (T035)."""
+        from src.clustering.cache import ClusterCache
+
+        # Arrange
+        cache = ClusterCache(ttl_seconds=60)
+        cache_key = "BTCUSDT_30_test"
+        old_result = {"clusters": [], "version": 1}
+        new_result = {"clusters": [{"cluster_id": 0}], "version": 2}
+
+        # Act - Set initial cache
+        cache.set(cache_key, old_result)
+        assert cache.get(cache_key) == old_result
+
+        # Invalidate cache (simulating data refresh)
+        cache.invalidate(cache_key)
+
+        # Assert - Cache should be cleared
+        assert cache.get(cache_key) is None
+
+        # Set new data
+        cache.set(cache_key, new_result)
+        assert cache.get(cache_key) == new_result
+
+    def test_cache_key_generation(self):
+        """Cache keys should be unique per symbol/timeframe/params."""
+        from src.clustering.cache import ClusterCache
+
+        from src.clustering.models import ClusterParameters
+
+        # Arrange
+        cache = ClusterCache(ttl_seconds=60)
+        params1 = ClusterParameters(epsilon=0.1, min_samples=3)
+        params2 = ClusterParameters(epsilon=0.2, min_samples=3)
+
+        # Act - Generate keys
+        key1 = cache.generate_key("BTCUSDT", 30, params1)
+        key2 = cache.generate_key("BTCUSDT", 30, params2)
+        key3 = cache.generate_key("ETHUSDT", 30, params1)
+        key4 = cache.generate_key("BTCUSDT", 15, params1)
+
+        # Assert - Keys should be different
+        assert key1 != key2  # Different params
+        assert key1 != key3  # Different symbol
+        assert key1 != key4  # Different timeframe
+
+        # Same inputs should generate same key
+        key1_dup = cache.generate_key("BTCUSDT", 30, params1)
+        assert key1 == key1_dup
 
 
 # =============================================================================

@@ -10,6 +10,7 @@ import numpy as np
 from sklearn.cluster import DBSCAN
 from sklearn.neighbors import NearestNeighbors
 
+from src.clustering.cache import ClusterCache
 from src.clustering.models import (
     ClusteringResult,
     ClusterMetadata,
@@ -22,24 +23,41 @@ from src.clustering.models import (
 class ClusteringService:
     """Service for clustering liquidation levels using DBSCAN algorithm."""
 
+    def __init__(self, cache_ttl_seconds: int = 300):
+        """Initialize clustering service with cache.
+
+        Args:
+            cache_ttl_seconds: TTL for cached results (default 5 minutes)
+        """
+        self._cache = ClusterCache(ttl_seconds=cache_ttl_seconds)
+
     def cluster_liquidations(
         self,
         liquidations: List[Dict[str, float]],
         symbol: str,
         timeframe_minutes: int,
         params: ClusterParameters,
+        use_cache: bool = True,
     ) -> ClusteringResult:
-        """Cluster liquidation levels into zones (T021).
+        """Cluster liquidation levels into zones (T021, T037).
 
         Args:
             liquidations: List of dicts with 'price' and 'volume' keys
             symbol: Trading pair symbol (e.g., 'BTCUSDT')
             timeframe_minutes: Data timeframe in minutes
             params: DBSCAN clustering parameters
+            use_cache: Whether to use cache (default True)
 
         Returns:
             ClusteringResult with clusters, noise points, and metadata
         """
+        # T037: Check cache first
+        if use_cache:
+            cache_key = self._cache.generate_key(symbol, timeframe_minutes, params)
+            cached_result = self._cache.get(cache_key)
+            if cached_result is not None:
+                return cached_result
+
         start_time = time.perf_counter()
 
         # Handle empty input
@@ -106,7 +124,14 @@ class ClusteringService:
             auto_tuned=auto_tuned,
         )
 
-        return ClusteringResult(clusters=clusters, noise_points=noise_points, metadata=metadata)
+        result = ClusteringResult(clusters=clusters, noise_points=noise_points, metadata=metadata)
+
+        # T037: Cache result
+        if use_cache:
+            cache_key = self._cache.generate_key(symbol, timeframe_minutes, params)
+            self._cache.set(cache_key, result)
+
+        return result
 
     def _prepare_features(
         self, liquidations: List[Dict[str, float]]

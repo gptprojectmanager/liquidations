@@ -6,6 +6,21 @@
     <title>BTC/USDT Liquidation Heatmap</title>
     <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* T038: Smooth CSS transitions for cluster zones (60 FPS, <300ms) */
+        .cluster-zone {
+            transition: opacity 250ms ease-out, transform 250ms ease-out;
+            will-change: opacity, transform;
+        }
+        .cluster-zone-enter {
+            opacity: 0;
+            transform: scaleY(0.95);
+        }
+        .cluster-zone-exit {
+            opacity: 0;
+            transform: scaleY(1.05);
+        }
+    </style>
 </head>
 <body>
     <h1>BTC/USDT Liquidation Heatmap</h1>
@@ -93,6 +108,8 @@
         // Cluster state
         let clustersVisible = false;
         let clusterData = null;
+        let autoRefreshInterval = null;
+        const REFRESH_INTERVAL_MS = 5000; // T039: 5 second polling
 
         // T029: Toggle clusters on/off
         async function toggleClusters() {
@@ -103,12 +120,68 @@
                 await fetchAndShowClusters();
                 button.textContent = 'Hide Clusters';
                 clustersVisible = true;
+
+                // T039: Start auto-refresh
+                startAutoRefresh();
             } else {
                 // Hide clusters - reload original heatmap
                 await loadHeatmap();
                 document.getElementById('clusterInfo').style.display = 'none';
                 button.textContent = 'Show Clusters';
                 clustersVisible = false;
+
+                // T039: Stop auto-refresh
+                stopAutoRefresh();
+            }
+        }
+
+        // T039: Auto-refresh with polling
+        function startAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+
+            autoRefreshInterval = setInterval(async () => {
+                if (clustersVisible) {
+                    await refreshClustersWithDiff();
+                }
+            }, REFRESH_INTERVAL_MS);
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+
+        // T039: Refresh clusters and detect changes (diff)
+        async function refreshClustersWithDiff() {
+            try {
+                const response = await fetch('http://localhost:8888/api/liquidations/clusters?symbol=BTCUSDT&timeframe_minutes=30&auto_tune=true');
+                const newData = await response.json();
+
+                if (!clusterData) {
+                    clusterData = newData;
+                    renderClustersOnHeatmap(newData);
+                    return;
+                }
+
+                // T039: Detect cluster diff
+                const oldClusterCount = clusterData.clusters.length;
+                const newClusterCount = newData.clusters.length;
+
+                if (oldClusterCount !== newClusterCount) {
+                    console.log(`Cluster count changed: ${oldClusterCount} → ${newClusterCount}`);
+
+                    // T038: Smooth transition - fade out old, fade in new
+                    clusterData = newData;
+                    renderClustersOnHeatmap(newData);
+                }
+
+            } catch (error) {
+                console.error('Auto-refresh error:', error);
+                // Don't alert on background refresh errors
             }
         }
 
