@@ -35,11 +35,8 @@ LOG_DIR.mkdir(exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_DIR / "ingestion.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler(LOG_DIR / "ingestion.log"), logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
 
@@ -48,46 +45,29 @@ console = Console()
 
 def parse_args():
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Ingest historical Binance CSV data into DuckDB"
-    )
+    parser = argparse.ArgumentParser(description="Ingest historical Binance CSV data into DuckDB")
     parser.add_argument(
-        "--symbol",
-        type=str,
-        default="BTCUSDT",
-        help="Trading pair symbol (default: BTCUSDT)"
+        "--symbol", type=str, default="BTCUSDT", help="Trading pair symbol (default: BTCUSDT)"
     )
-    parser.add_argument(
-        "--start-date",
-        type=str,
-        required=True,
-        help="Start date (YYYY-MM-DD)"
-    )
-    parser.add_argument(
-        "--end-date",
-        type=str,
-        required=True,
-        help="End date (YYYY-MM-DD)"
-    )
+    parser.add_argument("--start-date", type=str, required=True, help="Start date (YYYY-MM-DD)")
+    parser.add_argument("--end-date", type=str, required=True, help="End date (YYYY-MM-DD)")
     parser.add_argument(
         "--db-path",
         type=str,
         default="data/processed/liquidations.duckdb",
-        help="DuckDB database path"
+        help="DuckDB database path",
     )
     parser.add_argument(
-        "--data-dir",
-        type=str,
-        default="data/raw",
-        help="Root directory for Binance CSV files"
+        "--data-dir", type=str, default="data/raw", help="Root directory for Binance CSV files"
     )
     return parser.parse_args()
 
 
-def ingest_open_interest(conn: duckdb.DuckDBPyConnection, symbol: str,
-                          data_dir: Path, start_date: str, end_date: str) -> int:
+def ingest_open_interest(
+    conn: duckdb.DuckDBPyConnection, symbol: str, data_dir: Path, start_date: str, end_date: str
+) -> int:
     """Ingest Open Interest data into DuckDB.
-    
+
     Returns:
         Number of rows inserted
     """
@@ -107,7 +87,7 @@ def ingest_open_interest(conn: duckdb.DuckDBPyConnection, symbol: str,
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
         end = end.replace(hour=23, minute=59, second=59)  # Include entire day
-        df = df[(df['timestamp'] >= start) & (df['timestamp'] <= end)]
+        df = df[(df["timestamp"] >= start) & (df["timestamp"] <= end)]
 
         if df.empty:
             logger.warning("No Open Interest data found in date range")
@@ -119,18 +99,20 @@ def ingest_open_interest(conn: duckdb.DuckDBPyConnection, symbol: str,
             logger.warning(f"Date range validation failed. Expected ~{expected_days} days")
 
         # Detect outliers
-        outliers = detect_outliers(df, 'open_interest_value')
+        outliers = detect_outliers(df, "open_interest_value")
         if outliers:
             logger.warning(f"Detected {len(outliers)} outlier values in Open Interest data")
 
         # Insert into DuckDB
         # Generate sequential IDs
         # Get next available ID
-        max_id = conn.execute('SELECT COALESCE(MAX(id), 0) FROM open_interest_history').fetchone()[0]
-        df['id'] = range(max_id + 1, max_id + 1 + len(df))
+        max_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM open_interest_history").fetchone()[
+            0
+        ]
+        df["id"] = range(max_id + 1, max_id + 1 + len(df))
 
         conn.execute("""
-            INSERT OR IGNORE INTO open_interest_history 
+            INSERT OR IGNORE INTO open_interest_history
             (id, timestamp, symbol, open_interest_value, open_interest_contracts)
             SELECT id, timestamp, symbol, open_interest_value, open_interest_contracts
             FROM df
@@ -145,17 +127,20 @@ def ingest_open_interest(conn: duckdb.DuckDBPyConnection, symbol: str,
     except FileNotFoundError as e:
         logger.error(f"Open Interest CSV files not found: {e}")
         console.print(f"[bold red]❌ Error:[/bold red] CSV files not found at {metrics_dir}")
-        console.print("[yellow]ℹ️  This is expected if historical data hasn't been downloaded yet.[/yellow]")
+        console.print(
+            "[yellow]ℹ️  This is expected if historical data hasn't been downloaded yet.[/yellow]"
+        )
         return 0
     except Exception as e:
         logger.error(f"Failed to ingest Open Interest data: {e}")
         raise
 
 
-def ingest_funding_rate(conn: duckdb.DuckDBPyConnection, symbol: str,
-                         data_dir: Path, start_date: str, end_date: str) -> int:
+def ingest_funding_rate(
+    conn: duckdb.DuckDBPyConnection, symbol: str, data_dir: Path, start_date: str, end_date: str
+) -> int:
     """Ingest Funding Rate data into DuckDB.
-    
+
     Returns:
         Number of rows inserted
     """
@@ -174,21 +159,21 @@ def ingest_funding_rate(conn: duckdb.DuckDBPyConnection, symbol: str,
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
         end = end.replace(hour=23, minute=59, second=59)  # Include entire day
-        df = df[(df['timestamp'] >= start) & (df['timestamp'] <= end)]
+        df = df[(df["timestamp"] >= start) & (df["timestamp"] <= end)]
 
         if df.empty:
             logger.warning("No Funding Rate data found in date range")
             return 0
 
         # Validate data
-        outliers = detect_outliers(df, 'funding_rate')
+        outliers = detect_outliers(df, "funding_rate")
         if outliers:
             logger.warning(f"Detected {len(outliers)} outlier funding rates")
 
         # Insert into DuckDB
         # Get next available ID
-        max_id = conn.execute('SELECT COALESCE(MAX(id), 0) FROM funding_rate_history').fetchone()[0]
-        df['id'] = range(max_id + 1, max_id + 1 + len(df))
+        max_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM funding_rate_history").fetchone()[0]
+        df["id"] = range(max_id + 1, max_id + 1 + len(df))
 
         conn.execute("""
             INSERT OR IGNORE INTO funding_rate_history
@@ -206,17 +191,20 @@ def ingest_funding_rate(conn: duckdb.DuckDBPyConnection, symbol: str,
     except FileNotFoundError as e:
         logger.error(f"Funding Rate CSV files not found: {e}")
         console.print(f"[bold red]❌ Error:[/bold red] CSV files not found at {funding_dir}")
-        console.print("[yellow]ℹ️  This is expected if historical data hasn't been downloaded yet.[/yellow]")
+        console.print(
+            "[yellow]ℹ️  This is expected if historical data hasn't been downloaded yet.[/yellow]"
+        )
         return 0
     except Exception as e:
         logger.error(f"Failed to ingest Funding Rate data: {e}")
         raise
 
 
-def ingest_aggtrades(conn: duckdb.DuckDBPyConnection, symbol: str,
-                      data_dir: Path, start_date: str, end_date: str) -> int:
+def ingest_aggtrades(
+    conn: duckdb.DuckDBPyConnection, symbol: str, data_dir: Path, start_date: str, end_date: str
+) -> int:
     """Ingest aggTrades data into DuckDB.
-    
+
     Returns:
         Number of rows inserted
     """
@@ -233,14 +221,14 @@ def ingest_aggtrades(conn: duckdb.DuckDBPyConnection, symbol: str,
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
         end = end.replace(hour=23, minute=59, second=59)
-        df = df[(df['timestamp'] >= start) & (df['timestamp'] <= end)]
+        df = df[(df["timestamp"] >= start) & (df["timestamp"] <= end)]
 
         if df.empty:
             logger.warning("No aggTrades data found in date range")
             return 0
 
-        max_id = conn.execute('SELECT COALESCE(MAX(id), 0) FROM aggtrades_history').fetchone()[0]
-        df['id'] = range(max_id + 1, max_id + 1 + len(df))
+        max_id = conn.execute("SELECT COALESCE(MAX(id), 0) FROM aggtrades_history").fetchone()[0]
+        df["id"] = range(max_id + 1, max_id + 1 + len(df))
 
         conn.execute("""
             INSERT OR IGNORE INTO aggtrades_history
@@ -258,7 +246,9 @@ def ingest_aggtrades(conn: duckdb.DuckDBPyConnection, symbol: str,
     except FileNotFoundError as e:
         logger.error(f"aggTrades CSV files not found: {e}")
         console.print(f"[bold red]❌ Error:[/bold red] CSV files not found at {aggtrades_dir}")
-        console.print("[yellow]ℹ️  This is expected if historical data hasn't been downloaded yet.[/yellow]")
+        console.print(
+            "[yellow]ℹ️  This is expected if historical data hasn't been downloaded yet.[/yellow]"
+        )
         return 0
     except Exception as e:
         logger.error(f"Failed to ingest aggTrades data: {e}")
@@ -293,15 +283,12 @@ def main():
 
     try:
         with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console
+            SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console
         ) as progress:
             # Ingest Open Interest
             task1 = progress.add_task("Ingesting Open Interest...", total=None)
             oi_rows = ingest_open_interest(
-                conn, args.symbol, Path(args.data_dir),
-                args.start_date, args.end_date
+                conn, args.symbol, Path(args.data_dir), args.start_date, args.end_date
             )
             progress.update(task1, completed=True)
             total_rows += oi_rows
@@ -309,8 +296,7 @@ def main():
             # Ingest Funding Rate
             task2 = progress.add_task("Ingesting Funding Rate...", total=None)
             fr_rows = ingest_funding_rate(
-                conn, args.symbol, Path(args.data_dir),
-                args.start_date, args.end_date
+                conn, args.symbol, Path(args.data_dir), args.start_date, args.end_date
             )
             progress.update(task2, completed=True)
             total_rows += fr_rows
@@ -318,8 +304,7 @@ def main():
             # Ingest aggTrades
             task3 = progress.add_task("Ingesting aggTrades...", total=None)
             at_rows = ingest_aggtrades(
-                conn, args.symbol, Path(args.data_dir),
-                args.start_date, args.end_date
+                conn, args.symbol, Path(args.data_dir), args.start_date, args.end_date
             )
             progress.update(task3, completed=True)
             total_rows += at_rows

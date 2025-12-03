@@ -159,9 +159,7 @@ def load_aggtrades_streaming(conn, data_dir, symbol, start_date, end_date, throt
                     raise
 
             # Count rows inserted from this file
-            current_count = conn.execute(
-                "SELECT COUNT(*) FROM aggtrades_history"
-            ).fetchone()[0]
+            current_count = conn.execute("SELECT COUNT(*) FROM aggtrades_history").fetchone()[0]
             file_rows = current_count - (initial_count + total_rows)
             skipped_rows = csv_rows - file_rows
             total_rows += file_rows

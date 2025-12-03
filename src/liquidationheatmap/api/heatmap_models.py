@@ -16,7 +16,7 @@ class HeatmapRequest(BaseModel):
     end: Optional[datetime] = Field(None, description="End time (optional)")
 
     @validator("model")
-    def validate_model(cls, v):
+    def validate_model(self, v):
         """Validate model is supported."""
         valid_models = {"binance_standard", "funding_adjusted", "py_liquidation_map", "ensemble"}
         if v not in valid_models:

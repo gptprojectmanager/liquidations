@@ -211,7 +211,7 @@ async def get_heatmap(
     try:
         # Query heatmap cache
         query = """
-        SELECT 
+        SELECT
             time_bucket,
             price_bucket,
             density,

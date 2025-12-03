@@ -237,7 +237,7 @@ def load_aggtrades_csv(
                 '{symbol}' AS symbol,
                 CAST(price AS DECIMAL(18, 8)) AS price,
                 CAST(quantity AS DECIMAL(18, 8)) AS quantity,
-                CASE 
+                CASE
                     WHEN is_buyer_maker = 'true' THEN 'sell'
                     ELSE 'buy'
                 END AS side,

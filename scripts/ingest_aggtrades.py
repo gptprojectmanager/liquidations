@@ -23,8 +23,7 @@ from src.liquidationheatmap.ingestion.aggtrades_streaming import load_aggtrades_
 
 console = Console()
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 
@@ -56,14 +55,16 @@ def main():
             args.symbol,
             args.start_date,
             args.end_date,
-            throttle_ms=args.throttle_ms
+            throttle_ms=args.throttle_ms,
         )
 
         console.print(f"\n✅ [bold green]Complete![/bold green] Inserted {total:,} rows")
 
         # Verify
-        count = conn.execute('SELECT COUNT(*) FROM aggtrades_history').fetchone()[0]
-        date_range = conn.execute('SELECT MIN(timestamp), MAX(timestamp) FROM aggtrades_history').fetchone()
+        count = conn.execute("SELECT COUNT(*) FROM aggtrades_history").fetchone()[0]
+        date_range = conn.execute(
+            "SELECT MIN(timestamp), MAX(timestamp) FROM aggtrades_history"
+        ).fetchone()
         console.print("\nDatabase stats:")
         console.print(f"  Total rows: {count:,}")
         console.print(f"  Date range: {date_range[0]} → {date_range[1]}")

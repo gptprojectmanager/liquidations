@@ -37,17 +37,17 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     conn.execute("""
-        CREATE INDEX IF NOT EXISTS idx_liquidation_levels_timestamp 
+        CREATE INDEX IF NOT EXISTS idx_liquidation_levels_timestamp
         ON liquidation_levels(timestamp);
     """)
 
     conn.execute("""
-        CREATE INDEX IF NOT EXISTS idx_liquidation_levels_symbol_model 
+        CREATE INDEX IF NOT EXISTS idx_liquidation_levels_symbol_model
         ON liquidation_levels(symbol, model);
     """)
 
     conn.execute("""
-        CREATE INDEX IF NOT EXISTS idx_liquidation_levels_price 
+        CREATE INDEX IF NOT EXISTS idx_liquidation_levels_price
         ON liquidation_levels(price_level);
     """)
 
@@ -68,12 +68,12 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     conn.execute("""
-        CREATE INDEX IF NOT EXISTS idx_heatmap_time_price 
+        CREATE INDEX IF NOT EXISTS idx_heatmap_time_price
         ON heatmap_cache(time_bucket, price_bucket);
     """)
 
     conn.execute("""
-        CREATE INDEX IF NOT EXISTS idx_heatmap_symbol_model 
+        CREATE INDEX IF NOT EXISTS idx_heatmap_symbol_model
         ON heatmap_cache(symbol, model);
     """)
 
@@ -92,7 +92,7 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     conn.execute("""
-        CREATE INDEX IF NOT EXISTS idx_oi_timestamp_symbol 
+        CREATE INDEX IF NOT EXISTS idx_oi_timestamp_symbol
         ON open_interest_history(timestamp, symbol);
     """)
 
@@ -110,7 +110,7 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     conn.execute("""
-        CREATE INDEX IF NOT EXISTS idx_funding_timestamp_symbol 
+        CREATE INDEX IF NOT EXISTS idx_funding_timestamp_symbol
         ON funding_rate_history(timestamp, symbol);
     """)
 

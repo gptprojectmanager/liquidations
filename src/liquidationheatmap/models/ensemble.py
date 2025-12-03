@@ -79,7 +79,12 @@ class EnsembleModel(AbstractLiquidationModel):
         for model_name, model in self.models.items():
             if model_name == "funding_adjusted":
                 preds = model.calculate_liquidations(
-                    current_price, open_interest, symbol, leverage_tiers, funding_rate, large_trades=large_trades
+                    current_price,
+                    open_interest,
+                    symbol,
+                    leverage_tiers,
+                    funding_rate,
+                    large_trades=large_trades,
                 )
             else:
                 preds = model.calculate_liquidations(

@@ -23,7 +23,7 @@ def validate_basic_stats(conn):
     console.print("\n[bold cyan]📊 Basic Statistics[/bold cyan]")
 
     stats = conn.execute("""
-        SELECT 
+        SELECT
             COUNT(*) as total_rows,
             MIN(timestamp) as min_ts,
             MAX(timestamp) as max_ts,
@@ -90,20 +90,30 @@ def validate_invalid_values(conn):
     issues = []
 
     # Negative prices
-    neg_price = conn.execute("SELECT COUNT(*) FROM aggtrades_history WHERE price <= 0").fetchone()[0]
+    neg_price = conn.execute("SELECT COUNT(*) FROM aggtrades_history WHERE price <= 0").fetchone()[
+        0
+    ]
     if neg_price > 0:
         issues.append(f"Negative/zero prices: {neg_price:,}")
 
     # Zero quantity
-    zero_qty = conn.execute("SELECT COUNT(*) FROM aggtrades_history WHERE quantity <= 0").fetchone()[0]
+    zero_qty = conn.execute(
+        "SELECT COUNT(*) FROM aggtrades_history WHERE quantity <= 0"
+    ).fetchone()[0]
     if zero_qty > 0:
         issues.append(f"Zero/negative quantity: {zero_qty:,}")
 
     # NULL values
     null_checks = {
-        "timestamp": conn.execute("SELECT COUNT(*) FROM aggtrades_history WHERE timestamp IS NULL").fetchone()[0],
-        "price": conn.execute("SELECT COUNT(*) FROM aggtrades_history WHERE price IS NULL").fetchone()[0],
-        "quantity": conn.execute("SELECT COUNT(*) FROM aggtrades_history WHERE quantity IS NULL").fetchone()[0],
+        "timestamp": conn.execute(
+            "SELECT COUNT(*) FROM aggtrades_history WHERE timestamp IS NULL"
+        ).fetchone()[0],
+        "price": conn.execute(
+            "SELECT COUNT(*) FROM aggtrades_history WHERE price IS NULL"
+        ).fetchone()[0],
+        "quantity": conn.execute(
+            "SELECT COUNT(*) FROM aggtrades_history WHERE quantity IS NULL"
+        ).fetchone()[0],
     }
 
     for field, count in null_checks.items():
@@ -173,13 +183,13 @@ def validate_sanity_checks(conn):
 
     # Unrealistic prices (BTC should be between $100 and $1M typically)
     weird_prices = conn.execute("""
-        SELECT COUNT(*) FROM aggtrades_history 
+        SELECT COUNT(*) FROM aggtrades_history
         WHERE symbol = 'BTCUSDT' AND (price < 100 OR price > 1000000)
     """).fetchone()[0]
 
     if weird_prices > 0:
         sample = conn.execute("""
-            SELECT timestamp, price FROM aggtrades_history 
+            SELECT timestamp, price FROM aggtrades_history
             WHERE symbol = 'BTCUSDT' AND (price < 100 OR price > 1000000)
             LIMIT 3
         """).fetchall()

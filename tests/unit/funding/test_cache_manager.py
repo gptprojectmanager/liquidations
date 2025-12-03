@@ -9,10 +9,10 @@ import time
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from src.models.funding.funding_rate import FundingRate
+
 # These imports will fail initially (TDD Red phase)
 from src.services.funding.cache_manager import CacheManager
-
-from src.models.funding.funding_rate import FundingRate
 
 
 class TestCacheManager:

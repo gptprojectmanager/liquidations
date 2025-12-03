@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from hypothesis import assume, given
 from hypothesis import strategies as st
+
 from src.models.funding.bias_adjustment import BiasAdjustment
 
 # These imports will fail initially (TDD Red phase)

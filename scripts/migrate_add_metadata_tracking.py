@@ -49,8 +49,8 @@ def verify_table(conn):
 
     # Check table exists
     result = conn.execute("""
-        SELECT COUNT(*) 
-        FROM information_schema.tables 
+        SELECT COUNT(*)
+        FROM information_schema.tables
         WHERE table_name = 'ingestion_log'
     """).fetchone()
 

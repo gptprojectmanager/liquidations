@@ -36,7 +36,7 @@ class DuckDBService:
         try:
             result = self.conn.execute(
                 """
-                SELECT 
+                SELECT
                     open_interest_value,
                     timestamp
                 FROM open_interest_history
@@ -95,9 +95,9 @@ class DuckDBService:
         # Insert data with validation (INSERT OR IGNORE for duplicates)
         # Validate: OI value > 0, symbol not empty
         self.conn.execute("""
-            INSERT OR IGNORE INTO open_interest_history 
-            SELECT 
-                row_number() OVER (ORDER BY timestamp) + 
+            INSERT OR IGNORE INTO open_interest_history
+            SELECT
+                row_number() OVER (ORDER BY timestamp) +
                     COALESCE((SELECT MAX(id) FROM open_interest_history), 0) as id,
                 timestamp,
                 symbol,
@@ -171,8 +171,8 @@ class DuckDBService:
         # Validate: funding rate within reasonable range (-1% to +1%), symbol not empty
         self.conn.execute("""
             INSERT OR IGNORE INTO funding_rate_history
-            SELECT 
-                row_number() OVER (ORDER BY timestamp) + 
+            SELECT
+                row_number() OVER (ORDER BY timestamp) +
                     COALESCE((SELECT MAX(id) FROM funding_rate_history), 0) as id,
                 timestamp,
                 symbol,
@@ -271,7 +271,7 @@ class DuckDBService:
             logger.info(f"Loading CSV files matching: {csv_path}")
             self.conn.execute(f"""
                 INSERT INTO aggtrades_history
-                SELECT 
+                SELECT
                     epoch_ms(transact_time) as timestamp,
                     '{symbol}' as symbol,
                     price::DOUBLE as price,

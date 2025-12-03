@@ -9,11 +9,11 @@ from decimal import Decimal
 
 import pytest
 
-# These imports will fail initially (TDD Red phase)
-from src.services.funding.smoothing import HistoricalSmoother
-
 from src.models.funding.adjustment_config import AdjustmentConfigModel
 from src.models.funding.bias_adjustment import BiasAdjustment
+
+# These imports will fail initially (TDD Red phase)
+from src.services.funding.smoothing import HistoricalSmoother
 
 
 class TestHistoricalSmoother:

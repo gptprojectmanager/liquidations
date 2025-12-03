@@ -23,9 +23,7 @@ console = Console()
 
 def main():
     """Main CLI entry point."""
-    parser = argparse.ArgumentParser(
-        description="Calculate liquidation levels and store in DuckDB"
-    )
+    parser = argparse.ArgumentParser(description="Calculate liquidation levels and store in DuckDB")
     parser.add_argument(
         "--symbol",
         type=str,
@@ -125,19 +123,22 @@ def main():
         console.print("[yellow]Storing results in DuckDB...[/yellow]")
 
         for idx, liq in enumerate(liquidations):
-            db.conn.execute("""
+            db.conn.execute(
+                """
                 INSERT OR IGNORE INTO liquidation_levels VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, [
-                idx + 1,
-                liq.timestamp,
-                liq.symbol,
-                model.model_name,
-                float(liq.price_level),
-                float(liq.liquidation_volume),
-                liq.leverage_tier,
-                liq.side,
-                float(liq.confidence),
-            ])
+            """,
+                [
+                    idx + 1,
+                    liq.timestamp,
+                    liq.symbol,
+                    model.model_name,
+                    float(liq.price_level),
+                    float(liq.liquidation_volume),
+                    liq.leverage_tier,
+                    liq.side,
+                    float(liq.confidence),
+                ],
+            )
 
         console.print(f"✓ Stored {len(liquidations)} liquidation levels\n")
 
@@ -159,7 +160,9 @@ def main():
             )
 
         console.print(table)
-        console.print(f"\n[green]✓ Complete![/green] Model confidence: {model.confidence_score():.2%}")
+        console.print(
+            f"\n[green]✓ Complete![/green] Model confidence: {model.confidence_score():.2%}"
+        )
 
 
 if __name__ == "__main__":
