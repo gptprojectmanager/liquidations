@@ -71,7 +71,9 @@ class TestE2EIntegration:
             )
 
         # Step 3: Query API
-        response = client.get("/liquidations/levels?symbol=BTCUSDT&model=binance_standard")
+        response = client.get(
+            "/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30"
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -112,7 +114,9 @@ class TestE2EIntegration:
         # Make 20 requests
         for _ in range(20):
             start = time.time()
-            response = client.get("/liquidations/levels?symbol=BTCUSDT&model=binance_standard")
+            response = client.get(
+                "/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30"
+            )
             response_times.append((time.time() - start) * 1000)  # Convert to ms
 
             assert response.status_code == 200
@@ -133,7 +137,7 @@ class TestE2EIntegration:
         NOTE: This test is skipped until confidence scoring is added to the
         /liquidations/levels endpoint response format.
         """
-        response = client.get("/liquidations/levels?symbol=BTCUSDT&model=ensemble")
+        response = client.get("/liquidations/levels?symbol=BTCUSDT&model=ensemble&timeframe=30")
 
         assert response.status_code == 200
         data = response.json()

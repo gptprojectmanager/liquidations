@@ -78,13 +78,15 @@ async def get_liquidation_levels(
         ...,
         description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)",
         pattern="^[A-Z]{6,12}$",
-        example="BTCUSDT",
+        examples=["BTCUSDT"],
     ),
     model: str = Query(
         "openinterest",
         description="Calculation model (reserved for future extensions, currently only 'openinterest' supported)",
     ),
-    timeframe: int = Query(..., ge=1, le=365, description="Timeframe in days (1-365)", example=30),
+    timeframe: int = Query(
+        ..., ge=1, le=365, description="Timeframe in days (1-365)", examples=[30]
+    ),
     whale_threshold: float = Query(
         500000.0,
         description="Minimum trade size in USD (CURRENTLY FIXED AT $500K - parameter non-functional due to pre-aggregated cache limitation)",
@@ -214,7 +216,7 @@ async def get_heatmap(
         ...,
         description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)",
         pattern="^[A-Z]{6,12}$",
-        example="BTCUSDT",
+        examples=["BTCUSDT"],
     ),
     model: Literal["binance_standard", "ensemble"] = Query(
         "ensemble", description="Liquidation model to use"

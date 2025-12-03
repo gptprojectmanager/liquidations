@@ -32,12 +32,16 @@ class TestLiquidationsEndpoint:
 
     def test_liquidations_returns_200_with_valid_params(self, client):
         """Test that liquidations endpoint returns 200 with valid params."""
-        response = client.get("/liquidations/levels?symbol=BTCUSDT&model=binance_standard")
+        response = client.get(
+            "/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30"
+        )
         assert response.status_code == 200
 
     def test_liquidations_returns_long_and_short_levels(self, client):
         """Test that liquidations returns both long and short levels."""
-        response = client.get("/liquidations/levels?symbol=BTCUSDT&model=binance_standard")
+        response = client.get(
+            "/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30"
+        )
         data = response.json()
 
         assert "long_liquidations" in data
@@ -47,7 +51,7 @@ class TestLiquidationsEndpoint:
 
     def test_liquidations_with_ensemble_model(self, client):
         """Test that ensemble model parameter works."""
-        response = client.get("/liquidations/levels?symbol=BTCUSDT&model=ensemble")
+        response = client.get("/liquidations/levels?symbol=BTCUSDT&model=ensemble&timeframe=30")
         assert response.status_code == 200
 
 
@@ -56,7 +60,9 @@ class TestLiquidationsWithRealData:
 
     def test_liquidations_uses_real_open_interest_from_db(self, client):
         """Test that API fetches real Open Interest from DuckDB, not hardcoded mock."""
-        response = client.get("/liquidations/levels?symbol=BTCUSDT&model=binance_standard")
+        response = client.get(
+            "/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30"
+        )
         data = response.json()
 
         # With real data from sample CSV, current_price should match DB
@@ -79,7 +85,9 @@ class TestLiquidationsWithRealData:
         "wrong" side when current price has moved significantly. We verify that at
         least 70% are correctly positioned.
         """
-        response = client.get("/liquidations/levels?symbol=BTCUSDT&model=binance_standard")
+        response = client.get(
+            "/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30"
+        )
         data = response.json()
 
         current_price = float(data["current_price"])
@@ -112,7 +120,9 @@ class TestLiquidationsWithRealData:
 
     def test_liquidations_include_leverage_tiers(self, client):
         """Test that liquidations include multiple leverage tiers."""
-        response = client.get("/liquidations/levels?symbol=BTCUSDT&model=binance_standard")
+        response = client.get(
+            "/liquidations/levels?symbol=BTCUSDT&model=binance_standard&timeframe=30"
+        )
         data = response.json()
 
         # Collect all leverage tiers
@@ -126,18 +136,20 @@ class TestLiquidationsWithRealData:
         )
 
     def test_invalid_symbol_returns_error(self, client):
-        """Test that invalid symbol parameter returns error or empty response."""
-        response = client.get("/liquidations/levels?symbol=INVALID&model=binance_standard")
+        """Test that invalid symbol returns 400 with list of supported symbols."""
+        response = client.get(
+            "/liquidations/levels?symbol=INVALID&model=binance_standard&timeframe=30"
+        )
 
-        # API may return 200 with empty data or error status
-        # Both are acceptable - just verify it doesn't crash
-        assert response.status_code in [200, 400, 404], f"Unexpected status: {response.status_code}"
+        # Symbol "INVALID" matches pattern ^[A-Z]{6,12}$ but is not in whitelist
+        # Should return 400 with helpful error message listing supported symbols
+        assert response.status_code == 400, (
+            f"Expected 400 for invalid symbol, got {response.status_code}"
+        )
 
-        if response.status_code == 200:
-            data = response.json()
-            # If 200, should have structure (may be empty)
-            assert "long_liquidations" in data
-            assert "short_liquidations" in data
+        data = response.json()
+        assert "detail" in data
+        assert "Supported symbols" in data["detail"]
 
 
 class TestHistoricalLiquidationsEndpoint:
