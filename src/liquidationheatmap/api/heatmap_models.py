@@ -3,20 +3,21 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class HeatmapRequest(BaseModel):
     """Request parameters for heatmap endpoint."""
 
-    symbol: str = Field(..., description="Trading pair symbol", example="BTCUSDT")
-    model: str = Field(..., description="Liquidation model", example="ensemble")
+    symbol: str = Field(..., description="Trading pair symbol")
+    model: str = Field(..., description="Liquidation model")
     timeframe: str = Field("1d", description="Time bucket size", pattern="^(1h|4h|12h|1d|7d|30d)$")
     start: Optional[datetime] = Field(None, description="Start time (optional)")
     end: Optional[datetime] = Field(None, description="End time (optional)")
 
-    @validator("model")
-    def validate_model(self, v):
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, v):
         """Validate model is supported."""
         valid_models = {"binance_standard", "funding_adjusted", "py_liquidation_map", "ensemble"}
         if v not in valid_models:
@@ -48,20 +49,8 @@ class HeatmapMetadata(BaseModel):
 class HeatmapResponse(BaseModel):
     """Response from heatmap API endpoint."""
 
-    symbol: str = Field(..., description="Trading pair symbol")
-    model: str = Field(..., description="Liquidation model used")
-    timeframe: str = Field(..., description="Time bucket size")
-    current_price: Optional[float] = Field(None, description="Current market price")
-    data: List[HeatmapDataPoint] = Field(..., description="Heatmap data points")
-    metadata: HeatmapMetadata = Field(..., description="Heatmap metadata")
-    timestamp: datetime = Field(
-        default_factory=datetime.now, description="Response generation timestamp"
-    )
-
-    class Config:
-        """Pydantic config."""
-
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "symbol": "BTCUSDT",
                 "model": "ensemble",
@@ -85,3 +74,14 @@ class HeatmapResponse(BaseModel):
                 "timestamp": "2024-10-29T12:00:00",
             }
         }
+    }
+
+    symbol: str = Field(..., description="Trading pair symbol")
+    model: str = Field(..., description="Liquidation model used")
+    timeframe: str = Field(..., description="Time bucket size")
+    current_price: Optional[float] = Field(None, description="Current market price")
+    data: List[HeatmapDataPoint] = Field(..., description="Heatmap data points")
+    metadata: HeatmapMetadata = Field(..., description="Heatmap metadata")
+    timestamp: datetime = Field(
+        default_factory=datetime.now, description="Response generation timestamp"
+    )
