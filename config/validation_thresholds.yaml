@@ -1,0 +1,45 @@
+# Validation Suite Grading Thresholds
+# Used by test_runner.py for grade assignment
+
+grading:
+  # Letter grade thresholds (0-100 scale)
+  A: 90  # Excellent - Model performing optimally
+  B: 80  # Good - Model performing well
+  C: 70  # Warning - Model degradation detected
+  F: 0   # Fail - Critical model issues
+
+  # Grade descriptions
+  descriptions:
+    A: "Excellent - Model performing optimally"
+    B: "Good - Model performing well"
+    C: "Warning - Model degradation detected"
+    F: "Fail - Critical model issues"
+
+# Test-specific thresholds (already in constants.py)
+tests:
+  funding_correlation:
+    min_acceptable: 0.70  # Pearson correlation threshold
+    p_value_max: 0.05     # Statistical significance
+    weight: 0.40          # 40% of overall score
+
+  oi_conservation:
+    error_max: 0.01       # 1% MAPE threshold
+    weight: 0.35          # 35% of overall score
+
+  directional_positioning:
+    accuracy_min: 0.95    # 95% accuracy threshold
+    weight: 0.25          # 25% of overall score
+
+# Alert thresholds
+alerts:
+  trigger_grades: ["C", "F"]  # Grades that trigger alerts
+  email_enabled: true
+  email_recipients:
+    - "alerts@example.com"
+    - "devops@example.com"
+
+# Data quality thresholds
+data_quality:
+  completeness_min: 80.0  # Minimum % data completeness
+  min_data_points: 3      # Minimum samples for statistical tests
+  data_window_days: 30    # Historical data window

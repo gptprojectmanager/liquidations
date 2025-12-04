@@ -1,11 +1,14 @@
 """CSV data loading utilities for Binance historical data."""
 
 import glob
+import logging
 from pathlib import Path
 from typing import Optional
 
 import duckdb
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def load_open_interest_csv(
@@ -44,10 +47,10 @@ def load_open_interest_csv(
         try:
             df = conn.execute(f"""
             SELECT
-                create_time AS timestamp,
+                to_timestamp(timestamp / 1000) AS timestamp,
                 symbol,
-                CAST(sum_open_interest_value AS DECIMAL(20, 8)) AS open_interest_value,
-                CAST(sum_open_interest AS DECIMAL(20, 8)) AS open_interest_contracts
+                CAST(sumOpenInterestValue AS DECIMAL(20, 8)) AS open_interest_value,
+                CAST(sumOpenInterest AS DECIMAL(20, 8)) AS open_interest_contracts
             FROM read_csv(
                 '{file_path}',
                 auto_detect=true,
@@ -115,10 +118,10 @@ def load_funding_rate_csv(
         try:
             df = conn.execute(f"""
             SELECT
-            to_timestamp(calc_time / 1000) AS timestamp,
-            'BTCUSDT' AS symbol,
-            CAST(last_funding_rate AS DECIMAL(10, 8)) AS funding_rate,
-            NULL AS mark_price
+            to_timestamp(timestamp / 1000) AS timestamp,
+            symbol,
+            CAST(fundingRate AS DECIMAL(10, 8)) AS funding_rate,
+            CAST(markPrice AS DECIMAL(18, 8)) AS mark_price
             FROM read_csv(
             '{file_path}',
             auto_detect=true,
@@ -181,7 +184,7 @@ def load_csv_glob(
             df = loader_func(str(file_path), conn=conn)
             dfs.append(df)
         except Exception as e:
-            print(f"Warning: Failed to load {file_path}: {e}")
+            logger.warning(f"Failed to load {file_path}: {e}")
 
     if not dfs:
         raise ValueError(f"No valid CSV files found in pattern: {pattern}")
@@ -237,7 +240,7 @@ def load_aggtrades_csv(
                 '{symbol}' AS symbol,
                 CAST(price AS DECIMAL(18, 8)) AS price,
                 CAST(quantity AS DECIMAL(18, 8)) AS quantity,
-                CASE 
+                CASE
                     WHEN is_buyer_maker = 'true' THEN 'sell'
                     ELSE 'buy'
                 END AS side,

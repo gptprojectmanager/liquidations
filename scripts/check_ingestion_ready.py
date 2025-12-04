@@ -34,7 +34,7 @@ def check_lock_available():
     console.print("\n[cyan]1. Checking concurrent write lock...[/cyan]")
 
     try:
-        lock_file = open(LOCK_FILE_PATH, 'w')
+        lock_file = open(LOCK_FILE_PATH, "w")
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
         console.print("  ✅ Lock available (no other ingestion running)")
@@ -121,11 +121,7 @@ def check_csv_samples(data_dir, symbol="BTCUSDT", sample_count=5):
             return False
 
         # Sample first, middle, last files
-        sample_files = [
-            csv_files[0],
-            csv_files[len(csv_files)//2],
-            csv_files[-1]
-        ][:sample_count]
+        sample_files = [csv_files[0], csv_files[len(csv_files) // 2], csv_files[-1]][:sample_count]
 
         issues = []
 
@@ -138,7 +134,7 @@ def check_csv_samples(data_dir, symbol="BTCUSDT", sample_count=5):
 
             # Check 2: Can read first line
             try:
-                with open(file_path, 'r') as f:
+                with open(file_path, "r") as f:
                     first_line = f.readline()
                     if not first_line:
                         issues.append(f"{file_path.name}: no content")

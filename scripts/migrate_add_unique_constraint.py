@@ -15,7 +15,7 @@ import duckdb
 from rich.console import Console
 
 console = Console()
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -51,7 +51,7 @@ def remove_duplicates(conn):
     conn.execute("""
         DELETE FROM aggtrades_history
         WHERE id NOT IN (
-            SELECT MIN(id) 
+            SELECT MIN(id)
             FROM aggtrades_history
             GROUP BY timestamp, symbol, price, quantity
         )
@@ -74,8 +74,8 @@ def add_unique_constraint(conn):
     try:
         # DuckDB syntax for adding constraint
         conn.execute("""
-            ALTER TABLE aggtrades_history 
-            ADD CONSTRAINT unique_trade 
+            ALTER TABLE aggtrades_history
+            ADD CONSTRAINT unique_trade
             UNIQUE (timestamp, symbol, price, quantity)
         """)
 
@@ -100,17 +100,20 @@ def verify_constraint(conn):
         # Get sample row
         sample = conn.execute("""
             SELECT timestamp, symbol, price, quantity, side, gross_value
-            FROM aggtrades_history 
+            FROM aggtrades_history
             LIMIT 1
         """).fetchone()
 
         if sample:
             # Try to insert duplicate
-            conn.execute("""
-                INSERT INTO aggtrades_history 
+            conn.execute(
+                """
+                INSERT INTO aggtrades_history
                 (id, timestamp, symbol, price, quantity, side, gross_value)
                 VALUES (999999999, ?, ?, ?, ?, ?, ?)
-            """, sample)
+            """,
+                sample,
+            )
 
             console.print("  ❌ Constraint NOT working (duplicate inserted)")
             return False
@@ -151,7 +154,7 @@ def main():
     # Remove duplicates if found
     if duplicates > 0 and not args.skip_dedup:
         confirm = console.input(f"\n⚠️  Found {duplicates:,} duplicates. Remove them? [y/N]: ")
-        if confirm.lower() == 'y':
+        if confirm.lower() == "y":
             removed = remove_duplicates(conn)
             logger.info(f"Removed {removed:,} duplicate rows")
         else:
@@ -173,7 +176,9 @@ def main():
     # Final stats
     console.print("\n📊 [cyan]Final database stats:[/cyan]")
     count = conn.execute("SELECT COUNT(*) FROM aggtrades_history").fetchone()[0]
-    date_range = conn.execute("SELECT MIN(timestamp), MAX(timestamp) FROM aggtrades_history").fetchone()
+    date_range = conn.execute(
+        "SELECT MIN(timestamp), MAX(timestamp) FROM aggtrades_history"
+    ).fetchone()
 
     console.print(f"  Total rows: {count:,}")
     if date_range[0]:

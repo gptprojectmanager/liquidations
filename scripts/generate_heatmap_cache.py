@@ -23,11 +23,11 @@ LOG_DIR.mkdir(exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler(LOG_DIR / "heatmap_cache.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
+        logging.StreamHandler(sys.stdout),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -36,39 +36,28 @@ console = Console()
 
 def parse_args():
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Generate heatmap cache from liquidation levels"
+    parser = argparse.ArgumentParser(description="Generate heatmap cache from liquidation levels")
+    parser.add_argument(
+        "--symbol", type=str, default="BTCUSDT", help="Trading pair symbol (default: BTCUSDT)"
     )
     parser.add_argument(
-        "--symbol",
-        type=str,
-        default="BTCUSDT",
-        help="Trading pair symbol (default: BTCUSDT)"
+        "--days", type=int, default=7, help="Number of days to aggregate (default: 7)"
     )
     parser.add_argument(
-        "--days",
-        type=int,
-        default=7,
-        help="Number of days to aggregate (default: 7)"
-    )
-    parser.add_argument(
-        "--price-bucket",
-        type=int,
-        default=100,
-        help="Price bucket size in dollars (default: $100)"
+        "--price-bucket", type=int, default=100, help="Price bucket size in dollars (default: $100)"
     )
     parser.add_argument(
         "--time-bucket",
         type=str,
         default="1h",
         choices=["1h", "4h", "12h", "1d"],
-        help="Time bucket size (default: 1h)"
+        help="Time bucket size (default: 1h)",
     )
     parser.add_argument(
         "--db-path",
         type=str,
         default="data/processed/liquidations.duckdb",
-        help="DuckDB database path"
+        help="DuckDB database path",
     )
     return parser.parse_args()
 
@@ -106,12 +95,7 @@ def main():
         conn.execute(f"DELETE FROM heatmap_cache WHERE symbol = '{args.symbol}'")
 
         # Map time bucket to DuckDB interval
-        time_interval_map = {
-            "1h": "1 hour",
-            "4h": "4 hours",
-            "12h": "12 hours",
-            "1d": "1 day"
-        }
+        time_interval_map = {"1h": "1 hour", "4h": "4 hours", "12h": "12 hours", "1d": "1 day"}
         interval = time_interval_map[args.time_bucket]
 
         # Generate heatmap cache
@@ -137,7 +121,9 @@ def main():
         """
 
         conn.execute(sql)
-        rows_inserted = conn.execute("SELECT COUNT(*) FROM heatmap_cache WHERE symbol = ?", [args.symbol]).fetchone()[0]
+        rows_inserted = conn.execute(
+            "SELECT COUNT(*) FROM heatmap_cache WHERE symbol = ?", [args.symbol]
+        ).fetchone()[0]
 
         # Calculate duration
         duration = (datetime.now() - start_time).total_seconds()

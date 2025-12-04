@@ -49,10 +49,8 @@ class TierDisplay(BaseModel):
         None, description="Warning message if near tier boundary or other risk"
     )
 
-    class Config:
-        """Pydantic configuration."""
-
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "tier_number": 1,
                 "margin_rate_percent": "0.5%",
@@ -67,6 +65,7 @@ class TierDisplay(BaseModel):
                 "warning": None,
             }
         }
+    }
 
 
 class TierChangePreview(BaseModel):
@@ -116,10 +115,8 @@ class TierChangePreview(BaseModel):
         None, description="New liquidation price (if provided)"
     )
 
-    class Config:
-        """Pydantic configuration."""
-
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "old_tier": 2,
                 "new_tier": 3,
@@ -140,6 +137,7 @@ class TierChangePreview(BaseModel):
                 "new_liquidation_price": None,
             }
         }
+    }
 
 
 class TierComparisonRow(BaseModel):
@@ -156,10 +154,8 @@ class TierComparisonRow(BaseModel):
     max_leverage: str = Field(..., description="Maximum leverage")
     is_current: bool = Field(False, description="Whether this is the user's current tier")
 
-    class Config:
-        """Pydantic configuration."""
-
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "tier_number": 1,
                 "notional_range": "$0 - $50,000",
@@ -169,6 +165,7 @@ class TierComparisonRow(BaseModel):
                 "is_current": True,
             }
         }
+    }
 
 
 class TierComparisonTable(BaseModel):
@@ -183,10 +180,8 @@ class TierComparisonTable(BaseModel):
     current_tier: int = Field(..., description="Current tier number")
     tiers: list[TierComparisonRow] = Field(..., description="List of all tiers")
 
-    class Config:
-        """Pydantic configuration."""
-
-        json_schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "symbol": "BTCUSDT",
                 "current_position": "$50,000.00",
@@ -203,3 +198,4 @@ class TierComparisonTable(BaseModel):
                 ],
             }
         }
+    }

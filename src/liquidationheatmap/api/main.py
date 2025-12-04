@@ -1,23 +1,123 @@
 """FastAPI application for liquidation heatmap API."""
 
+import json
 import logging
+import os
+import time
+from collections import defaultdict
+from decimal import Decimal
+from typing import Literal, Optional
+from urllib.request import urlopen
+
+import numpy as np
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+# Simple rate limiter (in-memory, suitable for single-server deployments)
+class SimpleRateLimiter:
+    """Simple in-memory rate limiter using sliding window."""
+
+    def __init__(self, requests_per_minute: int = 60):
+        self.requests_per_minute = requests_per_minute
+        self.window_size = 60  # 1 minute
+        self.requests: dict[str, list[float]] = defaultdict(list)
+
+    def is_allowed(self, ip: str) -> tuple[bool, int]:
+        """Check if request from IP is allowed. Returns (allowed, retry_after)."""
+        now = time.time()
+        cutoff = now - self.window_size
+
+        # Clean old requests
+        self.requests[ip] = [t for t in self.requests[ip] if t > cutoff]
+
+        # Check limit
+        if len(self.requests[ip]) >= self.requests_per_minute:
+            oldest = min(self.requests[ip]) if self.requests[ip] else now
+            retry_after = int(oldest + self.window_size - now) + 1
+            return False, retry_after
+
+        # Record request
+        self.requests[ip].append(now)
+        return True, 0
+
+
+# Global rate limiter instance
+_rate_limiter = SimpleRateLimiter(requests_per_minute=int(os.getenv("RATE_LIMIT_RPM", "120")))
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Middleware to enforce rate limiting."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Skip rate limiting if disabled
+        if os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "false":
+            return await call_next(request)
+
+        # Skip health endpoint
+        if request.url.path == "/health":
+            return await call_next(request)
+
+        client_ip = request.client.host if request.client else "unknown"
+        allowed, retry_after = _rate_limiter.is_allowed(client_ip)
+
+        if not allowed:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error": "Too Many Requests",
+                    "message": f"Rate limit exceeded. Try again in {retry_after} seconds.",
+                    "retry_after": retry_after,
+                },
+                headers={"Retry-After": str(retry_after)},
+            )
+
+        response = await call_next(request)
+        return response
+
+
+def get_cors_origins() -> list[str]:
+    """Get CORS allowed origins from environment.
+
+    In production, set CORS_ALLOWED_ORIGINS to comma-separated list of origins.
+    Example: CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+
+    Returns:
+        List of allowed origins. Defaults to ["*"] for development.
+    """
+    origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    if origins_env:
+        return [origin.strip() for origin in origins_env.split(",") if origin.strip()]
+    # Development default - allow all origins
+    return ["*"]
+
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-from decimal import Decimal
-from typing import Literal, Optional
-
-from fastapi import FastAPI, Query
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-
 from ..ingestion.db_service import DuckDBService
 from ..models.binance_standard import BinanceStandardModel
 from ..models.ensemble import EnsembleModel
 from ..models.funding_adjusted import FundingAdjustedModel
+
+# Supported trading pairs (whitelist)
+SUPPORTED_SYMBOLS = {
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "ADAUSDT",
+    "DOGEUSDT",
+    "XRPUSDT",
+    "SOLUSDT",
+    "DOTUSDT",
+    "MATICUSDT",
+    "LINKUSDT",
+}
 
 app = FastAPI(
     title="Liquidation Heatmap API",
@@ -25,10 +125,13 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Add CORS middleware to allow frontend access
+# Rate limiting middleware (configurable via RATE_LIMIT_RPM and RATE_LIMIT_ENABLED env vars)
+app.add_middleware(RateLimitMiddleware)
+
+# CORS middleware (configurable via CORS_ALLOWED_ORIGINS env var)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,12 +163,19 @@ async def health_check():
 
 @app.get("/liquidations/levels", response_model=LiquidationResponse)
 async def get_liquidation_levels(
-    symbol: str = Query("BTCUSDT", description="Trading pair symbol"),
+    symbol: str = Query(
+        ...,
+        description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)",
+        pattern="^[A-Z]{6,12}$",
+        examples=["BTCUSDT"],
+    ),
     model: str = Query(
         "openinterest",
         description="Calculation model (reserved for future extensions, currently only 'openinterest' supported)",
     ),
-    timeframe: int = Query(30, description="Timeframe in days"),
+    timeframe: int = Query(
+        ..., ge=1, le=365, description="Timeframe in days (1-365)", examples=[30]
+    ),
     whale_threshold: float = Query(
         500000.0,
         description="Minimum trade size in USD (CURRENTLY FIXED AT $500K - parameter non-functional due to pre-aggregated cache limitation)",
@@ -90,11 +200,14 @@ async def get_liquidation_levels(
     Returns:
         LiquidationResponse with long and short liquidations
     """
-    # Get real-time current price from Binance API
-    import json
-    from urllib.request import urlopen
+    # Validate symbol against whitelist
+    if symbol not in SUPPORTED_SYMBOLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid symbol '{symbol}'. Supported symbols: {sorted(SUPPORTED_SYMBOLS)}",
+        )
 
-    import numpy as np
+    # Get real-time current price from Binance API
 
     try:
         with urlopen(
@@ -102,8 +215,9 @@ async def get_liquidation_levels(
         ) as resp:
             data = json.loads(resp.read().decode())
             current_price = float(data["price"])
-    except:
+    except Exception as e:
         # Fallback to historical price if API fails
+        logging.warning(f"Binance API price fetch failed for {symbol}: {e}")
         with DuckDBService() as db_fallback:
             price_decimal, _ = db_fallback.get_latest_open_interest(symbol)
             current_price = float(price_decimal)
@@ -183,7 +297,12 @@ async def get_liquidation_levels(
 
 @app.get("/liquidations/heatmap")
 async def get_heatmap(
-    symbol: str = Query("BTCUSDT", description="Trading pair symbol"),
+    symbol: str = Query(
+        ...,
+        description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)",
+        pattern="^[A-Z]{6,12}$",
+        examples=["BTCUSDT"],
+    ),
     model: Literal["binance_standard", "ensemble"] = Query(
         "ensemble", description="Liquidation model to use"
     ),
@@ -202,6 +321,13 @@ async def get_heatmap(
     Returns:
         HeatmapResponse with data points and metadata
     """
+    # Validate symbol against whitelist
+    if symbol not in SUPPORTED_SYMBOLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid symbol '{symbol}'. Supported symbols: {sorted(SUPPORTED_SYMBOLS)}",
+        )
+
     from .heatmap_models import HeatmapDataPoint, HeatmapMetadata, HeatmapResponse
 
     # Connect to database
@@ -210,7 +336,7 @@ async def get_heatmap(
     try:
         # Query heatmap cache
         query = """
-        SELECT 
+        SELECT
             time_bucket,
             price_bucket,
             density,
@@ -320,6 +446,17 @@ async def get_liquidation_history(
     db = DuckDBService()
 
     try:
+        # Check if liquidation_history table exists
+        table_check = db.conn.execute("""
+            SELECT COUNT(*) as count
+            FROM information_schema.tables
+            WHERE table_name = 'liquidation_history'
+        """).fetchone()
+
+        # If table doesn't exist, return empty list
+        if table_check[0] == 0:
+            return []
+
         if aggregate:
             # Aggregated query for time-series visualization
             query = """
@@ -408,7 +545,7 @@ async def compare_models(
     # Fetch data from DuckDB
     with DuckDBService() as db:
         current_price, open_interest = db.get_latest_open_interest(symbol)
-        funding_rate = db.get_latest_funding_rate(symbol)
+        _ = db.get_latest_funding_rate(symbol)  # Reserved for future use
 
     # Initialize all 3 models
     binance_model = BinanceStandardModel()

@@ -1,0 +1,421 @@
+openapi: 3.0.3
+info:
+  title: Liquidation Heatmap - Clustering API
+  description: |
+    DBSCAN clustering endpoint for liquidation zone identification.
+
+    This endpoint groups nearby liquidation levels into distinct zones,
+    reducing visual complexity from 500+ individual points to 5-10 actionable zones.
+  version: 1.0.0
+  contact:
+    name: LiquidationHeatmap Team
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server
+
+paths:
+  /liquidations/clusters:
+    get:
+      summary: Get clustered liquidation zones
+      description: |
+        Applies DBSCAN clustering to liquidation levels and returns
+        identified zones with statistics.
+
+        **Performance**: <500ms required, <200ms target for 1000 points.
+
+        **Caching**: Results are cached until underlying data refreshes.
+      operationId: getLiquidationClusters
+      tags:
+        - Clustering
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          description: Trading pair symbol (e.g., BTCUSDT)
+          schema:
+            type: string
+            example: BTCUSDT
+        - name: timeframe
+          in: query
+          required: false
+          description: Data timeframe in minutes
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1440
+            default: 30
+            example: 30
+        - name: auto_tune
+          in: query
+          required: false
+          description: Auto-calculate epsilon using k-distance graph
+          schema:
+            type: boolean
+            default: true
+        - name: epsilon
+          in: query
+          required: false
+          description: |
+            Manual epsilon value (neighborhood radius).
+            Ignored if auto_tune=true.
+          schema:
+            type: number
+            format: float
+            minimum: 0.01
+            maximum: 1.0
+            default: 0.1
+        - name: min_samples
+          in: query
+          required: false
+          description: Minimum points to form a cluster
+          schema:
+            type: integer
+            minimum: 2
+            maximum: 10
+            default: 3
+        - name: price_min
+          in: query
+          required: false
+          description: Filter to liquidations above this price
+          schema:
+            type: number
+            format: float
+            example: 90000.0
+        - name: price_max
+          in: query
+          required: false
+          description: Filter to liquidations below this price
+          schema:
+            type: number
+            format: float
+            example: 100000.0
+      responses:
+        '200':
+          description: Clustering successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClusteringResult'
+              examples:
+                successful_clustering:
+                  summary: Successful clustering with 7 zones
+                  value:
+                    clusters:
+                      - cluster_id: 0
+                        price_min: 94500.0
+                        price_max: 95200.0
+                        centroid_price: 94850.0
+                        total_volume: 15000000.0
+                        level_count: 45
+                        density: 0.72
+                        price_spread: 700.0
+                        avg_volume_per_level: 333333.33
+                        zone_strength: critical
+                      - cluster_id: 1
+                        price_min: 96000.0
+                        price_max: 96800.0
+                        centroid_price: 96400.0
+                        total_volume: 8000000.0
+                        level_count: 28
+                        density: 0.55
+                        price_spread: 800.0
+                        avg_volume_per_level: 285714.29
+                        zone_strength: significant
+                    noise_points:
+                      - price_level: 120000.0
+                        volume: 50000.0
+                        distance_to_nearest: 0.85
+                    metadata:
+                      symbol: BTCUSDT
+                      timeframe_minutes: 30
+                      total_points: 523
+                      cluster_count: 7
+                      noise_count: 12
+                      parameters_used:
+                        epsilon: 0.08
+                        min_samples: 3
+                        auto_tune: true
+                        distance_metric: euclidean
+                      computation_ms: 145.3
+                      auto_tuned: true
+                      timestamp: "2025-12-02T10:30:00Z"
+                    fallback_used: false
+                    warning: null
+                    coverage_ratio: 0.977
+                    total_clustered_volume: 45000000.0
+                no_clusters_found:
+                  summary: No distinct clusters (uniform distribution)
+                  value:
+                    clusters: []
+                    noise_points: []
+                    metadata:
+                      symbol: BTCUSDT
+                      timeframe_minutes: 30
+                      total_points: 100
+                      cluster_count: 0
+                      noise_count: 100
+                      parameters_used:
+                        epsilon: 0.1
+                        min_samples: 3
+                        auto_tune: true
+                        distance_metric: euclidean
+                      computation_ms: 45.2
+                      auto_tuned: true
+                      timestamp: "2025-12-02T10:30:00Z"
+                    fallback_used: true
+                    warning: "No distinct zones identified. Falling back to grid binning."
+                    coverage_ratio: 0.0
+                    total_clustered_volume: 0.0
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid parameter"
+                detail: "epsilon must be in range [0.01, 1.0], got 2.5"
+                code: "INVALID_EPSILON"
+        '404':
+          description: Symbol not found or no data available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Not found"
+                detail: "No liquidation data available for ETHUSDT in timeframe 30"
+                code: "NO_DATA"
+        '500':
+          description: Clustering failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Internal error"
+                detail: "Clustering computation exceeded timeout (500ms)"
+                code: "CLUSTERING_TIMEOUT"
+
+components:
+  schemas:
+    ClusterParameters:
+      type: object
+      description: DBSCAN clustering configuration
+      properties:
+        epsilon:
+          type: number
+          format: float
+          minimum: 0.01
+          maximum: 1.0
+          default: 0.1
+          description: Neighborhood radius in normalized space
+        min_samples:
+          type: integer
+          minimum: 2
+          maximum: 10
+          default: 3
+          description: Minimum points to form a cluster
+        auto_tune:
+          type: boolean
+          default: true
+          description: Auto-calculate epsilon using k-distance graph
+        distance_metric:
+          type: string
+          enum: [euclidean, manhattan]
+          default: euclidean
+          description: Distance metric for DBSCAN
+
+    LiquidationCluster:
+      type: object
+      description: A cluster of nearby liquidation levels
+      required:
+        - cluster_id
+        - price_min
+        - price_max
+        - centroid_price
+        - total_volume
+        - level_count
+        - density
+      properties:
+        cluster_id:
+          type: integer
+          minimum: 0
+          description: Unique cluster identifier
+        price_min:
+          type: number
+          format: float
+          description: Lower price boundary
+        price_max:
+          type: number
+          format: float
+          description: Upper price boundary
+        centroid_price:
+          type: number
+          format: float
+          description: Volume-weighted center price
+        total_volume:
+          type: number
+          format: float
+          minimum: 0
+          description: Sum of liquidation volumes
+        level_count:
+          type: integer
+          minimum: 1
+          description: Number of levels in cluster
+        density:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Cluster density score
+        price_spread:
+          type: number
+          format: float
+          readOnly: true
+          description: Computed price range (price_max - price_min)
+        avg_volume_per_level:
+          type: number
+          format: float
+          readOnly: true
+          description: Computed average volume
+        zone_strength:
+          type: string
+          enum: [critical, significant, minor]
+          readOnly: true
+          description: Computed strength rating
+
+    NoisePoint:
+      type: object
+      description: Outlier liquidation not in any cluster
+      required:
+        - price_level
+        - volume
+        - distance_to_nearest
+      properties:
+        price_level:
+          type: number
+          format: float
+          description: Price level of outlier
+        volume:
+          type: number
+          format: float
+          minimum: 0
+          description: Volume at this level
+        distance_to_nearest:
+          type: number
+          format: float
+          minimum: 0
+          description: Distance to nearest cluster
+
+    ClusterMetadata:
+      type: object
+      description: Clustering operation metadata
+      required:
+        - symbol
+        - timeframe_minutes
+        - total_points
+        - cluster_count
+        - noise_count
+        - parameters_used
+        - computation_ms
+        - auto_tuned
+        - timestamp
+      properties:
+        symbol:
+          type: string
+          description: Trading pair symbol
+        timeframe_minutes:
+          type: integer
+          minimum: 1
+          description: Data timeframe in minutes
+        total_points:
+          type: integer
+          minimum: 0
+          description: Total levels processed
+        cluster_count:
+          type: integer
+          minimum: 0
+          description: Clusters identified
+        noise_count:
+          type: integer
+          minimum: 0
+          description: Outlier count
+        parameters_used:
+          $ref: '#/components/schemas/ClusterParameters'
+        computation_ms:
+          type: number
+          format: float
+          minimum: 0
+          description: Computation time (ms)
+        auto_tuned:
+          type: boolean
+          description: Was epsilon auto-tuned
+        timestamp:
+          type: string
+          format: date-time
+          description: Operation timestamp
+
+    ClusteringResult:
+      type: object
+      description: Complete clustering result
+      required:
+        - clusters
+        - noise_points
+        - metadata
+        - fallback_used
+      properties:
+        clusters:
+          type: array
+          items:
+            $ref: '#/components/schemas/LiquidationCluster'
+          description: Identified clusters
+        noise_points:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoisePoint'
+          description: Outlier points
+        metadata:
+          $ref: '#/components/schemas/ClusterMetadata'
+        fallback_used:
+          type: boolean
+          default: false
+          description: Was fallback (grid binning) used
+        warning:
+          type: string
+          nullable: true
+          description: Warning message if issues occurred
+        coverage_ratio:
+          type: number
+          format: float
+          readOnly: true
+          description: Computed ratio of clustered points
+        total_clustered_volume:
+          type: number
+          format: float
+          readOnly: true
+          description: Computed sum of cluster volumes
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - detail
+        - code
+      properties:
+        error:
+          type: string
+          description: Error category
+        detail:
+          type: string
+          description: Detailed error message
+        code:
+          type: string
+          description: Error code for programmatic handling
+
+tags:
+  - name: Clustering
+    description: DBSCAN clustering endpoints for liquidation zone identification

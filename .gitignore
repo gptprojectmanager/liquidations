@@ -36,6 +36,7 @@ env/
 .coverage
 htmlcov/
 .tox/
+.hypothesis/
 
 # Data (IMPORTANT: Don't commit processed data)
 data/processed/
@@ -59,6 +60,11 @@ Thumbs.db
 # Serena/Specify cache
 .serena/cache/
 .specify/memory/
+
+# Claude Code session data
+.claude/context_bundles/
+.claude/stats/
+.hypothesis/
 
 # Backups
 *.backup

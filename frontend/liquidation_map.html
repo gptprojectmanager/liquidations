@@ -49,14 +49,9 @@
             const model = document.getElementById('modelSelect').value;
             const timeframe = document.getElementById('timeframeSelect').value;
 
-            console.log(`🔄 Loading: model=${model}, timeframe=${timeframe} days`);
-
             try {
-                const response = await fetch(`http://localhost:8002/liquidations/levels?symbol=BTCUSDT&model=${model}&timeframe=${timeframe}`);
+                const response = await fetch(`http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=${model}&timeframe=${timeframe}`);
                 const data = await response.json();
-
-                console.log(`✅ Loaded ${data.long_liquidations.length} long + ${data.short_liquidations.length} short liquidations`);
-                console.log(`Model: ${data.model}, Current Price: $${data.current_price}`);
 
                 renderLiquidationMap(data);
             } catch (error) {

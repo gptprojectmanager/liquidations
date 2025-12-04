@@ -19,11 +19,11 @@ from src.liquidationheatmap.models.funding_adjusted import FundingAdjustedModel
 
 def calculate_mape(predictions: List[Decimal], actuals: List[Decimal]) -> float:
     """Calculate Mean Absolute Percentage Error.
-    
+
     Args:
         predictions: List of predicted liquidation prices
         actuals: List of actual liquidation prices
-        
+
     Returns:
         MAPE as percentage (0-100)
     """
@@ -41,11 +41,11 @@ def calculate_mape(predictions: List[Decimal], actuals: List[Decimal]) -> float:
 
 def backtest_model(model, symbol: str = "BTCUSDT") -> Dict:
     """Backtest a single liquidation model.
-    
+
     Args:
         model: Liquidation model instance
         symbol: Trading pair symbol
-        
+
     Returns:
         Dict with model name, MAPE, accuracy, prediction count
     """
@@ -69,7 +69,7 @@ def backtest_model(model, symbol: str = "BTCUSDT") -> Dict:
             "mape": 100.0,
             "accuracy": 0.0,
             "predictions": 0,
-            "status": "No actual data available"
+            "status": "No actual data available",
         }
 
     # Calculate predictions
@@ -85,7 +85,7 @@ def backtest_model(model, symbol: str = "BTCUSDT") -> Dict:
             "mape": 100.0,
             "accuracy": 0.0,
             "predictions": 0,
-            "status": "No predictions generated"
+            "status": "No predictions generated",
         }
 
     # Match predictions to actuals by leverage tier and side
@@ -99,9 +99,7 @@ def backtest_model(model, symbol: str = "BTCUSDT") -> Dict:
 
         # Find matching prediction
         matching_pred = next(
-            (p for p in predictions
-             if p.leverage_tier == leverage and p.side == side),
-            None
+            (p for p in predictions if p.leverage_tier == leverage and p.side == side), None
         )
 
         if matching_pred:
@@ -114,7 +112,7 @@ def backtest_model(model, symbol: str = "BTCUSDT") -> Dict:
             "mape": 100.0,
             "accuracy": 0.0,
             "predictions": len(predictions),
-            "status": "No matching predictions found"
+            "status": "No matching predictions found",
         }
 
     # Calculate MAPE
@@ -127,13 +125,13 @@ def backtest_model(model, symbol: str = "BTCUSDT") -> Dict:
         "accuracy": round(accuracy, 2),
         "predictions": len(predicted_prices),
         "avg_confidence": float(sum(p.confidence for p in predictions) / len(predictions)),
-        "status": "OK"
+        "status": "OK",
     }
 
 
 def generate_report(results: List[Dict], output_path: Path):
     """Generate markdown report of backtest results.
-    
+
     Args:
         results: List of backtest results per model
         output_path: Path to output markdown file
@@ -159,7 +157,7 @@ def generate_report(results: List[Dict], output_path: Path):
 
 **MAPE (Mean Absolute Percentage Error)**:
 - <2%: Excellent accuracy
-- 2-5%: Good accuracy  
+- 2-5%: Good accuracy
 - 5-10%: Acceptable accuracy
 - >10%: Poor accuracy
 
@@ -220,7 +218,7 @@ def main():
     # Summary
     print("\n📈 Summary:")
     for result in results:
-        status_emoji = "✅" if result['accuracy'] >= 85 else "⚠️"
+        status_emoji = "✅" if result["accuracy"] >= 85 else "⚠️"
         print(f"   {status_emoji} {result['model']}: {result['accuracy']:.1f}% accuracy")
 
 
