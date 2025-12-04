@@ -5,6 +5,7 @@ Uses direct DuckDB CSV streaming with automatic dual-format detection.
 """
 
 import logging
+import re
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -12,6 +13,52 @@ from pathlib import Path
 import duckdb
 
 logger = logging.getLogger(__name__)
+
+# Allowed symbols whitelist (prevents SQL injection via symbol parameter)
+ALLOWED_SYMBOLS = {
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "ADAUSDT",
+    "DOGEUSDT",
+    "XRPUSDT",
+    "SOLUSDT",
+    "DOTUSDT",
+    "MATICUSDT",
+    "LINKUSDT",
+}
+
+# Pattern for valid symbol format (uppercase letters + USDT suffix)
+SYMBOL_PATTERN = re.compile(r"^[A-Z]{2,10}USDT$")
+
+
+def _validate_symbol(symbol: str) -> str:
+    """Validate symbol against whitelist and format pattern.
+
+    Args:
+        symbol: Trading pair symbol to validate
+
+    Returns:
+        Validated symbol string
+
+    Raises:
+        ValueError: If symbol is invalid or not in whitelist
+    """
+    if not symbol or not isinstance(symbol, str):
+        raise ValueError(f"Invalid symbol: {symbol}")
+
+    symbol = symbol.upper().strip()
+
+    if not SYMBOL_PATTERN.match(symbol):
+        raise ValueError(f"Invalid symbol format: {symbol}")
+
+    if symbol not in ALLOWED_SYMBOLS:
+        raise ValueError(
+            f"Symbol '{symbol}' not in allowed list. Allowed: {sorted(ALLOWED_SYMBOLS)}"
+        )
+
+    return symbol
+
 
 # I/O throttling to prevent HDD overload (milliseconds)
 # NOTE: 200ms recommended for HDD safety in production, 0ms safe for SSD
@@ -23,13 +70,19 @@ def get_aggtrades_files(data_dir, symbol, start_date, end_date):
 
     Args:
         data_dir: Base data directory
-        symbol: Trading pair (e.g., BTCUSDT)
+        symbol: Trading pair (must be in ALLOWED_SYMBOLS whitelist)
         start_date: Start date (YYYY-MM-DD)
         end_date: End date (YYYY-MM-DD)
 
     Returns:
         Sorted list of existing CSV file paths
+
+    Raises:
+        ValueError: If symbol is not in allowed whitelist
     """
+    # Validate symbol to prevent path traversal attacks
+    symbol = _validate_symbol(symbol)
+
     aggtrades_dir = Path(data_dir) / symbol / "aggTrades"
 
     if not aggtrades_dir.exists():
@@ -66,14 +119,20 @@ def load_aggtrades_streaming(conn, data_dir, symbol, start_date, end_date, throt
     Args:
         conn: DuckDB connection
         data_dir: Base data directory
-        symbol: Trading pair
+        symbol: Trading pair (must be in ALLOWED_SYMBOLS whitelist)
         start_date: Start date (YYYY-MM-DD)
         end_date: End date (YYYY-MM-DD)
         throttle_ms: Sleep time between files (ms) to prevent I/O overload
 
     Returns:
         Total number of rows inserted
+
+    Raises:
+        ValueError: If symbol is not in allowed whitelist
     """
+    # Validate symbol to prevent SQL injection
+    symbol = _validate_symbol(symbol)
+
     logger.info(f"Starting streaming aggTrades ingestion for {symbol}")
     logger.info(f"Date range: {start_date} to {end_date}")
     logger.info(f"I/O throttle: {throttle_ms}ms between files")

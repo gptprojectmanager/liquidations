@@ -3,15 +3,81 @@
 import json
 import logging
 import os
+import time
+from collections import defaultdict
 from decimal import Decimal
 from typing import Literal, Optional
 from urllib.request import urlopen
 
 import numpy as np
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+# Simple rate limiter (in-memory, suitable for single-server deployments)
+class SimpleRateLimiter:
+    """Simple in-memory rate limiter using sliding window."""
+
+    def __init__(self, requests_per_minute: int = 60):
+        self.requests_per_minute = requests_per_minute
+        self.window_size = 60  # 1 minute
+        self.requests: dict[str, list[float]] = defaultdict(list)
+
+    def is_allowed(self, ip: str) -> tuple[bool, int]:
+        """Check if request from IP is allowed. Returns (allowed, retry_after)."""
+        now = time.time()
+        cutoff = now - self.window_size
+
+        # Clean old requests
+        self.requests[ip] = [t for t in self.requests[ip] if t > cutoff]
+
+        # Check limit
+        if len(self.requests[ip]) >= self.requests_per_minute:
+            oldest = min(self.requests[ip]) if self.requests[ip] else now
+            retry_after = int(oldest + self.window_size - now) + 1
+            return False, retry_after
+
+        # Record request
+        self.requests[ip].append(now)
+        return True, 0
+
+
+# Global rate limiter instance
+_rate_limiter = SimpleRateLimiter(requests_per_minute=int(os.getenv("RATE_LIMIT_RPM", "120")))
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Middleware to enforce rate limiting."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Skip rate limiting if disabled
+        if os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "false":
+            return await call_next(request)
+
+        # Skip health endpoint
+        if request.url.path == "/health":
+            return await call_next(request)
+
+        client_ip = request.client.host if request.client else "unknown"
+        allowed, retry_after = _rate_limiter.is_allowed(client_ip)
+
+        if not allowed:
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "error": "Too Many Requests",
+                    "message": f"Rate limit exceeded. Try again in {retry_after} seconds.",
+                    "retry_after": retry_after,
+                },
+                headers={"Retry-After": str(retry_after)},
+            )
+
+        response = await call_next(request)
+        return response
 
 
 def get_cors_origins() -> list[str]:
@@ -58,6 +124,9 @@ app = FastAPI(
     description="Calculate and visualize cryptocurrency liquidation levels",
     version="0.1.0",
 )
+
+# Rate limiting middleware (configurable via RATE_LIMIT_RPM and RATE_LIMIT_ENABLED env vars)
+app.add_middleware(RateLimitMiddleware)
 
 # CORS middleware (configurable via CORS_ALLOWED_ORIGINS env var)
 app.add_middleware(
