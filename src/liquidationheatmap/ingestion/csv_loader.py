@@ -1,11 +1,14 @@
 """CSV data loading utilities for Binance historical data."""
 
 import glob
+import logging
 from pathlib import Path
 from typing import Optional
 
 import duckdb
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def load_open_interest_csv(
@@ -181,7 +184,7 @@ def load_csv_glob(
             df = loader_func(str(file_path), conn=conn)
             dfs.append(df)
         except Exception as e:
-            print(f"Warning: Failed to load {file_path}: {e}")
+            logger.warning(f"Failed to load {file_path}: {e}")
 
     if not dfs:
         raise ValueError(f"No valid CSV files found in pattern: {pattern}")

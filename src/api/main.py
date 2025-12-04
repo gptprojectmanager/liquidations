@@ -7,10 +7,28 @@ Provides REST endpoints for:
 - Tier information and comparison
 """
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+
+def get_cors_origins() -> list[str]:
+    """Get CORS allowed origins from environment.
+
+    In production, set CORS_ALLOWED_ORIGINS to comma-separated list of origins.
+    Example: CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+
+    Returns:
+        List of allowed origins. Defaults to ["*"] for development.
+    """
+    origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    if origins_env:
+        return [origin.strip() for origin in origins_env.split(",") if origin.strip()]
+    # Development default - allow all origins
+    return ["*"]
+
 
 # Import routers
 from src.api.endpoints.clustering import router as clustering_router
@@ -50,10 +68,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware (allow frontend access)
+# CORS middleware (configurable via CORS_ALLOWED_ORIGINS env var)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Restrict in production
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

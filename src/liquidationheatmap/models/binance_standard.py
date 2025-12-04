@@ -116,7 +116,9 @@ class BinanceStandardModel(AbstractLiquidationModel):
                             )
 
             logger.info(
-                f"MODE 1 complete: {len(liquidations)} liquidations (long: {len([l for l in liquidations if l.side == 'long'])}, short: {len([l for l in liquidations if l.side == 'short'])})"
+                f"MODE 1 complete: {len(liquidations)} liquidations "
+                f"(long: {len([liq for liq in liquidations if liq.side == 'long'])}, "
+                f"short: {len([liq for liq in liquidations if liq.side == 'short'])})"
             )
             return liquidations
 

@@ -1,18 +1,38 @@
 """FastAPI application for liquidation heatmap API."""
 
+import json
 import logging
-
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
+import os
 from decimal import Decimal
 from typing import Literal, Optional
+from urllib.request import urlopen
 
+import numpy as np
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+
+def get_cors_origins() -> list[str]:
+    """Get CORS allowed origins from environment.
+
+    In production, set CORS_ALLOWED_ORIGINS to comma-separated list of origins.
+    Example: CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+
+    Returns:
+        List of allowed origins. Defaults to ["*"] for development.
+    """
+    origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    if origins_env:
+        return [origin.strip() for origin in origins_env.split(",") if origin.strip()]
+    # Development default - allow all origins
+    return ["*"]
+
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 from ..ingestion.db_service import DuckDBService
 from ..models.binance_standard import BinanceStandardModel
@@ -39,10 +59,10 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Add CORS middleware to allow frontend access
+# CORS middleware (configurable via CORS_ALLOWED_ORIGINS env var)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -119,10 +139,6 @@ async def get_liquidation_levels(
         )
 
     # Get real-time current price from Binance API
-    import json
-    from urllib.request import urlopen
-
-    import numpy as np
 
     try:
         with urlopen(

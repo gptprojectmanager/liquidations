@@ -336,7 +336,7 @@ async def get_dashboard_data(
             }
             if latest_run
             else None,
-            "trends": trends_response.dict(),
+            "trends": trends_response.model_dump(),
             "statistics": {
                 "total_runs": len(recent_runs),
                 "runs_with_grade_a": sum(

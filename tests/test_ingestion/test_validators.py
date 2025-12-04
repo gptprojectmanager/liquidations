@@ -48,18 +48,14 @@ class TestValidateDateRange:
 
     def test_validate_date_range_accepts_complete_range(self):
         """Test that complete date range is validated."""
-        df = pd.DataFrame({
-            'timestamp': pd.date_range('2024-10-22', periods=7, freq='D')
-        })
+        df = pd.DataFrame({"timestamp": pd.date_range("2024-10-22", periods=7, freq="D")})
 
         assert validate_date_range(df, expected_days=7) is True
 
     def test_validate_date_range_detects_missing_days(self):
         """Test that missing days are detected."""
         # Only 5 days instead of 7
-        df = pd.DataFrame({
-            'timestamp': pd.date_range('2024-10-22', periods=5, freq='D')
-        })
+        df = pd.DataFrame({"timestamp": pd.date_range("2024-10-22", periods=5, freq="D")})
 
         # Should fail with 2 missing days (tolerance=1)
         assert validate_date_range(df, expected_days=7, tolerance=1) is False
@@ -74,15 +70,13 @@ class TestValidateDateRange:
 
     def test_validate_date_range_handles_missing_column(self):
         """Test that DataFrame without timestamp column returns False."""
-        df = pd.DataFrame({'price': [42000, 43000, 44000]})
+        df = pd.DataFrame({"price": [42000, 43000, 44000]})
         assert validate_date_range(df, expected_days=3) is False
 
     def test_validate_date_range_handles_duplicate_dates(self):
         """Test that duplicate dates are counted once."""
         # Create DataFrame with hourly data (multiple rows per day)
-        df = pd.DataFrame({
-            'timestamp': pd.date_range('2024-10-22', periods=24, freq='H')
-        })
+        df = pd.DataFrame({"timestamp": pd.date_range("2024-10-22", periods=24, freq="h")})
 
         # Should count as 2 days (22nd and 23rd), not 24
         assert validate_date_range(df, expected_days=1, tolerance=0) is True
@@ -93,55 +87,57 @@ class TestDetectOutliers:
 
     def test_detect_outliers_finds_extreme_values(self):
         """Test that obvious outliers are detected."""
-        df = pd.DataFrame({
-            'value': [10, 12, 11, 10, 100, 9, 11]  # 100 is outlier
-        })
+        df = pd.DataFrame(
+            {
+                "value": [10, 12, 11, 10, 100, 9, 11]  # 100 is outlier
+            }
+        )
 
-        outliers = detect_outliers(df, 'value', std_threshold=2.0)
+        outliers = detect_outliers(df, "value", std_threshold=2.0)
 
         assert 4 in outliers  # Index of 100
         assert len(outliers) == 1
 
     def test_detect_outliers_returns_empty_for_normal_data(self):
         """Test that no outliers detected in normal distribution."""
-        df = pd.DataFrame({
-            'value': [10, 11, 12, 11, 10, 9, 11, 10, 12]
-        })
+        df = pd.DataFrame({"value": [10, 11, 12, 11, 10, 9, 11, 10, 12]})
 
-        outliers = detect_outliers(df, 'value', std_threshold=3.0)
+        outliers = detect_outliers(df, "value", std_threshold=3.0)
 
         assert len(outliers) == 0
 
     def test_detect_outliers_handles_empty_dataframe(self):
         """Test that empty DataFrame returns empty list."""
         df = pd.DataFrame()
-        outliers = detect_outliers(df, 'value')
+        outliers = detect_outliers(df, "value")
         assert outliers == []
 
     def test_detect_outliers_handles_missing_column(self):
         """Test that missing column returns empty list."""
-        df = pd.DataFrame({'price': [10, 20, 30]})
-        outliers = detect_outliers(df, 'non_existent')
+        df = pd.DataFrame({"price": [10, 20, 30]})
+        outliers = detect_outliers(df, "non_existent")
         assert outliers == []
 
     def test_detect_outliers_handles_constant_values(self):
         """Test that constant values (std=0) return empty list."""
-        df = pd.DataFrame({'value': [10, 10, 10, 10]})
-        outliers = detect_outliers(df, 'value')
+        df = pd.DataFrame({"value": [10, 10, 10, 10]})
+        outliers = detect_outliers(df, "value")
         assert outliers == []
 
     def test_detect_outliers_with_different_threshold(self):
         """Test that threshold changes outlier detection."""
-        df = pd.DataFrame({
-            'value': [10, 12, 11, 10, 25, 9, 11]  # 25 is mild outlier
-        })
+        df = pd.DataFrame(
+            {
+                "value": [10, 12, 11, 10, 25, 9, 11]  # 25 is mild outlier
+            }
+        )
 
         # Strict threshold (2.0) should catch it
-        outliers_strict = detect_outliers(df, 'value', std_threshold=2.0)
+        outliers_strict = detect_outliers(df, "value", std_threshold=2.0)
         assert len(outliers_strict) > 0
 
         # Lenient threshold (5.0) might not
-        outliers_lenient = detect_outliers(df, 'value', std_threshold=5.0)
+        outliers_lenient = detect_outliers(df, "value", std_threshold=5.0)
         assert len(outliers_lenient) <= len(outliers_strict)
 
 
@@ -199,22 +195,22 @@ class TestValidateSymbol:
 
     def test_validate_symbol_accepts_btcusdt(self):
         """Test that BTCUSDT is accepted by default."""
-        assert validate_symbol('BTCUSDT') is True
+        assert validate_symbol("BTCUSDT") is True
 
     def test_validate_symbol_rejects_other_symbols(self):
         """Test that other symbols are rejected by default."""
-        assert validate_symbol('ETHUSDT') is False
-        assert validate_symbol('SOLUSDT') is False
+        assert validate_symbol("ETHUSDT") is False
+        assert validate_symbol("SOLUSDT") is False
 
     def test_validate_symbol_with_custom_list(self):
         """Test that custom symbol list works."""
-        allowed = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']
+        allowed = ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
 
-        assert validate_symbol('BTCUSDT', allowed_symbols=allowed) is True
-        assert validate_symbol('ETHUSDT', allowed_symbols=allowed) is True
-        assert validate_symbol('DOGEUSDT', allowed_symbols=allowed) is False
+        assert validate_symbol("BTCUSDT", allowed_symbols=allowed) is True
+        assert validate_symbol("ETHUSDT", allowed_symbols=allowed) is True
+        assert validate_symbol("DOGEUSDT", allowed_symbols=allowed) is False
 
     def test_validate_symbol_case_sensitive(self):
         """Test that symbol validation is case-sensitive."""
-        assert validate_symbol('btcusdt') is False  # Wrong case
-        assert validate_symbol('BTCUSDT') is True
+        assert validate_symbol("btcusdt") is False  # Wrong case
+        assert validate_symbol("BTCUSDT") is True

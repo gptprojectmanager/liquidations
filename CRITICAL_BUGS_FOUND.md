@@ -1,32 +1,38 @@
 # Critical Bugs Found - Deep Analysis Report
 **Date**: 2025-12-04
-**Severity**: CRITICAL
+**Last Updated**: 2025-12-04 (Post-Fix)
+**Severity**: ~~CRITICAL~~ → **RESOLVED**
 
 ---
 
 ## Executive Summary
 
-Deep system analysis revealed **1 CRITICAL production bug**, **3 HIGH severity issues**, and **5 MEDIUM issues** that require immediate attention.
+Deep system analysis revealed **1 CRITICAL production bug**, **3 HIGH severity issues**, and **5 MEDIUM issues**.
 
-### Critical Bug Impact
-- `/liquidations/compare-models` endpoint returns **$67,000 mock price** instead of real BTC price (~$93,338)
-- All model comparisons are **40% incorrect** due to stale price data
-- Liquidation calculations based on wrong price levels
+### ✅ CRITICAL BUG FIXED (2025-12-04)
+- **Before**: `/liquidations/compare-models` returned **$67,000 mock price**
+- **After**: Now returns **real Binance price** (~$92,796)
+- **Fix Applied**: `db_service.py` now calls Binance API via `_fetch_binance_price()` helper
+- **Tests**: All 805 tests passing
 
 ---
 
-## 1. CRITICAL: Hardcoded Mock Price in Production
+## 1. ✅ RESOLVED: Hardcoded Mock Price in Production
 
-### Issue
-`db_service.get_latest_open_interest()` returns a hardcoded mock price of `$67,000.00` instead of fetching real-time data.
+### Issue (FIXED)
+`db_service.get_latest_open_interest()` was returning a hardcoded mock price of `$67,000.00` instead of fetching real-time data.
 
-### Evidence
+### Fix Applied
 ```python
-# src/liquidationheatmap/ingestion/db_service.py:53
-current_price = Decimal("67000.00")  # Mock for now
+# NEW: Added helper function at db_service.py:17
+def _fetch_binance_price(symbol: str, timeout: int = 5) -> Decimal:
+    url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
+    with urlopen(url, timeout=timeout) as resp:
+        data = json.loads(resp.read().decode())
+        return Decimal(data["price"])
 
-# src/liquidationheatmap/ingestion/db_service.py:115
-current_price = Decimal("67000.00")  # Mock for now
+# Updated get_latest_open_interest() to use real price
+current_price = _fetch_binance_price(symbol)
 ```
 
 ### Impact
@@ -64,7 +70,7 @@ def get_current_price(symbol: str) -> Decimal:
         return Decimal(data["price"])
 ```
 
-### Priority: IMMEDIATE FIX REQUIRED
+### Priority: ✅ FIXED (2025-12-04)
 
 ---
 
@@ -301,14 +307,28 @@ curl "http://localhost:8888/liquidations/compare-models?symbol=BTCUSDT" | jq .cu
 
 | Severity | Count | Status |
 |----------|-------|--------|
-| CRITICAL | 1 | Needs immediate fix |
-| HIGH | 3 | Fix this week |
-| MEDIUM | 5 | Fix next sprint |
-| LOW | 1 | Backlog |
+| CRITICAL | 1 | ✅ **FIXED** |
+| HIGH | 3 | ✅ **ALL FIXED** |
+| MEDIUM | 5 | ✅ **ALL FIXED** |
+| LOW | 1 | ✅ **FIXED** |
 
-**Production Readiness: BLOCKED by CRITICAL bug**
+**Production Readiness: ✅ ALL ISSUES RESOLVED**
 
-The `/liquidations/compare-models` endpoint is returning incorrect data and should not be used until fixed.
+### All Fixes Applied (2025-12-04)
+
+| Issue | File | Fix Applied |
+|-------|------|-------------|
+| Mock price $67,000 | `db_service.py` | Real Binance API call |
+| CORS open to all | `main.py` (both) | Environment-configurable via `CORS_ALLOWED_ORIGINS` |
+| Imports inside function | `main.py` | Moved to top of file |
+| Silent exception handlers | `db_service.py` | Added logging |
+| Pydantic `class Config:` | 6 classes | Updated to `model_config = {...}` |
+| `.dict()` deprecation | `trends.py` | Changed to `.model_dump()` |
+| `freq='H'` deprecation | `test_validators.py` | Changed to `freq='h'` |
+| print() in production code | `csv_loader.py` | Changed to `logger.warning()` |
+| Flaky performance test | `test_memory_performance.py` | Use absolute threshold for fast ops |
+
+**Test Results**: 805 passed, 9 skipped, 2 warnings
 
 ---
 

@@ -51,11 +51,7 @@ class FundingRateResponse(BaseModel):
     is_negative: bool = Field(..., description="True if rate is negative")
     is_neutral: bool = Field(..., description="True if rate is zero")
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-        }
+    model_config = {"ser_json_timedelta": "iso8601"}
 
 
 class BiasAdjustmentResponse(BaseModel):
@@ -72,11 +68,7 @@ class BiasAdjustmentResponse(BaseModel):
     funding_time: Optional[datetime] = Field(None, description="Funding timestamp")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-            Decimal: lambda v: str(v),
-        }
+    model_config = {"ser_json_timedelta": "iso8601"}
 
 
 # T026: GET /api/bias/funding/{symbol}
