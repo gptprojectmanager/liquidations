@@ -1,0 +1,360 @@
+openapi: 3.1.0
+info:
+  title: Liquidation Heatmap API
+  description: Time-evolving liquidation heatmap for cryptocurrency futures
+  version: 2.0.0
+  contact:
+    name: LiquidationHeatmap
+    url: https://github.com/gptprojectmanager/liquidations
+
+servers:
+  - url: http://localhost:8888
+    description: Development server
+
+tags:
+  - name: Liquidations
+    description: Liquidation level calculations and heatmap data
+  - name: Prices
+    description: Price data for visualization
+
+paths:
+  /liquidations/heatmap-timeseries:
+    get:
+      summary: Get time-evolving liquidation heatmap
+      description: |
+        Returns a time series of liquidation density snapshots.
+        Each snapshot shows the liquidation levels active at that timestamp,
+        with consumed levels removed as price crosses them.
+      operationId: getHeatmapTimeseries
+      tags:
+        - Liquidations
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          description: Trading pair symbol
+          schema:
+            type: string
+            pattern: ^[A-Z]{6,12}$
+            example: BTCUSDT
+        - name: start_time
+          in: query
+          required: false
+          description: Start of time range (ISO 8601). Defaults to 7 days ago.
+          schema:
+            type: string
+            format: date-time
+            example: "2025-11-10T00:00:00Z"
+        - name: end_time
+          in: query
+          required: false
+          description: End of time range (ISO 8601). Defaults to now.
+          schema:
+            type: string
+            format: date-time
+            example: "2025-11-17T23:59:59Z"
+        - name: interval
+          in: query
+          required: false
+          description: Time interval for snapshots
+          schema:
+            type: string
+            enum: ["5m", "15m", "1h", "4h"]
+            default: "15m"
+        - name: price_bin_size
+          in: query
+          required: false
+          description: Price bucket size in USD
+          schema:
+            type: number
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: leverage_weights
+          in: query
+          required: false
+          description: |
+            Custom leverage distribution weights.
+            Format: "leverage1:weight1,leverage2:weight2,..."
+            Example: "5:15,10:30,25:25,50:20,100:10"
+          schema:
+            type: string
+            pattern: ^(\d+:\d+,)*\d+:\d+$
+      responses:
+        "200":
+          description: Successful response with heatmap time series
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HeatmapTimeseriesResponse"
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /liquidations/levels:
+    get:
+      summary: Get current liquidation levels (deprecated)
+      description: |
+        **DEPRECATED**: Use `/liquidations/heatmap-timeseries` instead.
+
+        Returns static liquidation levels without time evolution.
+        This endpoint will be removed in v3.0.
+      operationId: getLiquidationLevels
+      tags:
+        - Liquidations
+      deprecated: true
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Z]{6,12}$
+        - name: timeframe
+          in: query
+          required: true
+          description: Lookback period in days
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 365
+        - name: model
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["openinterest"]
+            default: "openinterest"
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiquidationLevelsResponse"
+
+  /prices/klines:
+    get:
+      summary: Get OHLC price data
+      description: Returns candlestick data for visualization overlay
+      operationId: getKlines
+      tags:
+        - Prices
+      parameters:
+        - name: symbol
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^[A-Z]{6,12}$
+            default: BTCUSDT
+        - name: interval
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["5m", "15m"]
+            default: "15m"
+        - name: limit
+          in: query
+          required: false
+          description: Number of candles to return
+          schema:
+            type: integer
+            minimum: 10
+            maximum: 500
+            default: 100
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KlinesResponse"
+
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: liquidation-heatmap
+
+components:
+  schemas:
+    HeatmapTimeseriesResponse:
+      type: object
+      required:
+        - data
+        - meta
+      properties:
+        data:
+          type: array
+          description: Array of heatmap snapshots, one per timestamp
+          items:
+            $ref: "#/components/schemas/HeatmapSnapshot"
+        meta:
+          type: object
+          properties:
+            symbol:
+              type: string
+              example: BTCUSDT
+            start_time:
+              type: string
+              format: date-time
+            end_time:
+              type: string
+              format: date-time
+            interval:
+              type: string
+              example: "15m"
+            total_snapshots:
+              type: integer
+              example: 200
+            price_range:
+              type: object
+              properties:
+                min:
+                  type: number
+                  example: 88000
+                max:
+                  type: number
+                  example: 100000
+            total_long_volume:
+              type: number
+              description: Sum of all long liquidation volumes
+            total_short_volume:
+              type: number
+              description: Sum of all short liquidation volumes
+            total_consumed:
+              type: integer
+              description: Total positions consumed (liquidated)
+
+    HeatmapSnapshot:
+      type: object
+      required:
+        - timestamp
+        - levels
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Snapshot timestamp
+        levels:
+          type: array
+          description: Liquidation density at each price level
+          items:
+            $ref: "#/components/schemas/HeatmapLevel"
+        positions_created:
+          type: integer
+          description: Positions created at this timestamp
+        positions_consumed:
+          type: integer
+          description: Positions liquidated at this timestamp
+
+    HeatmapLevel:
+      type: object
+      required:
+        - price
+        - long_density
+        - short_density
+      properties:
+        price:
+          type: number
+          description: Price bucket (e.g., 95000)
+          example: 95000
+        long_density:
+          type: number
+          description: Volume of long positions with liquidation at this level
+          example: 1234567.89
+        short_density:
+          type: number
+          description: Volume of short positions with liquidation at this level
+          example: 2345678.90
+
+    LiquidationLevelsResponse:
+      type: object
+      description: Legacy static liquidation levels (deprecated)
+      properties:
+        symbol:
+          type: string
+        model:
+          type: string
+        current_price:
+          type: number
+        long_liquidations:
+          type: array
+          items:
+            $ref: "#/components/schemas/LiquidationLevel"
+        short_liquidations:
+          type: array
+          items:
+            $ref: "#/components/schemas/LiquidationLevel"
+
+    LiquidationLevel:
+      type: object
+      properties:
+        price_level:
+          type: number
+        volume:
+          type: number
+        leverage:
+          type: integer
+        distance_pct:
+          type: number
+
+    KlinesResponse:
+      type: object
+      properties:
+        symbol:
+          type: string
+        interval:
+          type: string
+        count:
+          type: integer
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              open:
+                type: number
+              high:
+                type: number
+              low:
+                type: number
+              close:
+                type: number
+              volume:
+                type: number
+
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+          description: Error message
+          example: "Invalid symbol format"
