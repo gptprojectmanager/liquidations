@@ -621,3 +621,84 @@ async def compare_models(
         "models": models_data,
         "agreement_percentage": agreement,
     }
+
+
+@app.get("/prices/klines")
+async def get_klines(
+    symbol: str = Query(
+        "BTCUSDT",
+        description="Trading pair symbol",
+        pattern="^[A-Z]{6,12}$",
+    ),
+    interval: Literal["5m", "15m"] = Query("15m", description="Kline interval"),
+    limit: int = Query(100, ge=10, le=500, description="Number of klines to return"),
+):
+    """Get OHLC price data for visualization overlay.
+
+    Returns candlestick/kline data from DuckDB for the specified symbol and interval.
+    Used to overlay price action on the liquidation heatmap.
+
+    Args:
+        symbol: Trading pair (e.g., BTCUSDT)
+        interval: Kline interval (5m or 15m)
+        limit: Number of klines to return (10-500)
+
+    Returns:
+        List of OHLC data points with timestamp, open, high, low, close, volume
+    """
+    # Validate symbol
+    if symbol not in SUPPORTED_SYMBOLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid symbol '{symbol}'. Supported: {sorted(SUPPORTED_SYMBOLS)}",
+        )
+
+    db = DuckDBService()
+
+    try:
+        table_name = f"klines_{interval}_history"
+
+        query = f"""
+        SELECT
+            open_time as timestamp,
+            CAST(open AS DOUBLE) as open,
+            CAST(high AS DOUBLE) as high,
+            CAST(low AS DOUBLE) as low,
+            CAST(close AS DOUBLE) as close,
+            CAST(volume AS DOUBLE) as volume
+        FROM {table_name}
+        WHERE symbol = ?
+        ORDER BY open_time DESC
+        LIMIT ?
+        """
+
+        df = db.conn.execute(query, [symbol, limit]).df()
+
+        if df.empty:
+            return {"symbol": symbol, "interval": interval, "data": []}
+
+        # Sort ascending for chart display
+        df = df.sort_values("timestamp")
+
+        klines = [
+            {
+                "timestamp": row["timestamp"].isoformat(),
+                "open": row["open"],
+                "high": row["high"],
+                "low": row["low"],
+                "close": row["close"],
+                "volume": row["volume"],
+            }
+            for _, row in df.iterrows()
+        ]
+
+        return {
+            "symbol": symbol,
+            "interval": interval,
+            "count": len(klines),
+            "data": klines,
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching klines: {e}")
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")

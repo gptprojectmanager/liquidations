@@ -512,10 +512,12 @@ class DuckDBService:
         query = f"""
         WITH Params AS (
             -- Get latest Open Interest and calculate lookback period
+            -- Use MAX timestamp from data (not CURRENT_TIMESTAMP) to handle historical data
             SELECT
                 (SELECT open_interest_value FROM open_interest_history
                  WHERE symbol = ? ORDER BY timestamp DESC LIMIT 1) AS latest_oi,
-                CURRENT_TIMESTAMP - INTERVAL '{lookback_days} days' AS start_time,
+                (SELECT MAX(open_time) FROM klines_5m_history WHERE symbol = ?)
+                    - INTERVAL '{lookback_days} days' AS start_time,
                 {bin_size} AS price_bin_size
         ),
 
@@ -544,7 +546,7 @@ class DuckDBService:
                 quote_volume as volume
             FROM klines_5m_history
             WHERE symbol = ?
-              AND open_time >= CURRENT_TIMESTAMP - INTERVAL '{lookback_days} days'
+              AND open_time >= (SELECT start_time FROM Params)
         ),
 
         -- STEP 2: Get pre-calculated OI Delta (calculated during ingestion)
@@ -555,7 +557,7 @@ class DuckDBService:
                 oi_delta
             FROM open_interest_history
             WHERE symbol = ?
-              AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '{lookback_days} days'
+              AND timestamp >= (SELECT start_time FROM Params)
         ),
 
         -- STEP 3: Infer position SIDE from candle direction + OI delta
@@ -645,8 +647,8 @@ class DuckDBService:
         ORDER BY liq_price, leverage
         """
 
-        # Updated params: Params CTE (latest_oi), CandleOHLC CTE, OIDelta CTE
-        params = [symbol, symbol, symbol]
+        # Updated params: Params CTE (latest_oi, max_time), CandleOHLC CTE, OIDelta CTE
+        params = [symbol, symbol, symbol, symbol]
 
         try:
             df = self.conn.execute(query, params).df()
