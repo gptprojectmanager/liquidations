@@ -10,7 +10,7 @@ from typing import Literal, Optional
 from urllib.request import urlopen
 
 import numpy as np
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -162,8 +162,15 @@ async def health_check():
     return {"status": "ok", "service": "liquidation-heatmap"}
 
 
-@app.get("/liquidations/levels", response_model=LiquidationResponse)
+@app.get(
+    "/liquidations/levels",
+    response_model=LiquidationResponse,
+    deprecated=True,
+    description="**DEPRECATED**: Use `/liquidations/heatmap-timeseries` instead for "
+    "time-evolving heatmap with correct position lifecycle modeling.",
+)
 async def get_liquidation_levels(
+    response: Response,
     symbol: str = Query(
         ...,
         description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)",
@@ -185,6 +192,11 @@ async def get_liquidation_levels(
 ):
     """Calculate liquidation levels using Open Interest distribution model.
 
+    **DEPRECATED**: This endpoint uses static liquidation levels that do not
+    account for position consumption when price crosses them. Use the
+    `/liquidations/heatmap-timeseries` endpoint instead for accurate
+    time-evolving heatmap data.
+
     Returns liquidations BELOW current price (long positions) and
     ABOVE current price (short positions).
 
@@ -201,6 +213,10 @@ async def get_liquidation_levels(
     Returns:
         LiquidationResponse with long and short liquidations
     """
+    # Add deprecation warning header
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = "2025-06-01"
+    response.headers["Link"] = '</liquidations/heatmap-timeseries>; rel="successor-version"'
     # Validate symbol against whitelist
     if symbol not in SUPPORTED_SYMBOLS:
         raise HTTPException(
@@ -702,6 +718,372 @@ async def get_klines(
     except Exception as e:
         logger.error(f"Error fetching klines: {e}")
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+    finally:
+        db.close()
+
+
+# =============================================================================
+# TIME-EVOLVING HEATMAP ENDPOINT (Feature 008)
+# =============================================================================
+
+
+class HeatmapLevel(BaseModel):
+    """Single price level in heatmap snapshot."""
+
+    price: float
+    long_density: float
+    short_density: float
+
+
+class HeatmapSnapshotResponse(BaseModel):
+    """Heatmap state at a single timestamp."""
+
+    timestamp: str
+    levels: list[HeatmapLevel]
+    positions_created: int
+    positions_consumed: int
+
+
+class HeatmapTimeseriesMetadata(BaseModel):
+    """Metadata for heatmap timeseries response."""
+
+    symbol: str
+    start_time: str
+    end_time: str
+    interval: str
+    total_snapshots: int
+    price_range: dict
+    total_long_volume: float
+    total_short_volume: float
+    total_consumed: int
+
+
+class HeatmapTimeseriesResponse(BaseModel):
+    """Response model for time-evolving heatmap endpoint."""
+
+    data: list[HeatmapSnapshotResponse]
+    meta: HeatmapTimeseriesMetadata
+
+
+class LeverageWeightsParseError(ValueError):
+    """Raised when leverage_weights query param is invalid."""
+
+    pass
+
+
+# Valid leverage tiers (must match LiquidationLevel validation)
+VALID_LEVERAGE_TIERS = {5, 10, 25, 50, 100}
+
+
+def parse_leverage_weights(weights_str: str | None) -> list[tuple[int, Decimal]] | None:
+    """Parse leverage weights from query string.
+
+    Format: "5:15,10:30,25:25,50:20,100:10"
+
+    Args:
+        weights_str: Query string in format "leverage:weight,..."
+
+    Returns:
+        List of (leverage, weight) tuples, or None for defaults
+
+    Raises:
+        LeverageWeightsParseError: If the format is invalid or leverage values
+            are not in valid tiers (5, 10, 25, 50, 100)
+    """
+    if not weights_str:
+        return None
+
+    try:
+        weights = []
+        total = Decimal("0")
+        for pair in weights_str.split(","):
+            parts = pair.split(":")
+            if len(parts) != 2:
+                raise LeverageWeightsParseError(
+                    f"Invalid format: '{pair}'. Expected 'leverage:weight'"
+                )
+            leverage_str, weight_str = parts
+            leverage = int(leverage_str)
+            weight = Decimal(weight_str)
+
+            # Validate leverage is a valid tier
+            if leverage not in VALID_LEVERAGE_TIERS:
+                raise LeverageWeightsParseError(
+                    f"Invalid leverage '{leverage}'. Must be one of: {sorted(VALID_LEVERAGE_TIERS)}"
+                )
+
+            # Validate weight is non-negative
+            if weight < 0:
+                raise LeverageWeightsParseError(
+                    f"Invalid weight '{weight}' for leverage {leverage}. Weights must be non-negative."
+                )
+
+            weights.append((leverage, weight))
+            total += weight
+
+        # Normalize weights to sum to 1.0
+        if total > 0:
+            weights = [(lev, w / total) for lev, w in weights]
+        elif weights:
+            # All zero weights - invalid
+            raise LeverageWeightsParseError("All weights are zero. At least one must be positive.")
+
+        return weights
+    except LeverageWeightsParseError:
+        raise
+    except Exception as e:
+        raise LeverageWeightsParseError(f"Invalid leverage_weights: {weights_str} - {e}")
+
+
+@app.get("/liquidations/heatmap-timeseries", response_model=HeatmapTimeseriesResponse)
+async def get_heatmap_timeseries(
+    symbol: str = Query(
+        ...,
+        description="Trading pair symbol (e.g., BTCUSDT)",
+        pattern="^[A-Z]{6,12}$",
+        examples=["BTCUSDT"],
+    ),
+    start_time: Optional[str] = Query(
+        None,
+        description="Start of time range (ISO 8601). Defaults to 7 days ago.",
+    ),
+    end_time: Optional[str] = Query(
+        None,
+        description="End of time range (ISO 8601). Defaults to now.",
+    ),
+    interval: Literal["5m", "15m", "1h", "4h"] = Query(
+        "15m",
+        description="Time interval for snapshots",
+    ),
+    price_bin_size: float = Query(
+        100,
+        ge=1,
+        le=1000,
+        description="Price bucket size in USD",
+    ),
+    leverage_weights: Optional[str] = Query(
+        None,
+        description="Custom leverage weights: '5:15,10:30,25:25,50:20,100:10'",
+    ),
+):
+    """Get time-evolving liquidation heatmap.
+
+    Returns a time series of liquidation density snapshots where liquidation
+    levels are consumed when price crosses them. This is the new implementation
+    that correctly models position lifecycle.
+
+    **DEPRECATION NOTICE**: The `/liquidations/levels` endpoint is deprecated.
+    Use this endpoint for accurate time-varying heatmap data.
+
+    Args:
+        symbol: Trading pair (e.g., BTCUSDT)
+        start_time: Start of time range (ISO 8601, defaults to 7 days ago)
+        end_time: End of time range (ISO 8601, defaults to now)
+        interval: Time interval for snapshots (5m, 15m, 1h, 4h)
+        price_bin_size: Price bucket size in USD for aggregation
+        leverage_weights: Custom leverage distribution weights
+
+    Returns:
+        HeatmapTimeseriesResponse with snapshots and metadata
+    """
+    from dataclasses import dataclass
+    from datetime import datetime, timedelta
+
+    from ..models.time_evolving_heatmap import calculate_time_evolving_heatmap
+
+    # Validate symbol against whitelist
+    if symbol not in SUPPORTED_SYMBOLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid symbol '{symbol}'. Supported: {sorted(SUPPORTED_SYMBOLS)}",
+        )
+
+    # Parse time range
+    try:
+        if end_time:
+            end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00")).replace(tzinfo=None)
+        else:
+            end_dt = datetime.now()
+
+        if start_time:
+            start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00")).replace(
+                tzinfo=None
+            )
+        else:
+            start_dt = end_dt - timedelta(days=7)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid time format: {e}")
+
+    # Parse leverage weights
+    try:
+        weights = parse_leverage_weights(leverage_weights)
+    except LeverageWeightsParseError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Determine kline table based on interval
+    interval_table_map = {
+        "5m": "klines_5m_history",
+        "15m": "klines_15m_history",
+        "1h": "klines_5m_history",  # Aggregate from 5m
+        "4h": "klines_5m_history",  # Aggregate from 5m
+    }
+    kline_table = interval_table_map.get(interval, "klines_15m_history")
+
+    # Mock candle class for algorithm
+    @dataclass
+    class Candle:
+        open_time: datetime
+        open: Decimal
+        high: Decimal
+        low: Decimal
+        close: Decimal
+        volume: Decimal
+
+    db = DuckDBService()
+
+    try:
+        # Query candles
+        candle_query = f"""
+        SELECT
+            open_time,
+            CAST(open AS DECIMAL(18,8)) as open,
+            CAST(high AS DECIMAL(18,8)) as high,
+            CAST(low AS DECIMAL(18,8)) as low,
+            CAST(close AS DECIMAL(18,8)) as close,
+            CAST(volume AS DECIMAL(18,8)) as volume
+        FROM {kline_table}
+        WHERE symbol = ? AND open_time >= ? AND open_time <= ?
+        ORDER BY open_time
+        """
+
+        candles_df = db.conn.execute(candle_query, [symbol, start_dt, end_dt]).df()
+
+        if candles_df.empty:
+            return HeatmapTimeseriesResponse(
+                data=[],
+                meta=HeatmapTimeseriesMetadata(
+                    symbol=symbol,
+                    start_time=start_dt.isoformat(),
+                    end_time=end_dt.isoformat(),
+                    interval=interval,
+                    total_snapshots=0,
+                    price_range={"min": 0, "max": 0},
+                    total_long_volume=0.0,
+                    total_short_volume=0.0,
+                    total_consumed=0,
+                ),
+            )
+
+        # Query OI data with delta calculation
+        oi_query = """
+        SELECT
+            timestamp,
+            open_interest_value,
+            open_interest_value - LAG(open_interest_value) OVER (ORDER BY timestamp) as oi_delta
+        FROM open_interest_history
+        WHERE symbol = ? AND timestamp >= ? AND timestamp <= ?
+        ORDER BY timestamp
+        """
+
+        oi_df = db.conn.execute(oi_query, [symbol, start_dt, end_dt]).df()
+
+        # Convert to candle objects
+        candles = [
+            Candle(
+                open_time=row["open_time"].to_pydatetime()
+                if hasattr(row["open_time"], "to_pydatetime")
+                else row["open_time"],
+                open=Decimal(str(row["open"])),
+                high=Decimal(str(row["high"])),
+                low=Decimal(str(row["low"])),
+                close=Decimal(str(row["close"])),
+                volume=Decimal(str(row["volume"])),
+            )
+            for _, row in candles_df.iterrows()
+        ]
+
+        # Match OI deltas to candles (approximate by nearest timestamp)
+        oi_deltas = []
+        oi_timestamps = oi_df["timestamp"].tolist() if not oi_df.empty else []
+        oi_values = oi_df["oi_delta"].fillna(0).tolist() if not oi_df.empty else []
+
+        for candle in candles:
+            # Find closest OI data point
+            delta = Decimal("0")
+            if oi_timestamps:
+                for i, oi_ts in enumerate(oi_timestamps):
+                    oi_ts_dt = oi_ts.to_pydatetime() if hasattr(oi_ts, "to_pydatetime") else oi_ts
+                    if abs((candle.open_time - oi_ts_dt).total_seconds()) < 900:  # 15 min window
+                        delta = Decimal(str(oi_values[i])) if oi_values[i] else Decimal("0")
+                        break
+            oi_deltas.append(delta)
+
+        # Calculate time-evolving heatmap
+        snapshots = calculate_time_evolving_heatmap(
+            candles=candles,
+            oi_deltas=oi_deltas,
+            symbol=symbol,
+            leverage_weights=weights,
+            price_bucket_size=Decimal(str(price_bin_size)),
+        )
+
+        # Convert to response format
+        response_data = []
+        total_consumed = 0
+        total_long = 0.0
+        total_short = 0.0
+        all_prices = []
+
+        for snapshot in snapshots:
+            levels = []
+            for cell in snapshot.cells.values():
+                if cell.total_density > 0:
+                    levels.append(
+                        HeatmapLevel(
+                            price=float(cell.price_bucket),
+                            long_density=float(cell.long_density),
+                            short_density=float(cell.short_density),
+                        )
+                    )
+                    all_prices.append(float(cell.price_bucket))
+
+            response_data.append(
+                HeatmapSnapshotResponse(
+                    timestamp=snapshot.timestamp.isoformat(),
+                    levels=sorted(levels, key=lambda x: x.price),
+                    positions_created=snapshot.positions_created,
+                    positions_consumed=snapshot.positions_consumed,
+                )
+            )
+
+            total_consumed += snapshot.positions_consumed
+            total_long += float(snapshot.total_long_volume)
+            total_short += float(snapshot.total_short_volume)
+
+        price_range = {
+            "min": min(all_prices) if all_prices else 0,
+            "max": max(all_prices) if all_prices else 0,
+        }
+
+        return HeatmapTimeseriesResponse(
+            data=response_data,
+            meta=HeatmapTimeseriesMetadata(
+                symbol=symbol,
+                start_time=start_dt.isoformat(),
+                end_time=end_dt.isoformat(),
+                interval=interval,
+                total_snapshots=len(snapshots),
+                price_range=price_range,
+                total_long_volume=total_long,
+                total_short_volume=total_short,
+                total_consumed=total_consumed,
+            ),
+        )
+
+    except Exception as e:
+        logger.error(f"Error calculating heatmap timeseries: {e}")
+        raise HTTPException(status_code=500, detail=f"Calculation error: {e}")
 
     finally:
         db.close()

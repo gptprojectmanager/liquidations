@@ -23,9 +23,9 @@
 
 **Purpose**: Project initialization and feature branch setup
 
-- [ ] T001 Verify feature branch `008-time-evolving-heatmap` is active and clean
-- [ ] T002 Verify existing dependencies in pyproject.toml (no new deps needed per plan.md)
-- [ ] T003 [P] Create directory structure for new models in src/liquidationheatmap/models/
+- [x] T001 Verify feature branch `008-time-evolving-heatmap` is active and clean
+- [x] T002 Verify existing dependencies in pyproject.toml (no new deps needed per plan.md)
+- [x] T003 [P] Create directory structure for new models in src/liquidationheatmap/models/
 
 ---
 
@@ -37,16 +37,16 @@
 
 ### Tests for Foundational Phase
 
-- [ ] T004 [P] Unit test for LiquidationLevel dataclass in tests/unit/models/test_position.py
-- [ ] T005 [P] Unit test for HeatmapCell and HeatmapSnapshot dataclasses in tests/unit/models/test_position.py
-- [ ] T006 [P] Unit test for calculate_liq_price() function in tests/unit/models/test_position.py
+- [x] T004 [P] Unit test for LiquidationLevel dataclass in tests/unit/models/test_position.py
+- [x] T005 [P] Unit test for HeatmapCell and HeatmapSnapshot dataclasses in tests/unit/models/test_position.py
+- [x] T006 [P] Unit test for calculate_liq_price() function in tests/unit/models/test_position.py
 
 ### Implementation for Foundational Phase
 
-- [ ] T007 Create LiquidationLevel dataclass in src/liquidationheatmap/models/position.py (from data-model.md)
-- [ ] T008 Create HeatmapCell dataclass in src/liquidationheatmap/models/position.py (from data-model.md)
-- [ ] T009 Create HeatmapSnapshot dataclass in src/liquidationheatmap/models/position.py (from data-model.md)
-- [ ] T010 Implement calculate_liq_price() function with Binance formula in src/liquidationheatmap/models/position.py
+- [x] T007 Create LiquidationLevel dataclass in src/liquidationheatmap/models/position.py (from data-model.md)
+- [x] T008 Create HeatmapCell dataclass in src/liquidationheatmap/models/position.py (from data-model.md)
+- [x] T009 Create HeatmapSnapshot dataclass in src/liquidationheatmap/models/position.py (from data-model.md)
+- [x] T010 Implement calculate_liq_price() function with Binance formula in src/liquidationheatmap/models/position.py
 
 **Checkpoint**: Foundation ready - core data models validated with tests
 
@@ -62,24 +62,24 @@
 
 **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T011 [P] [US1] Unit test for should_liquidate() function in tests/unit/models/test_time_evolving_heatmap.py
-- [ ] T012 [P] [US1] Unit test for infer_side() function in tests/unit/models/test_time_evolving_heatmap.py
-- [ ] T013 [P] [US1] Unit test for create_positions() function in tests/unit/models/test_time_evolving_heatmap.py
-- [ ] T014 [P] [US1] Unit test for remove_proportionally() function in tests/unit/models/test_time_evolving_heatmap.py
-- [ ] T015 [US1] Unit test for process_candle() function in tests/unit/models/test_time_evolving_heatmap.py
-- [ ] T016 [US1] Unit test for calculate_time_evolving_heatmap() main function in tests/unit/models/test_time_evolving_heatmap.py
+- [x] T011 [P] [US1] Unit test for should_liquidate() function in tests/unit/models/test_time_evolving_heatmap.py
+- [x] T012 [P] [US1] Unit test for infer_side() function in tests/unit/models/test_time_evolving_heatmap.py
+- [x] T013 [P] [US1] Unit test for create_positions() function in tests/unit/models/test_time_evolving_heatmap.py
+- [x] T014 [P] [US1] Unit test for remove_proportionally() function in tests/unit/models/test_time_evolving_heatmap.py
+- [x] T015 [US1] Unit test for process_candle() function in tests/unit/models/test_time_evolving_heatmap.py
+- [x] T016 [US1] Unit test for calculate_time_evolving_heatmap() main function in tests/unit/models/test_time_evolving_heatmap.py
 - [ ] T017 [US1] Integration test with real DuckDB data subset in tests/integration/test_time_evolving_algorithm.py
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Implement should_liquidate(pos, candle) in src/liquidationheatmap/models/time_evolving_heatmap.py
-- [ ] T019 [US1] Implement infer_side(candle) in src/liquidationheatmap/models/time_evolving_heatmap.py
-- [ ] T020 [US1] Implement create_positions(entry_price, volume, side, timestamp) with leverage distribution in src/liquidationheatmap/models/time_evolving_heatmap.py
-- [ ] T021 [US1] Implement remove_proportionally(active_positions, volume_to_remove) per research.md Q1 decision in src/liquidationheatmap/models/time_evolving_heatmap.py
-- [ ] T022 [US1] Implement process_candle(candle, oi, active_positions) in src/liquidationheatmap/models/time_evolving_heatmap.py
-- [ ] T023 [US1] Implement calculate_time_evolving_heatmap(symbol, start_time, end_time, interval) in src/liquidationheatmap/models/time_evolving_heatmap.py
-- [ ] T024 [US1] Add configurable leverage weights (default + API override) per research.md Q3 in src/liquidationheatmap/models/time_evolving_heatmap.py
-- [ ] T025 [US1] Add validation and error handling with descriptive messages
+- [x] T018 [US1] Implement should_liquidate(pos, candle) in src/liquidationheatmap/models/time_evolving_heatmap.py
+- [x] T019 [US1] Implement infer_side(candle) in src/liquidationheatmap/models/time_evolving_heatmap.py
+- [x] T020 [US1] Implement create_positions(entry_price, volume, side, timestamp) with leverage distribution in src/liquidationheatmap/models/time_evolving_heatmap.py
+- [x] T021 [US1] Implement remove_proportionally(active_positions, volume_to_remove) per research.md Q1 decision in src/liquidationheatmap/models/time_evolving_heatmap.py
+- [x] T022 [US1] Implement process_candle(candle, oi, active_positions) in src/liquidationheatmap/models/time_evolving_heatmap.py
+- [x] T023 [US1] Implement calculate_time_evolving_heatmap(symbol, start_time, end_time, interval) in src/liquidationheatmap/models/time_evolving_heatmap.py
+- [x] T024 [US1] Add configurable leverage weights (default + API override) per research.md Q3 in src/liquidationheatmap/models/time_evolving_heatmap.py
+- [x] T025 [US1] Add validation and error handling with descriptive messages in src/liquidationheatmap/models/time_evolving_heatmap.py
 
 **Checkpoint**: Core algorithm functional - can calculate time-evolving snapshots with consumption logic
 
@@ -118,19 +118,19 @@
 
 ### Tests for User Story 3
 
-- [ ] T035 [P] [US3] Contract test for /liquidations/heatmap-timeseries endpoint in tests/contract/test_heatmap_timeseries.py
-- [ ] T036 [P] [US3] Contract test for query parameter validation (symbol, interval, time range) in tests/contract/test_heatmap_timeseries.py
+- [x] T035 [P] [US3] Contract test for /liquidations/heatmap-timeseries endpoint in tests/contract/test_heatmap_timeseries.py
+- [x] T036 [P] [US3] Contract test for query parameter validation (symbol, interval, time range) in tests/contract/test_heatmap_timeseries.py
 - [ ] T037 [US3] Integration test for full API response matching openapi.yaml schema in tests/integration/test_heatmap_api.py
 
 ### Implementation for User Story 3
 
-- [ ] T038 [US3] Create Pydantic request model HeatmapTimeseriesRequest in src/liquidationheatmap/api/schemas.py
-- [ ] T039 [US3] Create Pydantic response model HeatmapTimeseriesResponse per openapi.yaml in src/liquidationheatmap/api/schemas.py
-- [ ] T040 [US3] Create Pydantic models HeatmapSnapshot and HeatmapLevel per openapi.yaml in src/liquidationheatmap/api/schemas.py
-- [ ] T041 [US3] Implement GET /liquidations/heatmap-timeseries endpoint in src/liquidationheatmap/api/main.py
-- [ ] T042 [US3] Add leverage_weights query parameter parsing in src/liquidationheatmap/api/main.py
-- [ ] T043 [US3] Add deprecation warning to /liquidations/levels endpoint in src/liquidationheatmap/api/main.py
-- [ ] T044 [US3] Add error handling for 400/500 responses per openapi.yaml in src/liquidationheatmap/api/main.py
+- [x] T038 [US3] Create Pydantic request model HeatmapTimeseriesRequest in src/liquidationheatmap/api/main.py (inline, not separate schemas.py)
+- [x] T039 [US3] Create Pydantic response model HeatmapTimeseriesResponse per openapi.yaml in src/liquidationheatmap/api/main.py
+- [x] T040 [US3] Create Pydantic models HeatmapSnapshot and HeatmapLevel per openapi.yaml in src/liquidationheatmap/api/main.py
+- [x] T041 [US3] Implement GET /liquidations/heatmap-timeseries endpoint in src/liquidationheatmap/api/main.py
+- [x] T042 [US3] Add leverage_weights query parameter parsing in src/liquidationheatmap/api/main.py
+- [x] T043 [US3] Add deprecation warning to /liquidations/levels endpoint in src/liquidationheatmap/api/main.py
+- [x] T044 [US3] Add error handling for 400/500 responses per openapi.yaml in src/liquidationheatmap/api/main.py
 
 **Checkpoint**: API endpoint functional - returns valid time-series heatmap data
 
