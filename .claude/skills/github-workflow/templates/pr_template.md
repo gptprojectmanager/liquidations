@@ -19,7 +19,7 @@
 {{IMPLEMENTATION_NOTES}}
 
 ## Checklist
-- [ ] Code follows UTXOracle style (black box architecture)
+- [ ] Code follows LiquidationHeatmap style
 - [ ] TDD cycle completed (RED-GREEN-REFACTOR)
 - [ ] Black box interface maintained
 - [ ] Documentation updated (CLAUDE.md, task file)

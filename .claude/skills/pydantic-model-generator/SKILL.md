@@ -5,7 +5,7 @@ description: Auto-generate Pydantic models from schema descriptions with type hi
 
 # Pydantic Model Generator
 
-Generate standardized Pydantic models for UTXOracle Live data structures with complete type safety and validation.
+Generate standardized Pydantic models for LiquidationHeatmap data structures with complete type safety and validation.
 
 ## Quick Start
 
@@ -343,7 +343,7 @@ if __name__ == "__main__":
 - Database ORM models (different pattern)
 - API endpoint models (use OpenAPI generator)
 
-## Integration with UTXOracle
+## Integration with LiquidationHeatmap
 
 ### Backend Models (`live/backend/models.py`)
 ```python

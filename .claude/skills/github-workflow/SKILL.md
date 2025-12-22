@@ -1,6 +1,6 @@
 ---
 name: github-workflow
-description: GitHub workflow automation for UTXOracle. Generate standardized PR descriptions, issue templates, and commit messages. Reduces token usage by 70% on repetitive GitHub operations.
+description: GitHub workflow automation for LiquidationHeatmap. Generate standardized PR descriptions, issue templates, and commit messages. Reduces token usage by 70% on repetitive GitHub operations.
 ---
 
 # GitHub Workflow Automation
@@ -26,7 +26,7 @@ Automate common GitHub operations with standardized templates to reduce token co
 
 | Operation | Template | Tokens | Savings |
 |-----------|----------|--------|---------|
-| Create PR | `utxoracle_pr_template` | ~600 | **76%** ✅ |
+| Create PR | `liquidation_pr_template` | ~600 | **76%** ✅ |
 | Create Issue | `task_issue_template` | ~500 | **72%** ✅ |
 | Add PR Comment | `review_comment_template` | ~300 | **75%** ✅ |
 | Commit Message | `commit_msg_template` | ~200 | **87%** ✅ |
@@ -42,7 +42,7 @@ Automate common GitHub operations with standardized templates to reduce token co
 User: "Create PR for Task 01 implementation"
 
 Skill: github-workflow
-└─ Generates PR with UTXOracle template:
+└─ Generates PR with LiquidationHeatmap template:
    Title: "[Task 01] Bitcoin Interface: ZMQ Listener"
    Body: Auto-generated from template
    Labels: enhancement, task-01
@@ -79,7 +79,7 @@ Body:
 - [ ] Manual testing completed
 
 ## Checklist
-- [ ] Code follows UTXOracle style
+- [ ] Code follows LiquidationHeatmap style
 - [ ] Black box interface maintained
 - [ ] Documentation updated
 - [ ] TDD cycle completed (RED-GREEN-REFACTOR)
@@ -148,7 +148,7 @@ Body:
 skill.create_issue(
     task="02",
     module="Transaction Processor",
-    goal="Parse raw Bitcoin transactions and apply UTXOracle filters",
+    goal="Implement liquidation heatmap visualization component",
     deliverable_file="live/backend/tx_processor.py",
     agent_name="transaction-processor",
     estimate="2-3 weeks"
@@ -384,7 +384,7 @@ export GITHUB_PAT="your_github_pat_token"
 ### Project Config
 ```yaml
 # .claude/skills/github-workflow/config.yaml
-repository: "gptprojectmanager/UTXOracle"
+repository: "gptprojectmanager/LiquidationHeatmap"
 default_branch: "main"
 labels:
   - "enhancement"
@@ -441,7 +441,7 @@ Implement ZMQ listener for real-time mempool transaction streaming from Bitcoin 
 - [x] Manual testing with Bitcoin Core v27
 
 ## Checklist
-- [x] Code follows UTXOracle style
+- [x] Code follows LiquidationHeatmap style
 - [x] Black box interface maintained
 - [x] Documentation updated (CLAUDE.md)
 - [x] TDD cycle completed (RED-GREEN-REFACTOR)
