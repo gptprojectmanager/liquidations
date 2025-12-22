@@ -99,6 +99,7 @@ def get_cors_origins() -> list[str]:
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
+logger = logging.getLogger(__name__)
 
 from ..ingestion.db_service import DuckDBService
 from ..models.binance_standard import BinanceStandardModel
@@ -260,7 +261,6 @@ async def get_liquidation_levels(
                 inplace=True,
             )
 
-    logger = logging.getLogger(__name__)
     logger.info(f"SQL returned {len(bins_df)} aggregated bins")
 
     # Convert DataFrame to API response format
@@ -702,3 +702,6 @@ async def get_klines(
     except Exception as e:
         logger.error(f"Error fetching klines: {e}")
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+    finally:
+        db.close()
