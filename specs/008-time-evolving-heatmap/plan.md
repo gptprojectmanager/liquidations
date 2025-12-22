@@ -82,7 +82,6 @@ specs/008-time-evolving-heatmap/
 ```
 # Web application structure (backend + frontend)
 
-backend/
 src/liquidationheatmap/
 ├── models/
 │   ├── position.py              # NEW: LiquidationLevel, HeatmapSnapshot

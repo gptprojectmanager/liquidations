@@ -97,11 +97,13 @@ For each timestamp T:
 ### 2.3 Data Structures
 
 ```python
+from decimal import Decimal
+
 @dataclass
 class LiquidationLevel:
-    entry_price: float          # Price where position was opened
-    liq_price: float            # Calculated liquidation price
-    volume: float               # Position size (in USDT)
+    entry_price: Decimal        # Price where position was opened
+    liq_price: Decimal          # Calculated liquidation price
+    volume: Decimal             # Position size (in USDT)
     side: Literal["long", "short"]
     leverage: int               # Leverage tier
     created_at: datetime        # When position was opened
@@ -110,10 +112,13 @@ class LiquidationLevel:
 @dataclass
 class HeatmapCell:
     timestamp: datetime
-    price_bucket: float
-    long_density: float         # Volume of long liquidations at this level
-    short_density: float        # Volume of short liquidations at this level
-    total_density: float        # Combined density
+    price_bucket: Decimal
+    long_density: Decimal       # Volume of long liquidations at this level
+    short_density: Decimal      # Volume of short liquidations at this level
+
+    @property
+    def total_density(self) -> Decimal:
+        return self.long_density + self.short_density
 ```
 
 ### 2.4 Consumption Logic
@@ -347,7 +352,8 @@ def infer_side(candle: Candle) -> Optional[str]:
 | Liquidation levels consumed after price cross | 100% |
 | API response time (<1000 candles) | <500ms |
 | Frontend render time | <1s |
-| Test coverage | >80% |
+| Test coverage (overall) | >80% |
+| Test coverage (critical paths) | >95% |
 | Visual accuracy vs Coinglass | Qualitative match |
 
 ---
