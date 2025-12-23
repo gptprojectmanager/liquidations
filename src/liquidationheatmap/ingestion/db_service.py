@@ -254,8 +254,15 @@ class DuckDBService:
         - position_events: Event log for position lifecycle tracking
 
         Per spec.md Phase 2 (T029-T031).
+
+        Thread Safety:
+            Uses CREATE TABLE IF NOT EXISTS which is idempotent. Concurrent calls
+            may raise write-write conflicts in DuckDB - callers should handle
+            duckdb.TransactionException if running in multi-threaded context.
         """
         # Create liquidation_snapshots table (T029)
+        # UNIQUE constraint prevents duplicate snapshots for same timestamp/symbol/bucket/side
+        # CHECK constraints ensure data integrity
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS liquidation_snapshots (
                 id BIGINT PRIMARY KEY,
@@ -265,11 +272,17 @@ class DuckDBService:
                 side VARCHAR(10) NOT NULL,
                 active_volume DECIMAL(20, 8) NOT NULL,
                 consumed_volume DECIMAL(20, 8) NOT NULL DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(timestamp, symbol, price_bucket, side),
+                CHECK (side IN ('long', 'short')),
+                CHECK (active_volume >= 0),
+                CHECK (consumed_volume >= 0),
+                CHECK (price_bucket > 0)
             )
         """)
 
         # Create position_events table (T030)
+        # CHECK constraints ensure data integrity for side and event_type
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS position_events (
                 id BIGINT PRIMARY KEY,
@@ -280,28 +293,28 @@ class DuckDBService:
                 liq_price DECIMAL(18, 2) NOT NULL,
                 volume DECIMAL(20, 8) NOT NULL,
                 side VARCHAR(10) NOT NULL,
-                leverage INTEGER NOT NULL
+                leverage INTEGER NOT NULL,
+                CHECK (event_type IN ('open', 'close', 'liquidate')),
+                CHECK (side IN ('long', 'short')),
+                CHECK (volume >= 0),
+                CHECK (leverage > 0)
             )
         """)
 
         # Create indexes for query performance (T034)
-        # Use CREATE INDEX IF NOT EXISTS to be idempotent
-        try:
-            self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_liq_snap_ts_sym
-                ON liquidation_snapshots(timestamp, symbol)
-            """)
-            self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_liq_snap_price
-                ON liquidation_snapshots(price_bucket)
-            """)
-            self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_pos_events_ts_sym
-                ON position_events(timestamp, symbol)
-            """)
-        except Exception as e:
-            # Indexes may already exist - that's fine
-            logger.debug(f"Index creation skipped (may exist): {e}")
+        # CREATE INDEX IF NOT EXISTS is idempotent - no try/except needed
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_liq_snap_ts_sym
+            ON liquidation_snapshots(timestamp, symbol)
+        """)
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_liq_snap_price
+            ON liquidation_snapshots(price_bucket)
+        """)
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_pos_events_ts_sym
+            ON position_events(timestamp, symbol)
+        """)
 
     def get_large_trades(
         self,
