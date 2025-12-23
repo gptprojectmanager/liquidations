@@ -8,7 +8,6 @@ Tests cover:
 - Model enable/disable
 """
 
-
 from src.validation.model_selector import ModelInfo, ModelSelector, get_model_selector
 
 

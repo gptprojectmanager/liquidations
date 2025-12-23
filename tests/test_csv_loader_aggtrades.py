@@ -17,7 +17,7 @@ def test_load_aggtrades_csv_returns_dataframe_with_required_columns():
 2867872925,114000.0,3.187,6669431039,6669431079,1759276801145,false
 """
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
         f.write(csv_content)
         temp_path = f.name
 
@@ -26,20 +26,22 @@ def test_load_aggtrades_csv_returns_dataframe_with_required_columns():
         df = load_aggtrades_csv(temp_path)
 
         # Assert - must have required columns
-        required_columns = {'timestamp', 'symbol', 'price', 'quantity', 'side', 'gross_value'}
-        assert required_columns.issubset(df.columns), f"Missing columns: {required_columns - set(df.columns)}"
+        required_columns = {"timestamp", "symbol", "price", "quantity", "side", "gross_value"}
+        assert required_columns.issubset(df.columns), (
+            f"Missing columns: {required_columns - set(df.columns)}"
+        )
 
         # Assert - must have 2 rows
         assert len(df) == 2
 
         # Assert - timestamp must be datetime
-        assert df['timestamp'].dtype == 'datetime64[ns]'
+        assert df["timestamp"].dtype == "datetime64[ns]"
 
         # Assert - side must be 'buy' or 'sell'
-        assert set(df['side'].unique()).issubset({'buy', 'sell'})
+        assert set(df["side"].unique()).issubset({"buy", "sell"})
 
         # Assert - gross_value = price * quantity
-        assert (df['gross_value'] == df['price'] * df['quantity']).all()
+        assert (df["gross_value"] == df["price"] * df["quantity"]).all()
 
     finally:
         Path(temp_path).unlink()
@@ -51,7 +53,7 @@ def test_load_aggtrades_csv_converts_transact_time_to_timestamp():
 2867872924,113988.7,0.018,6669431038,6669431038,1609459200000,true
 """
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
         f.write(csv_content)
         temp_path = f.name
 
@@ -59,8 +61,8 @@ def test_load_aggtrades_csv_converts_transact_time_to_timestamp():
         df = load_aggtrades_csv(temp_path)
 
         # 1609459200000 ms = 2021-01-01 00:00:00 UTC
-        expected_timestamp = pd.Timestamp('2021-01-01 00:00:00')
-        assert df['timestamp'].iloc[0] == expected_timestamp
+        expected_timestamp = pd.Timestamp("2021-01-01 00:00:00")
+        assert df["timestamp"].iloc[0] == expected_timestamp
 
     finally:
         Path(temp_path).unlink()
@@ -73,7 +75,7 @@ def test_load_aggtrades_csv_maps_is_buyer_maker_to_side():
 2,100.0,1.0,2,2,1609459200001,false
 """
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
         f.write(csv_content)
         temp_path = f.name
 
@@ -82,11 +84,11 @@ def test_load_aggtrades_csv_maps_is_buyer_maker_to_side():
 
         # When is_buyer_maker=true, aggressor is selling (maker is buying)
         # So aggTrade is a SELL
-        assert df[df.index == 0]['side'].iloc[0] == 'sell'
+        assert df[df.index == 0]["side"].iloc[0] == "sell"
 
         # When is_buyer_maker=false, aggressor is buying (maker is selling)
         # So aggTrade is a BUY
-        assert df[df.index == 1]['side'].iloc[0] == 'buy'
+        assert df[df.index == 1]["side"].iloc[0] == "buy"
 
     finally:
         Path(temp_path).unlink()

@@ -768,3 +768,149 @@ class DuckDBService:
             import pandas as pd
 
             return pd.DataFrame(columns=["price_bucket", "leverage", "side", "volume", "liq_price"])
+
+    def save_snapshot(self, snapshot) -> int:
+        """Save a HeatmapSnapshot to the liquidation_snapshots table.
+
+        Each cell in the snapshot is stored as separate rows for long and short sides.
+        Zero-volume entries are skipped. Uses INSERT OR REPLACE for idempotency.
+
+        Args:
+            snapshot: HeatmapSnapshot from time_evolving_heatmap.py
+
+        Returns:
+            Number of rows inserted/updated
+
+        Note:
+            Requires initialize_snapshot_tables() to have been called first.
+        """
+        if not snapshot.cells:
+            return 0
+
+        rows_to_insert = []
+        for price_bucket, cell in snapshot.cells.items():
+            # Insert long side if has volume
+            if cell.long_density > 0:
+                rows_to_insert.append(
+                    (
+                        snapshot.timestamp,
+                        snapshot.symbol,
+                        float(price_bucket),
+                        "long",
+                        float(cell.long_density),
+                        0.0,  # consumed_volume
+                    )
+                )
+
+            # Insert short side if has volume
+            if cell.short_density > 0:
+                rows_to_insert.append(
+                    (
+                        snapshot.timestamp,
+                        snapshot.symbol,
+                        float(price_bucket),
+                        "short",
+                        float(cell.short_density),
+                        0.0,  # consumed_volume
+                    )
+                )
+
+        if not rows_to_insert:
+            return 0
+
+        # Use INSERT with ON CONFLICT for upsert behavior
+        import hashlib
+        from datetime import datetime as dt
+
+        now = dt.now()
+
+        for row in rows_to_insert:
+            ts, sym, price_bucket, side, active_volume, consumed_volume = row
+
+            # Generate deterministic ID from unique key components
+            key_str = f"{ts.isoformat()}:{sym}:{price_bucket}:{side}"
+            row_id = int(hashlib.sha256(key_str.encode()).hexdigest()[:15], 16)
+
+            self.conn.execute(
+                """
+                INSERT INTO liquidation_snapshots
+                (id, timestamp, symbol, price_bucket, side,
+                 active_volume, consumed_volume, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (timestamp, symbol, price_bucket, side)
+                DO UPDATE SET active_volume = EXCLUDED.active_volume,
+                              consumed_volume = EXCLUDED.consumed_volume,
+                              created_at = EXCLUDED.created_at
+            """,
+                [row_id, ts, sym, price_bucket, side, active_volume, consumed_volume, now],
+            )
+
+        return len(rows_to_insert)
+
+    def load_snapshots(
+        self,
+        symbol: str,
+        start_time,
+        end_time,
+    ) -> list:
+        """Load HeatmapSnapshots from the liquidation_snapshots table.
+
+        Queries the database for snapshots within the specified time range
+        and reconstructs HeatmapSnapshot objects with their cell data.
+
+        Args:
+            symbol: Trading pair symbol (e.g., "BTCUSDT")
+            start_time: Start of time range (inclusive)
+            end_time: End of time range (inclusive)
+
+        Returns:
+            List of HeatmapSnapshot objects ordered by timestamp ascending.
+            Returns empty list if no matching data found.
+
+        Note:
+            Uses indexes on (timestamp, symbol) for efficient queries.
+            Requires initialize_snapshot_tables() to have been called first.
+        """
+        from src.liquidationheatmap.models.position import HeatmapSnapshot
+
+        # Query all rows for this symbol within time range
+        # Use indexed columns for efficient lookup
+        result = self.conn.execute(
+            """
+            SELECT timestamp, price_bucket, side, active_volume
+            FROM liquidation_snapshots
+            WHERE symbol = ?
+              AND timestamp >= ?
+              AND timestamp <= ?
+            ORDER BY timestamp ASC, price_bucket ASC
+        """,
+            [symbol, start_time, end_time],
+        ).fetchall()
+
+        if not result:
+            return []
+
+        # Group rows by timestamp to reconstruct snapshots
+        from collections import defaultdict
+        from decimal import Decimal
+
+        grouped = defaultdict(list)
+        for row in result:
+            ts, price_bucket, side, active_volume = row
+            grouped[ts].append((price_bucket, side, active_volume))
+
+        # Build HeatmapSnapshot objects
+        snapshots = []
+        for ts in sorted(grouped.keys()):
+            snapshot = HeatmapSnapshot(timestamp=ts, symbol=symbol)
+
+            for price_bucket, side, active_volume in grouped[ts]:
+                cell = snapshot.get_cell(Decimal(str(price_bucket)))
+                if side == "long":
+                    cell.long_density = Decimal(str(active_volume))
+                else:  # short
+                    cell.short_density = Decimal(str(active_volume))
+
+            snapshots.append(snapshot)
+
+        return snapshots

@@ -29,10 +29,13 @@ class TestFundingAdjustedModel:
         )
 
         # Get long liquidation with funding adjustment
-        long_10x = [liq for liq in liquidations if liq.leverage_tier == "10x" and liq.side == "long"][0]
+        long_10x = [
+            liq for liq in liquidations if liq.leverage_tier == "10x" and liq.side == "long"
+        ][0]
 
         # Standard Binance model for comparison (no funding)
         from src.liquidationheatmap.models.binance_standard import BinanceStandardModel
+
         standard_model = BinanceStandardModel()
         standard_liq = standard_model.calculate_liquidations(
             current_price, open_interest, leverage_tiers=[10]

@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -27,8 +27,8 @@ class SafeIngestionWrapper:
     def __init__(self, db_path: Path, timeout_minutes: int = 120):
         self.db_path = Path(db_path)
         self.timeout_minutes = timeout_minutes
-        self.pid_file = self.db_path.with_suffix('.pid')
-        self.lock_file = self.db_path.with_suffix('.duckdb.wal')
+        self.pid_file = self.db_path.with_suffix(".pid")
+        self.lock_file = self.db_path.with_suffix(".duckdb.wal")
 
     def check_existing_lock(self) -> bool:
         """Check if another process has a lock on the database."""
@@ -36,7 +36,7 @@ class SafeIngestionWrapper:
         # Check PID file
         if self.pid_file.exists():
             try:
-                with open(self.pid_file, 'r') as f:
+                with open(self.pid_file, "r") as f:
                     old_pid = int(f.read().strip())
 
                 # Check if process is still running
@@ -45,7 +45,9 @@ class SafeIngestionWrapper:
                     logger.error(f"   To force unlock: kill -9 {old_pid} && rm {self.pid_file}")
                     return True
                 else:
-                    logger.warning(f"⚠️  Stale PID file found (PID {old_pid} not running) - removing")
+                    logger.warning(
+                        f"⚠️  Stale PID file found (PID {old_pid} not running) - removing"
+                    )
                     self.pid_file.unlink()
             except Exception as e:
                 logger.warning(f"⚠️  Could not read PID file: {e}")
@@ -68,7 +70,7 @@ class SafeIngestionWrapper:
 
     def create_pid_file(self):
         """Create PID file for this process."""
-        with open(self.pid_file, 'w') as f:
+        with open(self.pid_file, "w") as f:
             f.write(str(os.getpid()))
         logger.info(f"📝 Created PID file: {self.pid_file} (PID {os.getpid()})")
 
@@ -94,7 +96,7 @@ class SafeIngestionWrapper:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
-                bufsize=1  # Line buffered
+                bufsize=1,  # Line buffered
             )
 
             # Stream output with timeout check
@@ -114,7 +116,7 @@ class SafeIngestionWrapper:
                     if not line:
                         # Process finished
                         break
-                    print(line, end='', flush=True)
+                    print(line, end="", flush=True)
                 except Exception as e:
                     logger.error(f"Error reading output: {e}")
                     break
@@ -148,23 +150,22 @@ class SafeIngestionWrapper:
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Safe DuckDB ingestion with lock detection')
-    parser.add_argument('--symbol', default='BTCUSDT', help='Trading pair')
-    parser.add_argument('--data-dir', required=True, help='Base data directory')
-    parser.add_argument('--db', required=True, help='DuckDB database path')
-    parser.add_argument('--mode', choices=['auto', 'full', 'dry-run'], required=True)
-    parser.add_argument('--start-date', help='Start date for full mode (YYYY-MM-DD)')
-    parser.add_argument('--end-date', help='End date for full mode (YYYY-MM-DD)')
-    parser.add_argument('--throttle-ms', type=int, default=200, help='Throttle milliseconds')
-    parser.add_argument('--timeout', type=int, default=120, help='Timeout in minutes (default: 120)')
+    parser = argparse.ArgumentParser(description="Safe DuckDB ingestion with lock detection")
+    parser.add_argument("--symbol", default="BTCUSDT", help="Trading pair")
+    parser.add_argument("--data-dir", required=True, help="Base data directory")
+    parser.add_argument("--db", required=True, help="DuckDB database path")
+    parser.add_argument("--mode", choices=["auto", "full", "dry-run"], required=True)
+    parser.add_argument("--start-date", help="Start date for full mode (YYYY-MM-DD)")
+    parser.add_argument("--end-date", help="End date for full mode (YYYY-MM-DD)")
+    parser.add_argument("--throttle-ms", type=int, default=200, help="Throttle milliseconds")
+    parser.add_argument(
+        "--timeout", type=int, default=120, help="Timeout in minutes (default: 120)"
+    )
 
     args = parser.parse_args()
 
     # Initialize wrapper
-    wrapper = SafeIngestionWrapper(
-        db_path=Path(args.db),
-        timeout_minutes=args.timeout
-    )
+    wrapper = SafeIngestionWrapper(db_path=Path(args.db), timeout_minutes=args.timeout)
 
     print("=" * 70)
     print("  SAFE DUCKDB INGESTION WRAPPER")
@@ -206,19 +207,24 @@ def main():
 
     # Build command
     cmd = [
-        'python3',
-        '/workspace/1TB/LiquidationHeatmap/ingest_full_history_n8n.py',
-        '--symbol', args.symbol,
-        '--data-dir', args.data_dir,
-        '--db', args.db,
-        '--mode', args.mode,
-        '--throttle-ms', str(args.throttle_ms)
+        "python3",
+        "/workspace/1TB/LiquidationHeatmap/ingest_full_history_n8n.py",
+        "--symbol",
+        args.symbol,
+        "--data-dir",
+        args.data_dir,
+        "--db",
+        args.db,
+        "--mode",
+        args.mode,
+        "--throttle-ms",
+        str(args.throttle_ms),
     ]
 
     if args.start_date:
-        cmd.extend(['--start-date', args.start_date])
+        cmd.extend(["--start-date", args.start_date])
     if args.end_date:
-        cmd.extend(['--end-date', args.end_date])
+        cmd.extend(["--end-date", args.end_date])
 
     try:
         exit_code = wrapper.run_with_timeout(cmd)
@@ -229,5 +235,5 @@ def main():
     return exit_code
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

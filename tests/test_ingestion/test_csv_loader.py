@@ -1,6 +1,5 @@
 """Tests for CSV loading functionality."""
 
-
 import duckdb
 import pandas as pd
 import pytest

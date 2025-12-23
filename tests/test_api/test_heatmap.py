@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 def client():
     """Create test client for FastAPI app."""
     from src.liquidationheatmap.api.main import app
+
     return TestClient(app)
 
 

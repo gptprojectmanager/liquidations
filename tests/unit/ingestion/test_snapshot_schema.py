@@ -7,7 +7,6 @@ Tests for:
 - T027: position_events table schema
 """
 
-
 import duckdb
 import pytest
 
