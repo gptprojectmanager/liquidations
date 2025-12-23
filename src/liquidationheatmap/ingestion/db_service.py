@@ -258,8 +258,13 @@ class DuckDBService:
 
         logger = logging.getLogger(__name__)
 
+        # Defense-in-depth: validate symbol is alphanumeric (prevents SQL injection)
+        if not symbol.isalnum():
+            raise ValueError(f"Invalid symbol: {symbol}. Must be alphanumeric.")
+
         logger.info(
-            f"get_large_trades called: symbol={symbol}, min_gross_value={min_gross_value}, timeframe={start_datetime} to {end_datetime}"
+            f"get_large_trades called: symbol={symbol}, min_gross_value={min_gross_value}, "
+            f"timeframe={start_datetime} to {end_datetime}"
         )
 
         # Try to query from DB first
@@ -792,9 +797,9 @@ class DuckDBService:
                         next_id,
                         snapshot.timestamp,
                         snapshot.symbol,
-                        float(price_bucket),
-                        float(cell.long_density),
-                        float(consumed_volume),
+                        str(price_bucket),  # Use str() to preserve Decimal precision
+                        str(cell.long_density),
+                        str(consumed_volume),
                     ],
                 )
 
@@ -816,9 +821,9 @@ class DuckDBService:
                         next_id,
                         snapshot.timestamp,
                         snapshot.symbol,
-                        float(price_bucket),
-                        float(cell.short_density),
-                        float(consumed_volume),
+                        str(price_bucket),  # Use str() to preserve Decimal precision
+                        str(cell.short_density),
+                        str(consumed_volume),
                     ],
                 )
 

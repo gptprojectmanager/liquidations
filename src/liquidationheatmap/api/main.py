@@ -1009,14 +1009,16 @@ async def get_heatmap_timeseries(
         oi_values = oi_df["oi_delta"].fillna(0).tolist() if not oi_df.empty else []
 
         for candle in candles:
-            # Find closest OI data point
+            # Find closest OI data point within 15-min window
             delta = Decimal("0")
+            min_diff = float("inf")
             if oi_timestamps:
                 for i, oi_ts in enumerate(oi_timestamps):
                     oi_ts_dt = oi_ts.to_pydatetime() if hasattr(oi_ts, "to_pydatetime") else oi_ts
-                    if abs((candle.open_time - oi_ts_dt).total_seconds()) < 900:  # 15 min window
+                    diff = abs((candle.open_time - oi_ts_dt).total_seconds())
+                    if diff < 900 and diff < min_diff:  # 15 min window, closest match
+                        min_diff = diff
                         delta = Decimal(str(oi_values[i])) if oi_values[i] else Decimal("0")
-                        break
             oi_deltas.append(delta)
 
         # Calculate time-evolving heatmap
