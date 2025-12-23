@@ -246,6 +246,63 @@ class DuckDBService:
         """Context manager exit."""
         self.close()
 
+    def initialize_snapshot_tables(self) -> None:
+        """Initialize database tables for time-evolving heatmap snapshots.
+
+        Creates:
+        - liquidation_snapshots: Pre-computed snapshot cache for fast API queries
+        - position_events: Event log for position lifecycle tracking
+
+        Per spec.md Phase 2 (T029-T031).
+        """
+        # Create liquidation_snapshots table (T029)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS liquidation_snapshots (
+                id BIGINT PRIMARY KEY,
+                timestamp TIMESTAMP NOT NULL,
+                symbol VARCHAR(20) NOT NULL,
+                price_bucket DECIMAL(18, 2) NOT NULL,
+                side VARCHAR(10) NOT NULL,
+                active_volume DECIMAL(20, 8) NOT NULL,
+                consumed_volume DECIMAL(20, 8) NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Create position_events table (T030)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS position_events (
+                id BIGINT PRIMARY KEY,
+                timestamp TIMESTAMP NOT NULL,
+                symbol VARCHAR(20) NOT NULL,
+                event_type VARCHAR(20) NOT NULL,
+                entry_price DECIMAL(18, 2) NOT NULL,
+                liq_price DECIMAL(18, 2) NOT NULL,
+                volume DECIMAL(20, 8) NOT NULL,
+                side VARCHAR(10) NOT NULL,
+                leverage INTEGER NOT NULL
+            )
+        """)
+
+        # Create indexes for query performance (T034)
+        # Use CREATE INDEX IF NOT EXISTS to be idempotent
+        try:
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_liq_snap_ts_sym
+                ON liquidation_snapshots(timestamp, symbol)
+            """)
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_liq_snap_price
+                ON liquidation_snapshots(price_bucket)
+            """)
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_pos_events_ts_sym
+                ON position_events(timestamp, symbol)
+            """)
+        except Exception as e:
+            # Indexes may already exist - that's fine
+            logger.debug(f"Index creation skipped (may exist): {e}")
+
     def get_large_trades(
         self,
         symbol: str = "BTCUSDT",

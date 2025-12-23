@@ -93,18 +93,18 @@
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] Unit test for liquidation_snapshots table schema in tests/unit/ingestion/test_snapshot_schema.py
-- [ ] T027 [P] [US2] Unit test for position_events table schema in tests/unit/ingestion/test_snapshot_schema.py
+- [x] T026 [P] [US2] Unit test for liquidation_snapshots table schema in tests/unit/ingestion/test_snapshot_schema.py
+- [x] T027 [P] [US2] Unit test for position_events table schema in tests/unit/ingestion/test_snapshot_schema.py
 - [ ] T028 [US2] Integration test for snapshot persistence and retrieval in tests/integration/test_snapshot_persistence.py
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] Create SQL schema for liquidation_snapshots table per spec.md Phase 2 in src/liquidationheatmap/ingestion/schema.sql
-- [ ] T030 [US2] Create SQL schema for position_events table per spec.md Phase 2 in src/liquidationheatmap/ingestion/schema.sql
-- [ ] T031 [US2] Add table creation to db_service.py initialize method in src/liquidationheatmap/ingestion/db_service.py
+- [x] T029 [US2] Create SQL schema for liquidation_snapshots table per spec.md Phase 2 in src/liquidationheatmap/ingestion/db_service.py
+- [x] T030 [US2] Create SQL schema for position_events table per spec.md Phase 2 in src/liquidationheatmap/ingestion/db_service.py
+- [x] T031 [US2] Add table creation to db_service.py initialize method in src/liquidationheatmap/ingestion/db_service.py
 - [ ] T032 [US2] Implement save_snapshot(snapshot) method in src/liquidationheatmap/ingestion/db_service.py
 - [ ] T033 [US2] Implement load_snapshots(symbol, start_time, end_time) method in src/liquidationheatmap/ingestion/db_service.py
-- [ ] T034 [US2] Add indexes for query performance per data-model.md in src/liquidationheatmap/ingestion/schema.sql
+- [x] T034 [US2] Add indexes for query performance per data-model.md in src/liquidationheatmap/ingestion/db_service.py
 
 **Checkpoint**: Database layer functional - snapshots persist to DuckDB
 
