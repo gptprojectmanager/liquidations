@@ -177,6 +177,10 @@ def remove_proportionally(
         # Remove positions with negligible volume
         active_positions[price_level] = [p for p in positions if p.volume >= Decimal("0.01")]
 
+        # Clean up empty price levels to prevent memory leak
+        if not active_positions[price_level]:
+            del active_positions[price_level]
+
 
 def process_candle(
     candle: CandleLike,
@@ -213,6 +217,10 @@ def process_candle(
 
         # Keep only active (not consumed) positions
         active_positions[liq_price] = [p for p in positions if p.is_active()]
+
+        # Clean up empty price levels to prevent memory leak
+        if not active_positions[liq_price]:
+            del active_positions[liq_price]
 
     # 2. ADD NEW POSITIONS: From positive OI delta
     if oi_delta > 0:
@@ -271,6 +279,10 @@ def _aggregate_to_snapshot(
     total_short = Decimal("0")
 
     for liq_price, positions in active_positions.items():
+        # Skip empty position lists (shouldn't happen after our fixes, but defensive)
+        if not positions:
+            continue
+
         # Round to price bucket
         bucket = (liq_price // price_bucket_size) * price_bucket_size
 

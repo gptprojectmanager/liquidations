@@ -25,9 +25,8 @@ class TestShouldLiquidate:
 
     def test_long_liquidates_when_price_drops_below(self):
         """Long position should liquidate when candle low <= liq_price."""
-        from src.liquidationheatmap.models.time_evolving_heatmap import should_liquidate
-
         from src.liquidationheatmap.models.position import LiquidationLevel
+        from src.liquidationheatmap.models.time_evolving_heatmap import should_liquidate
 
         level = LiquidationLevel(
             entry_price=Decimal("100000"),
@@ -50,9 +49,8 @@ class TestShouldLiquidate:
 
     def test_long_not_liquidated_when_price_above(self):
         """Long position should NOT liquidate when candle low > liq_price."""
-        from src.liquidationheatmap.models.time_evolving_heatmap import should_liquidate
-
         from src.liquidationheatmap.models.position import LiquidationLevel
+        from src.liquidationheatmap.models.time_evolving_heatmap import should_liquidate
 
         level = LiquidationLevel(
             entry_price=Decimal("100000"),
@@ -75,9 +73,8 @@ class TestShouldLiquidate:
 
     def test_long_liquidates_on_exact_match(self):
         """Long position should liquidate when candle low == liq_price exactly."""
-        from src.liquidationheatmap.models.time_evolving_heatmap import should_liquidate
-
         from src.liquidationheatmap.models.position import LiquidationLevel
+        from src.liquidationheatmap.models.time_evolving_heatmap import should_liquidate
 
         level = LiquidationLevel(
             entry_price=Decimal("100000"),
@@ -100,9 +97,8 @@ class TestShouldLiquidate:
 
     def test_short_liquidates_when_price_rises_above(self):
         """Short position should liquidate when candle high >= liq_price."""
-        from src.liquidationheatmap.models.time_evolving_heatmap import should_liquidate
-
         from src.liquidationheatmap.models.position import LiquidationLevel
+        from src.liquidationheatmap.models.time_evolving_heatmap import should_liquidate
 
         level = LiquidationLevel(
             entry_price=Decimal("100000"),
@@ -125,9 +121,8 @@ class TestShouldLiquidate:
 
     def test_short_not_liquidated_when_price_below(self):
         """Short position should NOT liquidate when candle high < liq_price."""
-        from src.liquidationheatmap.models.time_evolving_heatmap import should_liquidate
-
         from src.liquidationheatmap.models.position import LiquidationLevel
+        from src.liquidationheatmap.models.time_evolving_heatmap import should_liquidate
 
         level = LiquidationLevel(
             entry_price=Decimal("100000"),
@@ -233,9 +228,8 @@ class TestCreatePositions:
 
     def test_positions_have_correct_liq_prices(self):
         """Each position should have correctly calculated liquidation price."""
-        from src.liquidationheatmap.models.time_evolving_heatmap import create_positions
-
         from src.liquidationheatmap.models.position import calculate_liq_price
+        from src.liquidationheatmap.models.time_evolving_heatmap import create_positions
 
         positions = create_positions(
             entry_price=Decimal("100000"),
@@ -276,11 +270,10 @@ class TestRemoveProportionally:
 
     def test_removes_volume_proportionally(self):
         """Should remove volume proportionally from all positions."""
+        from src.liquidationheatmap.models.position import LiquidationLevel
         from src.liquidationheatmap.models.time_evolving_heatmap import (
             remove_proportionally,
         )
-
-        from src.liquidationheatmap.models.position import LiquidationLevel
 
         # Create active positions
         active_positions: dict[Decimal, list[LiquidationLevel]] = {
@@ -316,11 +309,10 @@ class TestRemoveProportionally:
 
     def test_removes_all_when_exceeds_total(self):
         """Should remove all volume when removal exceeds total."""
+        from src.liquidationheatmap.models.position import LiquidationLevel
         from src.liquidationheatmap.models.time_evolving_heatmap import (
             remove_proportionally,
         )
-
-        from src.liquidationheatmap.models.position import LiquidationLevel
 
         active_positions: dict[Decimal, list[LiquidationLevel]] = {
             Decimal("91000"): [
@@ -339,7 +331,8 @@ class TestRemoveProportionally:
         remove_proportionally(active_positions, Decimal("100000"))
 
         # Position should be removed (volume < 0.01 threshold)
-        assert len(active_positions[Decimal("91000")]) == 0
+        # Empty price levels are now cleaned up to prevent memory leaks
+        assert Decimal("91000") not in active_positions
 
     def test_no_change_when_empty(self):
         """Should handle empty positions dict without error."""
@@ -360,9 +353,8 @@ class TestProcessCandle:
 
     def test_consumes_positions_when_price_crosses(self):
         """Should mark positions as consumed when price crosses liq level."""
-        from src.liquidationheatmap.models.time_evolving_heatmap import process_candle
-
         from src.liquidationheatmap.models.position import LiquidationLevel
+        from src.liquidationheatmap.models.time_evolving_heatmap import process_candle
 
         active_positions: dict[Decimal, list[LiquidationLevel]] = {
             Decimal("91000"): [
@@ -417,9 +409,8 @@ class TestProcessCandle:
 
     def test_removes_positions_from_negative_oi_delta(self):
         """Should remove positions proportionally when OI decreases."""
-        from src.liquidationheatmap.models.time_evolving_heatmap import process_candle
-
         from src.liquidationheatmap.models.position import LiquidationLevel
+        from src.liquidationheatmap.models.time_evolving_heatmap import process_candle
 
         active_positions: dict[Decimal, list[LiquidationLevel]] = {
             Decimal("91000"): [
