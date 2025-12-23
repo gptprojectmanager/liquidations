@@ -122,6 +122,13 @@
             <div class="legend-color" style="background: #ef5350;"></div>
             <span>Price Down</span>
         </div>
+        <div class="legend-item" id="consumed-indicator" style="display: none;">
+            <div class="legend-color" style="background: rgba(100, 100, 100, 0.5);"></div>
+            <span>Consumed (liquidated)</span>
+        </div>
+        <div class="legend-item" id="time-evolving-badge">
+            <span style="color: #238636; font-weight: bold;">Time-Evolving Mode</span>
+        </div>
     </div>
 
     <div id="chart-container">
@@ -143,104 +150,111 @@
             const limit = document.getElementById('timeframe').value;
             const interval = document.getElementById('interval').value;
 
-            setStatus('Loading price data...', 'loading');
+            setStatus('Loading time-evolving heatmap data...', 'loading');
 
             try {
-                // Fetch klines (price data)
-                const klinesRes = await fetch(`${API_BASE}/prices/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`);
-                const klinesData = await klinesRes.json();
+                // Fetch time-evolving heatmap from new endpoint (T046)
+                const heatmapRes = await fetch(
+                    `${API_BASE}/liquidations/heatmap-timeseries?symbol=BTCUSDT&interval=${interval}&limit=${limit}`
+                );
 
-                if (!klinesData.data || klinesData.data.length === 0) {
-                    setStatus('No price data available', 'error');
+                if (!heatmapRes.ok) {
+                    const errorData = await heatmapRes.json().catch(() => ({}));
+                    throw new Error(errorData.detail || `HTTP ${heatmapRes.status}`);
+                }
+
+                const heatmapData = await heatmapRes.json();
+
+                if (!heatmapData.data || heatmapData.data.length === 0) {
+                    setStatus('No heatmap data available', 'error');
                     return;
                 }
 
-                setStatus('Loading liquidation levels...', 'loading');
+                setStatus('Loading price data...', 'loading');
 
-                // Fetch liquidation levels with correct parameters
-                const levelsRes = await fetch(`${API_BASE}/liquidations/levels?symbol=BTCUSDT&timeframe=30&model=openinterest`);
-                const levelsData = await levelsRes.json();
+                // Fetch klines for candlestick overlay
+                const klinesRes = await fetch(
+                    `${API_BASE}/prices/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`
+                );
+                const klinesData = await klinesRes.json();
 
-                setStatus('Rendering heatmap...', 'loading');
+                setStatus('Rendering time-evolving heatmap...', 'loading');
 
-                // Prepare data
-                const timestamps = klinesData.data.map(k => k.timestamp);
-                const opens = klinesData.data.map(k => k.open);
-                const highs = klinesData.data.map(k => k.high);
-                const lows = klinesData.data.map(k => k.low);
-                const closes = klinesData.data.map(k => k.close);
+                // Transform time-series data to 2D heatmap matrix (T047)
+                const snapshots = heatmapData.data;
+                const meta = heatmapData.meta;
 
-                // Calculate price range for heatmap
-                const minPrice = Math.min(...lows) * 0.95;
-                const maxPrice = Math.max(...highs) * 1.05;
-                // Guard against zero step (would cause infinite loop)
-                const priceStep = Math.max((maxPrice - minPrice) / 100, 1);
+                // Extract all unique timestamps and price levels
+                const timestamps = snapshots.map(s => s.timestamp);
 
-                // Build price buckets
+                // Build unified price bucket list from API price range
+                const minPrice = meta.price_range.min || 90000;
+                const maxPrice = meta.price_range.max || 100000;
+                const priceStep = 100; // $100 buckets as defined in algorithm
+
                 const priceBuckets = [];
-                for (let p = minPrice; p <= maxPrice; p += priceStep) {
-                    priceBuckets.push(Math.round(p));
+                for (let p = Math.floor(minPrice / priceStep) * priceStep;
+                     p <= Math.ceil(maxPrice / priceStep) * priceStep;
+                     p += priceStep) {
+                    priceBuckets.push(p);
                 }
 
-                // Build heatmap matrix based on liquidation levels
-                // Each cell shows liquidation density at that price level
+                // Build heatmap matrix: Z[priceIdx][timeIdx] = density (T048)
+                // CRITICAL: Each column now has DIFFERENT density based on that timestamp's state
                 const heatmapZ = [];
-                const longLiqs = levelsData.long_liquidations || [];
-                const shortLiqs = levelsData.short_liquidations || [];
-
-                // Normalize volumes for color intensity (log scale)
-                const allVolumes = [...longLiqs, ...shortLiqs].map(l => parseFloat(l.volume));
-                const maxVol = Math.max(...allVolumes, 1);
+                let maxDensity = 0;
+                let totalConsumed = 0;
 
                 for (const price of priceBuckets) {
                     const row = [];
-                    for (let i = 0; i < timestamps.length; i++) {
-                        // Calculate density based on distance from liquidation levels
+                    for (let timeIdx = 0; timeIdx < snapshots.length; timeIdx++) {
+                        const snapshot = snapshots[timeIdx];
+                        totalConsumed += snapshot.positions_consumed;
+
+                        // Find density at this price for this timestamp
                         let density = 0;
-
-                        // Check long liquidations (below current price)
-                        for (const liq of longLiqs) {
-                            const liqPrice = parseFloat(liq.price_level);
-                            const distance = Math.abs(price - liqPrice);
-                            const maxDist = (maxPrice - minPrice) * 0.05; // 5% of price range
-                            if (distance < maxDist) {
-                                const vol = parseFloat(liq.volume || 1);
-                                density += (1 - distance / maxDist) * Math.log10(vol + 1) / Math.log10(maxVol + 1);
+                        for (const level of snapshot.levels) {
+                            // Match price bucket (within tolerance)
+                            if (Math.abs(level.price - price) < priceStep / 2) {
+                                density = level.long_density + level.short_density;
+                                break;
                             }
                         }
 
-                        // Check short liquidations (above current price)
-                        for (const liq of shortLiqs) {
-                            const liqPrice = parseFloat(liq.price_level);
-                            const distance = Math.abs(price - liqPrice);
-                            const maxDist = (maxPrice - minPrice) * 0.05;
-                            if (distance < maxDist) {
-                                const vol = parseFloat(liq.volume || 1);
-                                density += (1 - distance / maxDist) * Math.log10(vol + 1) / Math.log10(maxVol + 1);
-                            }
-                        }
-
-                        row.push(density);
+                        // Apply log scale for better visualization
+                        const logDensity = density > 0 ? Math.log10(density + 1) : 0;
+                        row.push(logDensity);
+                        maxDensity = Math.max(maxDensity, logDensity);
                     }
                     heatmapZ.push(row);
+                }
+
+                // Normalize to 0-1 range for colorscale
+                if (maxDensity > 0) {
+                    for (let i = 0; i < heatmapZ.length; i++) {
+                        for (let j = 0; j < heatmapZ[i].length; j++) {
+                            heatmapZ[i][j] = heatmapZ[i][j] / maxDensity;
+                        }
+                    }
                 }
 
                 // Create traces
                 const traces = [];
 
-                // 1. Heatmap trace (background)
+                // 1. Time-evolving heatmap trace (T048 - per-column density)
                 traces.push({
                     z: heatmapZ,
                     x: timestamps,
                     y: priceBuckets,
                     type: 'heatmap',
                     colorscale: [
-                        [0, 'rgba(26, 26, 46, 0.8)'],
-                        [0.2, 'rgba(75, 0, 130, 0.7)'],
-                        [0.4, 'rgba(138, 43, 226, 0.7)'],
-                        [0.6, 'rgba(0, 191, 255, 0.7)'],
-                        [0.8, 'rgba(0, 255, 127, 0.7)'],
-                        [1, 'rgba(240, 185, 11, 0.9)']
+                        [0, 'rgba(26, 26, 46, 0.9)'],      // Empty - dark
+                        [0.15, 'rgba(75, 0, 130, 0.8)'],   // Low - purple
+                        [0.3, 'rgba(138, 43, 226, 0.8)'],  // Medium-low - violet
+                        [0.5, 'rgba(0, 191, 255, 0.8)'],   // Medium - cyan
+                        [0.7, 'rgba(0, 255, 127, 0.8)'],   // Medium-high - green
+                        [0.85, 'rgba(255, 165, 0, 0.9)'],  // High - orange
+                        [1, 'rgba(240, 185, 11, 1)']       // Maximum - gold
                     ],
                     showscale: true,
                     colorbar: {
@@ -250,65 +264,40 @@
                         len: 0.5,
                         y: 0.75
                     },
-                    hovertemplate: 'Time: %{x}<br>Price: $%{y:,.0f}<br>Density: %{z:.2f}<extra></extra>'
+                    hovertemplate: 'Time: %{x}<br>Price: $%{y:,.0f}<br>Density: %{z:.3f}<extra></extra>'
                 });
 
-                // 2. Candlestick trace (overlay)
-                traces.push({
-                    x: timestamps,
-                    open: opens,
-                    high: highs,
-                    low: lows,
-                    close: closes,
-                    type: 'candlestick',
-                    increasing: { line: { color: '#26a69a' }, fillcolor: '#26a69a' },
-                    decreasing: { line: { color: '#ef5350' }, fillcolor: '#ef5350' },
-                    name: 'BTC/USDT',
-                    hoverinfo: 'x+y'
-                });
-
-                // 3. Add liquidation level markers
-                const currentPrice = closes[closes.length - 1];
-
-                // Long liquidation zones (red, below price)
-                for (const liq of longLiqs.slice(0, 5)) {
+                // 2. Candlestick overlay (if klines available)
+                if (klinesData.data && klinesData.data.length > 0) {
+                    const klines = klinesData.data;
                     traces.push({
-                        x: [timestamps[0], timestamps[timestamps.length - 1]],
-                        y: [parseFloat(liq.price_level), parseFloat(liq.price_level)],
-                        mode: 'lines',
-                        line: { color: 'rgba(239, 83, 80, 0.5)', width: 1, dash: 'dot' },
-                        name: `Long Liq ${liq.leverage}`,
-                        showlegend: false,
-                        hovertemplate: `Long Liq ${liq.leverage}: $%{y:,.2f}<extra></extra>`
+                        x: klines.map(k => k.timestamp),
+                        open: klines.map(k => k.open),
+                        high: klines.map(k => k.high),
+                        low: klines.map(k => k.low),
+                        close: klines.map(k => k.close),
+                        type: 'candlestick',
+                        increasing: { line: { color: '#26a69a' }, fillcolor: '#26a69a' },
+                        decreasing: { line: { color: '#ef5350' }, fillcolor: '#ef5350' },
+                        name: 'BTC/USDT',
+                        hoverinfo: 'x+y'
                     });
                 }
 
-                // Short liquidation zones (green, above price)
-                for (const liq of shortLiqs.slice(0, 5)) {
-                    traces.push({
-                        x: [timestamps[0], timestamps[timestamps.length - 1]],
-                        y: [parseFloat(liq.price_level), parseFloat(liq.price_level)],
-                        mode: 'lines',
-                        line: { color: 'rgba(38, 166, 154, 0.5)', width: 1, dash: 'dot' },
-                        name: `Short Liq ${liq.leverage}`,
-                        showlegend: false,
-                        hovertemplate: `Short Liq ${liq.leverage}: $%{y:,.2f}<extra></extra>`
-                    });
-                }
-
-                // Layout
+                // Layout with timestamp labels (T050)
                 const layout = {
                     title: {
-                        text: `BTC/USDT Liquidation Heatmap (${interval})`,
+                        text: `BTC/USDT Time-Evolving Liquidation Heatmap (${interval})`,
                         font: { color: '#c9d1d9', size: 16 }
                     },
                     paper_bgcolor: '#0d1117',
                     plot_bgcolor: '#161b22',
                     font: { color: '#c9d1d9' },
                     xaxis: {
-                        title: 'Time',
+                        title: 'Time (Each column = snapshot state)',
                         gridcolor: '#30363d',
-                        rangeslider: { visible: false }
+                        rangeslider: { visible: false },
+                        tickformat: '%H:%M<br>%m/%d'
                     },
                     yaxis: {
                         title: 'Price (USDT)',
@@ -316,7 +305,18 @@
                         tickformat: '$,.0f'
                     },
                     showlegend: false,
-                    margin: { t: 50, b: 50, l: 80, r: 100 }
+                    margin: { t: 50, b: 70, l: 80, r: 100 },
+                    annotations: totalConsumed > 0 ? [{
+                        x: 0.02,
+                        y: 0.98,
+                        xref: 'paper',
+                        yref: 'paper',
+                        text: `Consumed: ${totalConsumed} positions`,
+                        showarrow: false,
+                        font: { color: '#f0b90b', size: 12 },
+                        bgcolor: 'rgba(22, 27, 34, 0.9)',
+                        borderpad: 4
+                    }] : []
                 };
 
                 const config = {
@@ -327,12 +327,23 @@
 
                 Plotly.newPlot('heatmap', traces, layout, config);
 
-                const longCount = longLiqs.length;
-                const shortCount = shortLiqs.length;
-                setStatus(`Loaded: ${klinesData.count} candles, ${longCount} long / ${shortCount} short liquidation levels`, 'success');
+                // Show consumed indicator if any liquidations occurred (T049)
+                if (totalConsumed > 0) {
+                    document.getElementById('consumed-indicator').style.display = 'flex';
+                }
+
+                // Status message with metadata
+                const snapshotCount = snapshots.length;
+                const priceRange = `$${meta.price_range.min?.toLocaleString() || '?'} - $${meta.price_range.max?.toLocaleString() || '?'}`;
+                setStatus(
+                    `Time-evolving: ${snapshotCount} snapshots | ${priceRange} | ` +
+                    `Long: ${meta.total_long_volume?.toFixed(2) || 0} | Short: ${meta.total_short_volume?.toFixed(2) || 0} | ` +
+                    `Consumed: ${totalConsumed}`,
+                    'success'
+                );
 
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Error loading heatmap:', error);
                 setStatus(`Error: ${error.message}`, 'error');
             }
         }

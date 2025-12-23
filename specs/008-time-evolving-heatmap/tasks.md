@@ -148,15 +148,15 @@
 
 ### Implementation for User Story 4
 
-- [ ] T046 [US4] Update fetchHeatmapData() to call new /heatmap-timeseries endpoint in frontend/coinglass_heatmap.html
-- [ ] T047 [US4] Update Plotly.js data transformation for time-series format in frontend/coinglass_heatmap.html
-- [ ] T048 [US4] Implement per-column density rendering (each column = one timestamp) in frontend/coinglass_heatmap.html
-- [ ] T049 [US4] Add visual indicator for consumed/liquidated zones (faded styling) in frontend/coinglass_heatmap.html
-- [ ] T050 [US4] Add timestamp axis labels to heatmap in frontend/coinglass_heatmap.html
-- [ ] T051 [US4] Update color scale to handle dynamic density ranges per timestamp in frontend/coinglass_heatmap.html
-- [ ] T052 [US4] Add loading state and error handling for API calls in frontend/coinglass_heatmap.html
+- [x] T046 [US4] Update fetchHeatmapData() to call new /heatmap-timeseries endpoint in frontend/coinglass_heatmap.html
+- [x] T047 [US4] Update Plotly.js data transformation for time-series format in frontend/coinglass_heatmap.html
+- [x] T048 [US4] Implement per-column density rendering (each column = one timestamp) in frontend/coinglass_heatmap.html
+- [x] T049 [US4] Add visual indicator for consumed/liquidated zones (faded styling) in frontend/coinglass_heatmap.html
+- [x] T050 [US4] Add timestamp axis labels to heatmap in frontend/coinglass_heatmap.html
+- [x] T051 [US4] Update color scale to handle dynamic density ranges per timestamp in frontend/coinglass_heatmap.html
+- [x] T052 [US4] Add loading state and error handling for API calls in frontend/coinglass_heatmap.html
 
-**Checkpoint**: Frontend renders time-evolving heatmap with consumption visualization
+**Checkpoint**: Frontend renders time-evolving heatmap with consumption visualization ✅ COMPLETE
 
 ---
 
