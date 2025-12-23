@@ -277,7 +277,8 @@ class DuckDBService:
                 CHECK (side IN ('long', 'short')),
                 CHECK (active_volume >= 0),
                 CHECK (consumed_volume >= 0),
-                CHECK (price_bucket > 0)
+                CHECK (price_bucket > 0),
+                CHECK (LENGTH(TRIM(symbol)) > 0)
             )
         """)
 
@@ -297,7 +298,8 @@ class DuckDBService:
                 CHECK (event_type IN ('open', 'close', 'liquidate')),
                 CHECK (side IN ('long', 'short')),
                 CHECK (volume >= 0),
-                CHECK (leverage > 0)
+                CHECK (leverage > 0),
+                CHECK (LENGTH(TRIM(symbol)) > 0)
             )
         """)
 
