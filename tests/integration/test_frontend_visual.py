@@ -2,8 +2,14 @@
 
 T045 [US4] - Playwright screenshot comparison tests.
 Validates that the frontend correctly renders time-evolving liquidation data.
+
+NOTE: These tests require Playwright browser automation.
+Install with: uv add --dev playwright && uv run playwright install chromium
 """
 
+import os
+import signal
+import socket
 import subprocess
 import time
 from pathlib import Path
@@ -16,25 +22,76 @@ pytest.importorskip("playwright")
 from playwright.async_api import async_playwright
 
 
+def _find_free_port() -> int:
+    """Find an available port to avoid conflicts."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+    return port
+
+
+def _wait_for_server(url: str, timeout: float = 10.0) -> bool:
+    """Wait for server to be ready with health check."""
+    import httpx
+
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            response = httpx.get(f"{url}/health", timeout=1.0)
+            if response.status_code == 200:
+                return True
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.ReadTimeout, OSError):
+            # Connection refused, timeout, or network error - server not ready yet
+            pass
+        time.sleep(0.5)
+    return False
+
+
 @pytest.fixture(scope="module")
 def api_server():
     """Start API server for frontend testing."""
+    port = _find_free_port()
+    server_url = f"http://localhost:{port}"
+
     # Start server in background
     proc = subprocess.Popen(
-        ["uv", "run", "uvicorn", "src.liquidationheatmap.api.main:app", "--port", "8889"],
+        ["uv", "run", "uvicorn", "src.liquidationheatmap.api.main:app", "--port", str(port)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=Path(__file__).parent.parent.parent,
+        preexec_fn=os.setsid,  # Create new process group for clean cleanup
     )
 
-    # Wait for server to start
-    time.sleep(3)
+    # Wait for server to be ready with health check
+    if not _wait_for_server(server_url, timeout=15.0):
+        # Server failed to start - cleanup and fail
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        stderr = proc.stderr.read().decode() if proc.stderr else ""
+        pytest.fail(f"API server failed to start on port {port}: {stderr}")
 
-    yield "http://localhost:8889"
+    yield server_url
 
-    # Cleanup
-    proc.terminate()
-    proc.wait(timeout=5)
+    # Cleanup: terminate entire process group to ensure no zombies
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+    except (ProcessLookupError, OSError):
+        pass  # Process already terminated
+
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        # Force kill if graceful shutdown fails
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except (ProcessLookupError, OSError):
+            pass
+        proc.wait()
 
 
 @pytest.fixture
@@ -65,8 +122,8 @@ class TestTimeEvolvingHeatmapVisual:
             # Wait for page to load
             await page.wait_for_load_state("networkidle")
 
-            # Take screenshot
-            await page.screenshot(path=screenshot_dir / "heatmap_loaded.png")
+            # Take screenshot (convert Path to str for Playwright compatibility)
+            await page.screenshot(path=str(screenshot_dir / "heatmap_loaded.png"))
 
             await browser.close()
 
@@ -136,15 +193,16 @@ class TestTimeEvolvingHeatmapVisual:
             await page.wait_for_timeout(5000)
 
             # Check for Plotly chart container
-            chart = await page.query_selector("#heatmap .plotly")
+            chart_element = await page.query_selector("#heatmap .plotly")
 
-            # Take screenshot
-            await page.screenshot(path=screenshot_dir / "heatmap_chart.png", full_page=True)
+            # Take screenshot (convert Path to str for Playwright compatibility)
+            await page.screenshot(path=str(screenshot_dir / "heatmap_chart.png"), full_page=True)
 
             await browser.close()
 
             # Chart should exist (may be None if API unavailable, which is acceptable in CI)
-            # We just verify no crash occurred
+            # We just verify no crash occurred - chart_element intentionally unused for now
+            _ = chart_element  # Explicitly acknowledge we're not asserting on this yet
 
 
 class TestHeatmapDataVisualization:
@@ -165,8 +223,10 @@ class TestHeatmapDataVisualization:
             status = await page.query_selector("#status")
             status_text = await status.inner_text() if status else ""
 
-            # Take final screenshot
-            await page.screenshot(path=screenshot_dir / "heatmap_with_data.png", full_page=True)
+            # Take final screenshot (convert Path to str for Playwright compatibility)
+            await page.screenshot(
+                path=str(screenshot_dir / "heatmap_with_data.png"), full_page=True
+            )
 
             await browser.close()
 
