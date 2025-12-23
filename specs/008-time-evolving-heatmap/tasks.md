@@ -144,7 +144,7 @@
 
 ### Tests for User Story 4
 
-- [ ] T045 [US4] Visual validation test with Playwright screenshot comparison in tests/integration/test_frontend_visual.py
+- [x] T045 [US4] Visual validation test with Playwright screenshot comparison in tests/integration/test_frontend_visual.py
 
 ### Implementation for User Story 4
 
