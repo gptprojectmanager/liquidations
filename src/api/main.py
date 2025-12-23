@@ -7,11 +7,14 @@ Provides REST endpoints for:
 - Tier information and comparison
 """
 
+import logging
 import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+logger = logging.getLogger(__name__)
 
 
 def get_cors_origins() -> list[str]:
@@ -44,12 +47,12 @@ async def lifespan(app: FastAPI):
     Handles startup and shutdown events.
     """
     # Startup
-    print("🚀 Starting Margin Tier API...")
+    logger.info("Starting Margin Tier API...")
 
     yield
 
     # Shutdown
-    print("👋 Shutting down Margin Tier API...")
+    logger.info("Shutting down Margin Tier API...")
 
 
 # Initialize FastAPI app (T044: Updated docs with clustering endpoints)
