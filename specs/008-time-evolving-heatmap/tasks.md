@@ -68,7 +68,7 @@
 - [x] T014 [P] [US1] Unit test for remove_proportionally() function in tests/unit/models/test_time_evolving_heatmap.py
 - [x] T015 [US1] Unit test for process_candle() function in tests/unit/models/test_time_evolving_heatmap.py
 - [x] T016 [US1] Unit test for calculate_time_evolving_heatmap() main function in tests/unit/models/test_time_evolving_heatmap.py
-- [ ] T017 [US1] Integration test with real DuckDB data subset in tests/integration/test_time_evolving_algorithm.py
+- [x] T017 [US1] Integration test with real DuckDB data subset in tests/integration/test_time_evolving_algorithm.py
 
 ### Implementation for User Story 1
 
@@ -93,18 +93,18 @@
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] Unit test for liquidation_snapshots table schema in tests/unit/ingestion/test_snapshot_schema.py
-- [ ] T027 [P] [US2] Unit test for position_events table schema in tests/unit/ingestion/test_snapshot_schema.py
-- [ ] T028 [US2] Integration test for snapshot persistence and retrieval in tests/integration/test_snapshot_persistence.py
+- [x] T026 [P] [US2] Unit test for liquidation_snapshots table schema in tests/unit/ingestion/test_snapshot_schema.py
+- [x] T027 [P] [US2] Unit test for position_events table schema in tests/unit/ingestion/test_snapshot_schema.py
+- [x] T028 [US2] Integration test for snapshot persistence and retrieval in tests/integration/test_snapshot_persistence.py
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] Create SQL schema for liquidation_snapshots table per spec.md Phase 2 in src/liquidationheatmap/ingestion/schema.sql
-- [ ] T030 [US2] Create SQL schema for position_events table per spec.md Phase 2 in src/liquidationheatmap/ingestion/schema.sql
-- [ ] T031 [US2] Add table creation to db_service.py initialize method in src/liquidationheatmap/ingestion/db_service.py
-- [ ] T032 [US2] Implement save_snapshot(snapshot) method in src/liquidationheatmap/ingestion/db_service.py
-- [ ] T033 [US2] Implement load_snapshots(symbol, start_time, end_time) method in src/liquidationheatmap/ingestion/db_service.py
-- [ ] T034 [US2] Add indexes for query performance per data-model.md in src/liquidationheatmap/ingestion/schema.sql
+- [x] T029 [US2] Create SQL schema for liquidation_snapshots table per spec.md Phase 2 in src/liquidationheatmap/ingestion/db_service.py
+- [x] T030 [US2] Create SQL schema for position_events table per spec.md Phase 2 in src/liquidationheatmap/ingestion/db_service.py
+- [x] T031 [US2] Add table creation to db_service.py initialize method in src/liquidationheatmap/ingestion/db_service.py
+- [x] T032 [US2] Implement save_snapshot(snapshot) method in src/liquidationheatmap/ingestion/db_service.py
+- [x] T033 [US2] Implement load_snapshots(symbol, start_time, end_time) method in src/liquidationheatmap/ingestion/db_service.py
+- [x] T034 [US2] Add indexes for query performance per data-model.md in src/liquidationheatmap/ingestion/db_service.py
 
 **Checkpoint**: Database layer functional - snapshots persist to DuckDB
 
@@ -120,7 +120,7 @@
 
 - [x] T035 [P] [US3] Contract test for /liquidations/heatmap-timeseries endpoint in tests/contract/test_heatmap_timeseries.py
 - [x] T036 [P] [US3] Contract test for query parameter validation (symbol, interval, time range) in tests/contract/test_heatmap_timeseries.py
-- [ ] T037 [US3] Integration test for full API response matching openapi.yaml schema in tests/integration/test_heatmap_api.py
+- [x] T037 [US3] Integration test for full API response matching openapi.yaml schema in tests/integration/test_heatmap_api.py
 
 ### Implementation for User Story 3
 
@@ -148,13 +148,13 @@
 
 ### Implementation for User Story 4
 
-- [ ] T046 [US4] Update fetchHeatmapData() to call new /heatmap-timeseries endpoint in frontend/coinglass_heatmap.html
-- [ ] T047 [US4] Update Plotly.js data transformation for time-series format in frontend/coinglass_heatmap.html
-- [ ] T048 [US4] Implement per-column density rendering (each column = one timestamp) in frontend/coinglass_heatmap.html
-- [ ] T049 [US4] Add visual indicator for consumed/liquidated zones (faded styling) in frontend/coinglass_heatmap.html
-- [ ] T050 [US4] Add timestamp axis labels to heatmap in frontend/coinglass_heatmap.html
-- [ ] T051 [US4] Update color scale to handle dynamic density ranges per timestamp in frontend/coinglass_heatmap.html
-- [ ] T052 [US4] Add loading state and error handling for API calls in frontend/coinglass_heatmap.html
+- [x] T046 [US4] Update fetchHeatmapData() to call new /heatmap-timeseries endpoint in frontend/coinglass_heatmap.html
+- [x] T047 [US4] Update Plotly.js data transformation for time-series format in frontend/coinglass_heatmap.html
+- [x] T048 [US4] Implement per-column density rendering (each column = one timestamp) in frontend/coinglass_heatmap.html
+- [x] T049 [US4] Add visual indicator for consumed/liquidated zones (faded styling) in frontend/coinglass_heatmap.html
+- [x] T050 [US4] Add timestamp axis labels to heatmap in frontend/coinglass_heatmap.html
+- [x] T051 [US4] Update color scale to handle dynamic density ranges per timestamp in frontend/coinglass_heatmap.html
+- [x] T052 [US4] Add loading state and error handling for API calls in frontend/coinglass_heatmap.html
 
 **Checkpoint**: Frontend renders time-evolving heatmap with consumption visualization
 
@@ -189,11 +189,11 @@
 **Purpose**: Improvements that affect multiple user stories
 
 - [ ] T061 [P] Update quickstart.md with actual test commands and expected output
-- [ ] T062 [P] Add docstrings to all public functions in src/liquidationheatmap/models/
-- [ ] T063 Run full test suite and fix any regressions: `uv run pytest tests/ -v`
-- [ ] T064 Run linter and formatter: `ruff check . && ruff format .`
+- [x] T062 [P] Add docstrings to all public functions in src/liquidationheatmap/models/
+- [x] T063 Run full test suite and fix any regressions: `uv run pytest tests/ -v`
+- [x] T064 Run linter and formatter: `ruff check . && ruff format .`
 - [ ] T065 Validate quickstart.md steps work end-to-end
-- [ ] T066 Remove any debug/print statements from production code
+- [x] T066 Remove any debug/print statements from production code
 
 ---
 
