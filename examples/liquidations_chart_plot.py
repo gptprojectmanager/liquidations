@@ -72,9 +72,7 @@ def add_legend(ax):
             markersize=10,
             label=label,
         )
-        for color, label in zip(
-            list(COLORS_LABELS.keys()), list(COLORS_LABELS.values())
-        )
+        for color, label in zip(list(COLORS_LABELS.keys()), list(COLORS_LABELS.values()))
     ]
 
     # Add legend

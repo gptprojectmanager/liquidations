@@ -27,15 +27,22 @@ sys.path.insert(0, "/media/sam/1TB/LiquidationHeatmap")
 
 from src.liquidationheatmap.ingestion.aggtrades_streaming import load_aggtrades_streaming
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 class CompleteIngestionOrchestrator:
     """Complete end-to-end orchestrator with schema creation."""
 
-    def __init__(self, symbol: str, data_dir: Path, db_path: Path, throttle_ms: int = 200,
-                 start_date: str = None, end_date: str = None):
+    def __init__(
+        self,
+        symbol: str,
+        data_dir: Path,
+        db_path: Path,
+        throttle_ms: int = 200,
+        start_date: str = None,
+        end_date: str = None,
+    ):
         self.symbol = symbol
         self.data_dir = data_dir
         self.db_path = db_path
@@ -217,7 +224,7 @@ class CompleteIngestionOrchestrator:
                         self.symbol,
                         start_date,
                         end_date,
-                        throttle_ms=self.throttle_ms
+                        throttle_ms=self.throttle_ms,
                     )
 
                     print(f"✅ Filled: {total_rows:,} rows")
@@ -320,7 +327,7 @@ class CompleteIngestionOrchestrator:
                         self.symbol,
                         self.start_date,
                         self.end_date,
-                        throttle_ms=self.throttle_ms
+                        throttle_ms=self.throttle_ms,
                     )
                     print(f"✅ Loaded: {total_rows:,} rows")
 
@@ -375,18 +382,33 @@ Examples:
   # Dry run (validation only)
   python3 ingest_full_history_n8n.py --data-dir /path/to/data --mode dry-run
         """,
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--symbol", default="BTCUSDT", help="Trading pair (default: BTCUSDT)")
-    parser.add_argument("--data-dir", required=True, help="Base data directory containing CSV files")
-    parser.add_argument("--db", default="/media/sam/1TB/LiquidationHeatmap/data/processed/liquidations.duckdb",
-                       help="DuckDB database path")
-    parser.add_argument("--mode", default="auto", choices=["auto", "full", "dry-run"],
-                       help="Ingestion mode: auto (gaps), full (bulk load), dry-run (validate)")
-    parser.add_argument("--start-date", help="Start date for full mode (YYYY-MM-DD, e.g., 2021-12-01)")
+    parser.add_argument(
+        "--data-dir", required=True, help="Base data directory containing CSV files"
+    )
+    parser.add_argument(
+        "--db",
+        default="/media/sam/1TB/LiquidationHeatmap/data/processed/liquidations.duckdb",
+        help="DuckDB database path",
+    )
+    parser.add_argument(
+        "--mode",
+        default="auto",
+        choices=["auto", "full", "dry-run"],
+        help="Ingestion mode: auto (gaps), full (bulk load), dry-run (validate)",
+    )
+    parser.add_argument(
+        "--start-date", help="Start date for full mode (YYYY-MM-DD, e.g., 2021-12-01)"
+    )
     parser.add_argument("--end-date", help="End date for full mode (YYYY-MM-DD, e.g., 2025-11-01)")
-    parser.add_argument("--throttle-ms", type=int, default=200,
-                       help="I/O throttle between files in milliseconds (default: 200ms)")
+    parser.add_argument(
+        "--throttle-ms",
+        type=int,
+        default=200,
+        help="I/O throttle between files in milliseconds (default: 200ms)",
+    )
 
     args = parser.parse_args()
 
@@ -400,7 +422,7 @@ Examples:
         db_path=Path(args.db),
         throttle_ms=args.throttle_ms,
         start_date=args.start_date,
-        end_date=args.end_date
+        end_date=args.end_date,
     )
 
     sys.exit(orchestrator.run(mode=args.mode))

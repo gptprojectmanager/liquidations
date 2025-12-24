@@ -3,8 +3,6 @@
 Tests the file-by-file approach that prevents exit 137 OOM crash.
 """
 
-
-
 from src.liquidationheatmap.ingestion.aggtrades_streaming import get_aggtrades_files
 
 

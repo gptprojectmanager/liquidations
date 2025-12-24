@@ -144,7 +144,7 @@
 
 ### Tests for User Story 4
 
-- [ ] T045 [US4] Visual validation test with Playwright screenshot comparison in tests/integration/test_frontend_visual.py
+- [x] T045 [US4] Visual validation test with Playwright screenshot comparison in tests/integration/test_frontend_visual.py
 
 ### Implementation for User Story 4
 
@@ -168,17 +168,17 @@
 
 ### Tests for User Story 5
 
-- [ ] T053 [P] [US5] Performance test asserting <500ms for 1000 candle calculation in tests/performance/test_algorithm_performance.py
-- [ ] T054 [P] [US5] Performance test asserting <100ms API response for cached data in tests/performance/test_api_performance.py
+- [x] T053 [P] [US5] Performance test asserting <500ms for 1000 candle calculation in tests/performance/test_algorithm_performance.py
+- [x] T054 [P] [US5] Performance test asserting <100ms API response for cached data in tests/performance/test_api_performance.py
 
 ### Implementation for User Story 5
 
-- [ ] T055 [US5] Create pre-computation script in scripts/precompute_heatmap.py
-- [ ] T056 [US5] Add CLI arguments for symbol, date range, and interval in scripts/precompute_heatmap.py
-- [ ] T057 [US5] Implement batch snapshot generation and DuckDB persistence in scripts/precompute_heatmap.py
-- [ ] T058 [US5] Add in-memory cache layer with TTL to API endpoint in src/liquidationheatmap/api/main.py
-- [ ] T059 [US5] Implement cache-first query strategy (check cache → check DB → compute) in src/liquidationheatmap/api/main.py
-- [ ] T060 [US5] Add cache metrics logging for hit/miss ratio in src/liquidationheatmap/api/main.py
+- [x] T055 [US5] Create pre-computation script in scripts/precompute_heatmap.py
+- [x] T056 [US5] Add CLI arguments for symbol, date range, and interval in scripts/precompute_heatmap.py
+- [x] T057 [US5] Implement batch snapshot generation and DuckDB persistence in scripts/precompute_heatmap.py
+- [x] T058 [US5] Add in-memory cache layer with TTL to API endpoint in src/liquidationheatmap/api/main.py
+- [x] T059 [US5] Implement cache-first query strategy (check cache → check DB → compute) in src/liquidationheatmap/api/main.py
+- [x] T060 [US5] Add cache metrics logging for hit/miss ratio in src/liquidationheatmap/api/main.py
 
 **Checkpoint**: Performance targets met - API responds in <100ms for typical queries
 
@@ -188,11 +188,11 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T061 [P] Update quickstart.md with actual test commands and expected output
+- [x] T061 [P] Update quickstart.md with actual test commands and expected output
 - [x] T062 [P] Add docstrings to all public functions in src/liquidationheatmap/models/
 - [x] T063 Run full test suite and fix any regressions: `uv run pytest tests/ -v`
 - [x] T064 Run linter and formatter: `ruff check . && ruff format .`
-- [ ] T065 Validate quickstart.md steps work end-to-end
+- [x] T065 Validate quickstart.md steps work end-to-end
 - [x] T066 Remove any debug/print statements from production code
 
 ---

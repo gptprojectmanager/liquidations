@@ -17,6 +17,118 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 
+# =============================================================================
+# CACHING LAYER (T058-T060)
+# =============================================================================
+
+
+class HeatmapCache:
+    """In-memory cache with TTL for heatmap timeseries responses.
+
+    T058: Add in-memory cache layer with TTL to API endpoint
+    T059: Implement cache-first query strategy
+    T060: Add cache metrics logging for hit/miss ratio
+    """
+
+    def __init__(self, ttl_seconds: int = 300, max_size: int = 100):
+        """Initialize cache.
+
+        Args:
+            ttl_seconds: Time-to-live for cache entries (default: 5 minutes)
+            max_size: Maximum number of cache entries
+        """
+        self.ttl_seconds = ttl_seconds
+        self.max_size = max_size
+        self._cache: dict[str, tuple[float, any]] = {}  # key -> (expiry_time, value)
+        self._hits = 0
+        self._misses = 0
+
+    def _make_key(
+        self,
+        symbol: str,
+        start_time: Optional[str],
+        end_time: Optional[str],
+        interval: str,
+        price_bin_size: float,
+        leverage_weights: Optional[str],
+    ) -> str:
+        """Create cache key from request parameters."""
+        return f"{symbol}:{start_time}:{end_time}:{interval}:{price_bin_size}:{leverage_weights}"
+
+    def get(
+        self,
+        symbol: str,
+        start_time: Optional[str],
+        end_time: Optional[str],
+        interval: str,
+        price_bin_size: float,
+        leverage_weights: Optional[str],
+    ) -> Optional[any]:
+        """Get cached response if exists and not expired."""
+        key = self._make_key(
+            symbol, start_time, end_time, interval, price_bin_size, leverage_weights
+        )
+        if key in self._cache:
+            expiry, value = self._cache[key]
+            if time.time() < expiry:
+                self._hits += 1
+                return value
+            else:
+                # Expired, remove from cache
+                del self._cache[key]
+
+        self._misses += 1
+        return None
+
+    def set(
+        self,
+        symbol: str,
+        start_time: Optional[str],
+        end_time: Optional[str],
+        interval: str,
+        price_bin_size: float,
+        leverage_weights: Optional[str],
+        value: any,
+    ) -> None:
+        """Store response in cache."""
+        # Evict oldest entries if at max size
+        if len(self._cache) >= self.max_size:
+            oldest_key = min(self._cache.keys(), key=lambda k: self._cache[k][0])
+            del self._cache[oldest_key]
+
+        key = self._make_key(
+            symbol, start_time, end_time, interval, price_bin_size, leverage_weights
+        )
+        expiry = time.time() + self.ttl_seconds
+        self._cache[key] = (expiry, value)
+
+    def get_stats(self) -> dict:
+        """Get cache statistics."""
+        total = self._hits + self._misses
+        hit_rate = (self._hits / total * 100) if total > 0 else 0.0
+        return {
+            "hits": self._hits,
+            "misses": self._misses,
+            "total_requests": total,
+            "hit_rate_percent": round(hit_rate, 2),
+            "cached_entries": len(self._cache),
+            "max_size": self.max_size,
+            "ttl_seconds": self.ttl_seconds,
+        }
+
+    def clear(self) -> None:
+        """Clear all cached entries."""
+        self._cache.clear()
+        self._hits = 0
+        self._misses = 0
+
+
+# Global heatmap cache instance (TTL from env or default 5 minutes)
+_heatmap_cache = HeatmapCache(
+    ttl_seconds=int(os.getenv("LH_CACHE_TTL", "300")),
+    max_size=int(os.getenv("LH_CACHE_MAX_SIZE", "100")),
+)
+
 
 # Simple rate limiter (in-memory, suitable for single-server deployments)
 class SimpleRateLimiter:
@@ -160,6 +272,31 @@ async def health_check():
         dict: Status of the API
     """
     return {"status": "ok", "service": "liquidation-heatmap"}
+
+
+@app.get("/cache/stats")
+async def get_cache_stats():
+    """Get heatmap cache statistics (T060).
+
+    Returns cache hit/miss ratio and other metrics for monitoring.
+
+    Returns:
+        dict: Cache statistics including hit rate
+    """
+    return _heatmap_cache.get_stats()
+
+
+@app.delete("/cache/clear")
+async def clear_cache():
+    """Clear the heatmap cache.
+
+    Useful for forcing recalculation after data updates.
+
+    Returns:
+        dict: Confirmation message
+    """
+    _heatmap_cache.clear()
+    return {"message": "Cache cleared", "status": "ok"}
 
 
 @app.get(
@@ -876,6 +1013,9 @@ async def get_heatmap_timeseries(
     **DEPRECATION NOTICE**: The `/liquidations/levels` endpoint is deprecated.
     Use this endpoint for accurate time-varying heatmap data.
 
+    **CACHING**: Responses are cached for 5 minutes (configurable via LH_CACHE_TTL).
+    Use GET /cache/stats to monitor cache performance.
+
     Args:
         symbol: Trading pair (e.g., BTCUSDT)
         start_time: Start of time range (ISO 8601, defaults to 7 days ago)
@@ -891,6 +1031,16 @@ async def get_heatmap_timeseries(
     from datetime import datetime, timedelta
 
     from ..models.time_evolving_heatmap import calculate_time_evolving_heatmap
+
+    # T059: Check cache first (cache-first query strategy)
+    cached_response = _heatmap_cache.get(
+        symbol, start_time, end_time, interval, price_bin_size, leverage_weights
+    )
+    if cached_response is not None:
+        logger.debug(f"Cache HIT for {symbol} heatmap-timeseries")
+        return cached_response
+
+    logger.debug(f"Cache MISS for {symbol} heatmap-timeseries - computing...")
 
     # Validate symbol against whitelist
     if symbol not in SUPPORTED_SYMBOLS:
@@ -1068,7 +1218,7 @@ async def get_heatmap_timeseries(
             "max": max(all_prices) if all_prices else 0,
         }
 
-        return HeatmapTimeseriesResponse(
+        response = HeatmapTimeseriesResponse(
             data=response_data,
             meta=HeatmapTimeseriesMetadata(
                 symbol=symbol,
@@ -1082,6 +1232,14 @@ async def get_heatmap_timeseries(
                 total_consumed=total_consumed,
             ),
         )
+
+        # T059: Cache the response for future requests
+        _heatmap_cache.set(
+            symbol, start_time, end_time, interval, price_bin_size, leverage_weights, response
+        )
+        logger.debug(f"Cached response for {symbol} heatmap-timeseries")
+
+        return response
 
     except Exception as e:
         logger.error(f"Error calculating heatmap timeseries: {e}")
