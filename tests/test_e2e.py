@@ -30,7 +30,8 @@ class TestE2EIntegration:
         - Short liquidations > current price
         """
         # Step 1: Verify data ingestion (via DuckDBService)
-        with DuckDBService() as db:
+        # Use read_only=True to match API connections (avoid DuckDB config conflict)
+        with DuckDBService(read_only=True) as db:
             current_price, open_interest = db.get_latest_open_interest("BTCUSDT")
 
             assert current_price > 0

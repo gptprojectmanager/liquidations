@@ -34,17 +34,91 @@ def _fetch_binance_price(symbol: str, timeout: int = 5) -> Decimal:
 
 
 class DuckDBService:
-    """Service for managing DuckDB connection and queries."""
+    """Service for managing DuckDB connection and queries.
 
-    def __init__(self, db_path: str = "data/processed/liquidations.duckdb"):
-        """Initialize DuckDB service.
+    Uses singleton pattern PER DATABASE PATH to avoid opening 185GB database file
+    on every request. This dramatically reduces HDD I/O and prevents system slowdowns.
+
+    Different db_paths get different singleton instances, allowing:
+    - Production API to keep one connection to production DB
+    - Tests to use separate DB files (or :memory:)
+    """
+
+    # Singletons keyed by (resolved_path, read_only)
+    _instances: dict[tuple[str, bool], "DuckDBService"] = {}
+
+    @classmethod
+    def reset_singletons(cls, db_path: str | None = None) -> None:
+        """Reset singleton instances. Used for testing.
+
+        Args:
+            db_path: If provided, only reset singletons for this path.
+                     If None, reset ALL singletons.
+        """
+        if db_path is None:
+            # Reset all
+            for instance in cls._instances.values():
+                try:
+                    instance.conn.close()
+                except Exception:
+                    pass
+            cls._instances.clear()
+        else:
+            # Reset specific path
+            resolved = str(Path(db_path).resolve())
+            keys_to_remove = [k for k in cls._instances if k[0] == resolved]
+            for key in keys_to_remove:
+                try:
+                    cls._instances[key].conn.close()
+                except Exception:
+                    pass
+                del cls._instances[key]
+
+    def __new__(cls, db_path: str = "data/processed/liquidations.duckdb", read_only: bool = False):
+        """Singleton pattern per (db_path, read_only) - reuse existing connection.
 
         Args:
             db_path: Path to DuckDB database file
+            read_only: If True, open in read-only mode (faster for queries)
         """
+        resolved_path = str(Path(db_path).resolve())
+        key = (resolved_path, read_only)
+
+        if key not in cls._instances:
+            instance = super().__new__(cls)
+            instance._initialized = False
+            cls._instances[key] = instance
+
+        return cls._instances[key]
+
+    def __init__(
+        self, db_path: str = "data/processed/liquidations.duckdb", read_only: bool = False
+    ):
+        """Initialize DuckDB service (only once per singleton).
+
+        Args:
+            db_path: Path to DuckDB database file
+            read_only: If True, open in read-only mode (faster for queries)
+        """
+        # Skip if already initialized (singleton)
+        if getattr(self, "_initialized", False):
+            return
+
         self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = duckdb.connect(str(self.db_path))
+        self.read_only = read_only
+
+        if not read_only:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Open connection with appropriate mode
+        if read_only:
+            self.conn = duckdb.connect(str(self.db_path), read_only=True)
+            logger.info(f"DuckDB singleton (read-only) connected: {self.db_path}")
+        else:
+            self.conn = duckdb.connect(str(self.db_path))
+            logger.info(f"DuckDB singleton (read-write) connected: {self.db_path}")
+
+        self._initialized = True
 
     def get_latest_open_interest(self, symbol: str = "BTCUSDT") -> Tuple[Decimal, Decimal]:
         """Get latest Open Interest and current price for symbol.
@@ -233,18 +307,33 @@ class DuckDBService:
         latest = df.iloc[-1]
         return Decimal(str(latest["funding_rate"]))
 
-    def close(self):
-        """Close database connection."""
+    def close(self, force: bool = False):
+        """Close database connection.
+
+        Args:
+            force: If True, close even singleton connection. Default False preserves singleton.
+        """
+        # Don't close singleton connections unless forced
+        if not force:
+            return
+
         if self.conn:
             self.conn.close()
+            self._initialized = False
+            # Clear singleton reference from dict
+            resolved_path = str(self.db_path.resolve())
+            key = (resolved_path, self.read_only)
+            if key in DuckDBService._instances:
+                del DuckDBService._instances[key]
 
     def __enter__(self):
         """Context manager entry."""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
-        self.close()
+        """Context manager exit - does NOT close singleton connection."""
+        # Singleton stays open - this is intentional for performance
+        pass
 
     def get_large_trades(
         self,

@@ -380,7 +380,7 @@ async def get_liquidation_levels(
     except Exception as e:
         # Fallback to historical price if API fails
         logging.warning(f"Binance API price fetch failed for {symbol}: {e}")
-        with DuckDBService() as db_fallback:
+        with DuckDBService(read_only=True) as db_fallback:
             price_decimal, _ = db_fallback.get_latest_open_interest(symbol)
             current_price = float(price_decimal)
 
@@ -393,7 +393,7 @@ async def get_liquidation_levels(
         bin_size = 1500.0  # 90d: Low granularity
 
     # Calculate liquidations using OI-based model
-    with DuckDBService() as db:
+    with DuckDBService(read_only=True) as db:
         # OI-based model: distributes current Open Interest based on volume profile
         bins_df = db.calculate_liquidations_oi_based(
             symbol=symbol,
@@ -492,7 +492,7 @@ async def get_heatmap(
     from .heatmap_models import HeatmapDataPoint, HeatmapMetadata, HeatmapResponse
 
     # Connect to database
-    db = DuckDBService()
+    db = DuckDBService(read_only=True)
 
     try:
         # Query heatmap cache
@@ -604,7 +604,7 @@ async def get_liquidation_history(
     Returns:
         List of historical liquidation records or aggregated data
     """
-    db = DuckDBService()
+    db = DuckDBService(read_only=True)
 
     try:
         # Check if liquidation_history table exists
@@ -704,7 +704,7 @@ async def compare_models(
     Returns predictions from binance_standard, funding_adjusted, and ensemble models.
     """
     # Fetch data from DuckDB
-    with DuckDBService() as db:
+    with DuckDBService(read_only=True) as db:
         current_price, open_interest = db.get_latest_open_interest(symbol)
         _ = db.get_latest_funding_rate(symbol)  # Reserved for future use
 
@@ -814,7 +814,7 @@ async def get_klines(
             detail=f"Invalid symbol '{symbol}'. Supported: {sorted(SUPPORTED_SYMBOLS)}",
         )
 
-    db = DuckDBService()
+    db = DuckDBService(read_only=True)
 
     try:
         table_name = f"klines_{interval}_history"
@@ -1098,7 +1098,7 @@ async def get_heatmap_timeseries(
         close: Decimal
         volume: Decimal
 
-    db = DuckDBService()
+    db = DuckDBService(read_only=True)
 
     try:
         # Query candles

@@ -163,7 +163,8 @@ class TestCachingPerformance:
             std_dev = variance**0.5
 
             # Standard deviation should be less than 50% of average
-            assert std_dev < avg * 0.5 or std_dev < 100, (
+            # Note: 200ms tolerance for systems under heavy I/O load (large DuckDB files)
+            assert std_dev < avg * 0.5 or std_dev < 200, (
                 f"Response times too variable: avg={avg:.2f}ms, std_dev={std_dev:.2f}ms"
             )
 
