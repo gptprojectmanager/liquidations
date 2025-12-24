@@ -246,78 +246,6 @@ class DuckDBService:
         """Context manager exit."""
         self.close()
 
-    def initialize_snapshot_tables(self) -> None:
-        """Initialize database tables for time-evolving heatmap snapshots.
-
-        Creates:
-        - liquidation_snapshots: Pre-computed snapshot cache for fast API queries
-        - position_events: Event log for position lifecycle tracking
-
-        Per spec.md Phase 2 (T029-T031).
-
-        Thread Safety:
-            Uses CREATE TABLE IF NOT EXISTS which is idempotent. Concurrent calls
-            may raise write-write conflicts in DuckDB - callers should handle
-            duckdb.TransactionException if running in multi-threaded context.
-        """
-        # Create liquidation_snapshots table (T029)
-        # UNIQUE constraint prevents duplicate snapshots for same timestamp/symbol/bucket/side
-        # CHECK constraints ensure data integrity
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS liquidation_snapshots (
-                id BIGINT PRIMARY KEY,
-                timestamp TIMESTAMP NOT NULL,
-                symbol VARCHAR(20) NOT NULL,
-                price_bucket DECIMAL(18, 2) NOT NULL,
-                side VARCHAR(10) NOT NULL,
-                active_volume DECIMAL(20, 8) NOT NULL,
-                consumed_volume DECIMAL(20, 8) NOT NULL DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(timestamp, symbol, price_bucket, side),
-                CHECK (side IN ('long', 'short')),
-                CHECK (active_volume >= 0),
-                CHECK (consumed_volume >= 0),
-                CHECK (price_bucket > 0),
-                CHECK (LENGTH(TRIM(symbol)) > 0)
-            )
-        """)
-
-        # Create position_events table (T030)
-        # CHECK constraints ensure data integrity for side and event_type
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS position_events (
-                id BIGINT PRIMARY KEY,
-                timestamp TIMESTAMP NOT NULL,
-                symbol VARCHAR(20) NOT NULL,
-                event_type VARCHAR(20) NOT NULL,
-                entry_price DECIMAL(18, 2) NOT NULL,
-                liq_price DECIMAL(18, 2) NOT NULL,
-                volume DECIMAL(20, 8) NOT NULL,
-                side VARCHAR(10) NOT NULL,
-                leverage INTEGER NOT NULL,
-                CHECK (event_type IN ('open', 'close', 'liquidate')),
-                CHECK (side IN ('long', 'short')),
-                CHECK (volume >= 0),
-                CHECK (leverage > 0),
-                CHECK (LENGTH(TRIM(symbol)) > 0)
-            )
-        """)
-
-        # Create indexes for query performance (T034)
-        # CREATE INDEX IF NOT EXISTS is idempotent - no try/except needed
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_liq_snap_ts_sym
-            ON liquidation_snapshots(timestamp, symbol)
-        """)
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_liq_snap_price
-            ON liquidation_snapshots(price_bucket)
-        """)
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_pos_events_ts_sym
-            ON position_events(timestamp, symbol)
-        """)
-
     def get_large_trades(
         self,
         symbol: str = "BTCUSDT",
@@ -330,8 +258,13 @@ class DuckDBService:
 
         logger = logging.getLogger(__name__)
 
+        # Defense-in-depth: validate symbol is alphanumeric (prevents SQL injection)
+        if not symbol.isalnum():
+            raise ValueError(f"Invalid symbol: {symbol}. Must be alphanumeric.")
+
         logger.info(
-            f"get_large_trades called: symbol={symbol}, min_gross_value={min_gross_value}, timeframe={start_datetime} to {end_datetime}"
+            f"get_large_trades called: symbol={symbol}, min_gross_value={min_gross_value}, "
+            f"timeframe={start_datetime} to {end_datetime}"
         )
 
         # Try to query from DB first
@@ -769,148 +702,207 @@ class DuckDBService:
 
             return pd.DataFrame(columns=["price_bucket", "leverage", "side", "volume", "liq_price"])
 
-    def save_snapshot(self, snapshot) -> int:
-        """Save a HeatmapSnapshot to the liquidation_snapshots table.
+    # ==========================================================================
+    # TIME-EVOLVING HEATMAP SCHEMA (Feature 008)
+    # ==========================================================================
 
-        Each cell in the snapshot is stored as separate rows for long and short sides.
-        Zero-volume entries are skipped. Uses INSERT OR REPLACE for idempotency.
+    def ensure_snapshot_tables(self) -> None:
+        """Ensure liquidation snapshot tables exist.
+
+        Creates the following tables if they don't exist:
+        - liquidation_snapshots: Pre-computed heatmap snapshots for caching
+        - position_events: Audit trail of position lifecycle events
+
+        Per spec.md Phase 2 and data-model.md.
+        """
+        # Create liquidation_snapshots table (simpler schema without sequences)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS liquidation_snapshots (
+                id INTEGER PRIMARY KEY,
+                timestamp TIMESTAMP NOT NULL,
+                symbol VARCHAR(20) NOT NULL,
+                price_bucket DECIMAL(18, 2) NOT NULL,
+                side VARCHAR(10) NOT NULL,
+                active_volume DECIMAL(20, 8) NOT NULL DEFAULT 0,
+                consumed_volume DECIMAL(20, 8) NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Create indexes for efficient queries
+        try:
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_liq_snap_ts_sym
+                ON liquidation_snapshots(timestamp, symbol)
+            """)
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_liq_snap_price
+                ON liquidation_snapshots(price_bucket)
+            """)
+        except Exception:
+            pass  # Indexes may already exist
+
+        # Create position_events table for audit trail
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS position_events (
+                id INTEGER PRIMARY KEY,
+                timestamp TIMESTAMP NOT NULL,
+                symbol VARCHAR(20) NOT NULL,
+                event_type VARCHAR(20) NOT NULL,
+                entry_price DECIMAL(18, 8) NOT NULL,
+                liq_price DECIMAL(18, 8) NOT NULL,
+                volume DECIMAL(20, 8) NOT NULL,
+                side VARCHAR(10) NOT NULL,
+                leverage INTEGER NOT NULL
+            )
+        """)
+
+        logger.info("Snapshot tables ensured (liquidation_snapshots, position_events)")
+
+    def save_snapshot(
+        self,
+        snapshot,  # HeatmapSnapshot from models.position
+        consumed_volume: Decimal = Decimal("0"),
+    ) -> None:
+        """Save a heatmap snapshot to the database.
+
+        Persists the snapshot cells for later retrieval, enabling
+        cache-first query strategy for fast API responses.
 
         Args:
-            snapshot: HeatmapSnapshot from time_evolving_heatmap.py
+            snapshot: HeatmapSnapshot with timestamp, symbol, and cells
+            consumed_volume: Total volume consumed (liquidated) this period
 
-        Returns:
-            Number of rows inserted/updated
-
-        Note:
-            Requires initialize_snapshot_tables() to have been called first.
+        Per spec.md Phase 2 - database caching layer.
         """
-        if not snapshot.cells:
-            return 0
+        self.ensure_snapshot_tables()
 
-        rows_to_insert = []
+        # Insert each cell as a row
         for price_bucket, cell in snapshot.cells.items():
-            # Insert long side if has volume
+            # Insert long density
             if cell.long_density > 0:
-                rows_to_insert.append(
-                    (
+                # Get next id
+                result = self.conn.execute(
+                    "SELECT COALESCE(MAX(id), 0) + 1 FROM liquidation_snapshots"
+                ).fetchone()
+                next_id = result[0]
+
+                self.conn.execute(
+                    """
+                    INSERT INTO liquidation_snapshots
+                    (id, timestamp, symbol, price_bucket, side, active_volume, consumed_volume, created_at)
+                    VALUES (?, ?, ?, ?, 'long', ?, ?, CURRENT_TIMESTAMP)
+                    """,
+                    [
+                        next_id,
                         snapshot.timestamp,
                         snapshot.symbol,
-                        float(price_bucket),
-                        "long",
-                        float(cell.long_density),
-                        0.0,  # consumed_volume
-                    )
+                        str(price_bucket),  # Use str() to preserve Decimal precision
+                        str(cell.long_density),
+                        str(consumed_volume),
+                    ],
                 )
 
-            # Insert short side if has volume
+            # Insert short density
             if cell.short_density > 0:
-                rows_to_insert.append(
-                    (
+                # Get next id
+                result = self.conn.execute(
+                    "SELECT COALESCE(MAX(id), 0) + 1 FROM liquidation_snapshots"
+                ).fetchone()
+                next_id = result[0]
+
+                self.conn.execute(
+                    """
+                    INSERT INTO liquidation_snapshots
+                    (id, timestamp, symbol, price_bucket, side, active_volume, consumed_volume, created_at)
+                    VALUES (?, ?, ?, ?, 'short', ?, ?, CURRENT_TIMESTAMP)
+                    """,
+                    [
+                        next_id,
                         snapshot.timestamp,
                         snapshot.symbol,
-                        float(price_bucket),
-                        "short",
-                        float(cell.short_density),
-                        0.0,  # consumed_volume
-                    )
+                        str(price_bucket),  # Use str() to preserve Decimal precision
+                        str(cell.short_density),
+                        str(consumed_volume),
+                    ],
                 )
 
-        if not rows_to_insert:
-            return 0
-
-        # Use INSERT with ON CONFLICT for upsert behavior
-        import hashlib
-        from datetime import datetime as dt
-
-        now = dt.now()
-
-        for row in rows_to_insert:
-            ts, sym, price_bucket, side, active_volume, consumed_volume = row
-
-            # Generate deterministic ID from unique key components
-            key_str = f"{ts.isoformat()}:{sym}:{price_bucket}:{side}"
-            row_id = int(hashlib.sha256(key_str.encode()).hexdigest()[:15], 16)
-
-            self.conn.execute(
-                """
-                INSERT INTO liquidation_snapshots
-                (id, timestamp, symbol, price_bucket, side,
-                 active_volume, consumed_volume, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (timestamp, symbol, price_bucket, side)
-                DO UPDATE SET active_volume = EXCLUDED.active_volume,
-                              consumed_volume = EXCLUDED.consumed_volume,
-                              created_at = EXCLUDED.created_at
-            """,
-                [row_id, ts, sym, price_bucket, side, active_volume, consumed_volume, now],
-            )
-
-        return len(rows_to_insert)
+        logger.debug(f"Saved snapshot for {snapshot.symbol} at {snapshot.timestamp}")
 
     def load_snapshots(
         self,
         symbol: str,
         start_time,
         end_time,
-    ) -> list:
-        """Load HeatmapSnapshots from the liquidation_snapshots table.
+    ):
+        """Load pre-computed heatmap snapshots from database.
 
-        Queries the database for snapshots within the specified time range
-        and reconstructs HeatmapSnapshot objects with their cell data.
+        Retrieves cached snapshots for fast API responses. Returns
+        empty list if no cached data exists.
 
         Args:
-            symbol: Trading pair symbol (e.g., "BTCUSDT")
-            start_time: Start of time range (inclusive)
-            end_time: End of time range (inclusive)
+            symbol: Trading pair (e.g., BTCUSDT)
+            start_time: Start of time range (datetime)
+            end_time: End of time range (datetime)
 
         Returns:
-            List of HeatmapSnapshot objects ordered by timestamp ascending.
-            Returns empty list if no matching data found.
+            List of dicts with snapshot data, or empty list
 
-        Note:
-            Uses indexes on (timestamp, symbol) for efficient queries.
-            Requires initialize_snapshot_tables() to have been called first.
+        Per spec.md Phase 2 - cache-first query strategy.
         """
-        from src.liquidationheatmap.models.position import HeatmapSnapshot
+        self.ensure_snapshot_tables()
 
-        # Query all rows for this symbol within time range
-        # Use indexed columns for efficient lookup
-        result = self.conn.execute(
-            """
-            SELECT timestamp, price_bucket, side, active_volume
-            FROM liquidation_snapshots
-            WHERE symbol = ?
-              AND timestamp >= ?
-              AND timestamp <= ?
-            ORDER BY timestamp ASC, price_bucket ASC
-        """,
-            [symbol, start_time, end_time],
-        ).fetchall()
+        try:
+            result = self.conn.execute(
+                """
+                SELECT
+                    timestamp,
+                    symbol,
+                    price_bucket,
+                    side,
+                    active_volume,
+                    consumed_volume
+                FROM liquidation_snapshots
+                WHERE symbol = ?
+                  AND timestamp >= ?
+                  AND timestamp <= ?
+                ORDER BY timestamp, price_bucket
+                """,
+                [symbol, start_time, end_time],
+            ).fetchall()
 
-        if not result:
+            if not result:
+                return []
+
+            # Group by timestamp
+            from collections import defaultdict
+
+            snapshots_by_ts = defaultdict(list)
+            for row in result:
+                ts, sym, price_bucket, side, active_vol, consumed_vol = row
+                snapshots_by_ts[ts].append(
+                    {
+                        "price_bucket": price_bucket,
+                        "side": side,
+                        "active_volume": active_vol,
+                        "consumed_volume": consumed_vol,
+                    }
+                )
+
+            # Convert to list of snapshot dicts
+            snapshots = []
+            for ts, cells in sorted(snapshots_by_ts.items()):
+                snapshots.append(
+                    {
+                        "timestamp": ts,
+                        "symbol": symbol,
+                        "cells": cells,
+                    }
+                )
+
+            logger.debug(f"Loaded {len(snapshots)} cached snapshots for {symbol}")
+            return snapshots
+
+        except Exception as e:
+            logger.warning(f"Failed to load snapshots: {e}")
             return []
-
-        # Group rows by timestamp to reconstruct snapshots
-        from collections import defaultdict
-        from decimal import Decimal
-
-        grouped = defaultdict(list)
-        for row in result:
-            ts, price_bucket, side, active_volume = row
-            grouped[ts].append((price_bucket, side, active_volume))
-
-        # Build HeatmapSnapshot objects
-        snapshots = []
-        for ts in sorted(grouped.keys()):
-            snapshot = HeatmapSnapshot(timestamp=ts, symbol=symbol)
-
-            for price_bucket, side, active_volume in grouped[ts]:
-                cell = snapshot.get_cell(Decimal(str(price_bucket)))
-                if side == "long":
-                    cell.long_density = Decimal(str(active_volume))
-                else:  # short
-                    cell.short_density = Decimal(str(active_volume))
-
-            snapshots.append(snapshot)
-
-        return snapshots

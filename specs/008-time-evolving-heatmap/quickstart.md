@@ -42,11 +42,28 @@ OI: 417460
 ### 2. Run Tests
 
 ```bash
-# Run unit tests for time-evolving model
+# Run unit tests for time-evolving model (core algorithm tests)
 uv run pytest tests/unit/models/test_time_evolving_heatmap.py -v
 
-# Run full test suite
+# Run integration tests (database persistence, API)
+uv run pytest tests/integration/test_time_evolving_algorithm.py tests/integration/test_heatmap_api.py -v
+
+# Run contract tests (API contract validation)
+uv run pytest tests/contract/test_heatmap_timeseries.py -v
+
+# Run performance tests
+uv run pytest tests/performance/test_algorithm_performance.py tests/performance/test_api_performance.py -v
+
+# Run full test suite (all 878+ tests)
 uv run pytest tests/ -v
+```
+
+Expected output for time-evolving model tests:
+```
+tests/unit/models/test_time_evolving_heatmap.py::TestShouldLiquidate::test_long_position_not_liquidated_when_price_above ... PASSED
+tests/unit/models/test_time_evolving_heatmap.py::TestShouldLiquidate::test_long_position_liquidated_when_price_touches ... PASSED
+tests/unit/models/test_time_evolving_heatmap.py::TestShouldLiquidate::test_short_position_liquidated_when_price_rises ... PASSED
+... (all tests should pass)
 ```
 
 ### 3. Start API Server
@@ -82,6 +99,8 @@ Click "Load Heatmap" to see time-evolving visualization.
 | `/liquidations/levels` | GET | Static levels (DEPRECATED) |
 | `/prices/klines` | GET | OHLC price data |
 | `/health` | GET | Health check |
+| `/cache/stats` | GET | Cache hit/miss statistics (NEW) |
+| `/cache/clear` | DELETE | Clear heatmap cache (NEW) |
 
 ## Example Response
 
@@ -115,7 +134,8 @@ Click "Load Heatmap" to see time-evolving visualization.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LH_DB_PATH` | `data/processed/liquidations.duckdb` | Database path |
-| `LH_CACHE_TTL` | `300` | Cache TTL in seconds |
+| `LH_CACHE_TTL` | `300` | Cache TTL in seconds (5 minutes) |
+| `LH_CACHE_MAX_SIZE` | `100` | Maximum cache entries |
 | `LH_DEFAULT_INTERVAL` | `15m` | Default heatmap interval |
 
 ### Leverage Distribution

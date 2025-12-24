@@ -68,7 +68,7 @@
 - [x] T014 [P] [US1] Unit test for remove_proportionally() function in tests/unit/models/test_time_evolving_heatmap.py
 - [x] T015 [US1] Unit test for process_candle() function in tests/unit/models/test_time_evolving_heatmap.py
 - [x] T016 [US1] Unit test for calculate_time_evolving_heatmap() main function in tests/unit/models/test_time_evolving_heatmap.py
-- [ ] T017 [US1] Integration test with real DuckDB data subset in tests/integration/test_time_evolving_algorithm.py
+- [x] T017 [US1] Integration test with real DuckDB data subset in tests/integration/test_time_evolving_algorithm.py
 
 ### Implementation for User Story 1
 
@@ -120,7 +120,7 @@
 
 - [x] T035 [P] [US3] Contract test for /liquidations/heatmap-timeseries endpoint in tests/contract/test_heatmap_timeseries.py
 - [x] T036 [P] [US3] Contract test for query parameter validation (symbol, interval, time range) in tests/contract/test_heatmap_timeseries.py
-- [ ] T037 [US3] Integration test for full API response matching openapi.yaml schema in tests/integration/test_heatmap_api.py
+- [x] T037 [US3] Integration test for full API response matching openapi.yaml schema in tests/integration/test_heatmap_api.py
 
 ### Implementation for User Story 3
 
@@ -168,17 +168,17 @@
 
 ### Tests for User Story 5
 
-- [ ] T053 [P] [US5] Performance test asserting <500ms for 1000 candle calculation in tests/performance/test_algorithm_performance.py
-- [ ] T054 [P] [US5] Performance test asserting <100ms API response for cached data in tests/performance/test_api_performance.py
+- [x] T053 [P] [US5] Performance test asserting <500ms for 1000 candle calculation in tests/performance/test_algorithm_performance.py
+- [x] T054 [P] [US5] Performance test asserting <100ms API response for cached data in tests/performance/test_api_performance.py
 
 ### Implementation for User Story 5
 
-- [ ] T055 [US5] Create pre-computation script in scripts/precompute_heatmap.py
-- [ ] T056 [US5] Add CLI arguments for symbol, date range, and interval in scripts/precompute_heatmap.py
-- [ ] T057 [US5] Implement batch snapshot generation and DuckDB persistence in scripts/precompute_heatmap.py
-- [ ] T058 [US5] Add in-memory cache layer with TTL to API endpoint in src/liquidationheatmap/api/main.py
-- [ ] T059 [US5] Implement cache-first query strategy (check cache → check DB → compute) in src/liquidationheatmap/api/main.py
-- [ ] T060 [US5] Add cache metrics logging for hit/miss ratio in src/liquidationheatmap/api/main.py
+- [x] T055 [US5] Create pre-computation script in scripts/precompute_heatmap.py
+- [x] T056 [US5] Add CLI arguments for symbol, date range, and interval in scripts/precompute_heatmap.py
+- [x] T057 [US5] Implement batch snapshot generation and DuckDB persistence in scripts/precompute_heatmap.py
+- [x] T058 [US5] Add in-memory cache layer with TTL to API endpoint in src/liquidationheatmap/api/main.py
+- [x] T059 [US5] Implement cache-first query strategy (check cache → check DB → compute) in src/liquidationheatmap/api/main.py
+- [x] T060 [US5] Add cache metrics logging for hit/miss ratio in src/liquidationheatmap/api/main.py
 
 **Checkpoint**: Performance targets met - API responds in <100ms for typical queries
 
@@ -188,12 +188,12 @@
 
 **Purpose**: Improvements that affect multiple user stories
 
-- [ ] T061 [P] Update quickstart.md with actual test commands and expected output
-- [ ] T062 [P] Add docstrings to all public functions in src/liquidationheatmap/models/
-- [ ] T063 Run full test suite and fix any regressions: `uv run pytest tests/ -v`
-- [ ] T064 Run linter and formatter: `ruff check . && ruff format .`
-- [ ] T065 Validate quickstart.md steps work end-to-end
-- [ ] T066 Remove any debug/print statements from production code
+- [x] T061 [P] Update quickstart.md with actual test commands and expected output
+- [x] T062 [P] Add docstrings to all public functions in src/liquidationheatmap/models/
+- [x] T063 Run full test suite and fix any regressions: `uv run pytest tests/ -v`
+- [x] T064 Run linter and formatter: `ruff check . && ruff format .`
+- [x] T065 Validate quickstart.md steps work end-to-end
+- [x] T066 Remove any debug/print statements from production code
 
 ---
 

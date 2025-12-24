@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BTC Liquidation Heatmap - Coinglass Style</title>
+    <title>BTC Liquidation Heatmap - Time-Evolving</title>
     <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -28,8 +28,9 @@
         .controls {
             display: flex;
             gap: 10px;
+            flex-wrap: wrap;
         }
-        .controls select, .controls button {
+        .controls select, .controls button, .controls input {
             padding: 8px 16px;
             background: #21262d;
             border: 1px solid #30363d;
@@ -46,6 +47,15 @@
         }
         .controls button.primary:hover {
             background: #2ea043;
+        }
+        .controls button.primary:disabled {
+            background: #21262d;
+            border-color: #30363d;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .controls input[type="number"] {
+            width: 80px;
         }
         #chart-container {
             padding: 20px;
@@ -86,48 +96,69 @@
             border-radius: 6px;
             border: 1px solid #30363d;
             font-size: 12px;
+            max-width: 400px;
         }
         .status.loading { border-color: #f0b90b; }
         .status.success { border-color: #238636; }
         .status.error { border-color: #da3633; }
+        .stats {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(22, 27, 34, 0.95);
+            padding: 10px 15px;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+            font-size: 12px;
+        }
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+        }
+        .stats-label { color: #8b949e; margin-right: 10px; }
+        .stats-value { color: #c9d1d9; font-weight: 500; }
+        .stats-value.long { color: #26a69a; }
+        .stats-value.short { color: #ef5350; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>BTC Liquidation Heatmap</h1>
+        <h1>🔥 BTC Liquidation Heatmap - Time-Evolving</h1>
         <div class="controls">
-            <select id="timeframe">
-                <option value="100">Last 100 candles</option>
-                <option value="200" selected>Last 200 candles</option>
-                <option value="500">Last 500 candles</option>
-            </select>
             <select id="interval">
                 <option value="5m">5 minute</option>
                 <option value="15m" selected>15 minute</option>
+                <option value="1h">1 hour</option>
+                <option value="4h">4 hour</option>
             </select>
-            <button class="primary" onclick="loadHeatmap()">Load Heatmap</button>
+            <input type="number" id="priceBinSize" value="100" min="50" max="500" step="50" title="Price bin size">
+            <select id="lookbackDays">
+                <option value="1">1 day</option>
+                <option value="3" selected>3 days</option>
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+            </select>
+            <button id="loadBtn" class="primary" onclick="loadHeatmap()">Load Heatmap</button>
         </div>
     </div>
 
     <div class="legend">
         <div class="legend-item">
             <div class="legend-color" style="background: linear-gradient(to right, #1a1a2e, #f0b90b);"></div>
-            <span>Liquidation Density</span>
+            <span>Active Liquidation Density</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(100, 100, 100, 0.5);"></div>
+            <span>Consumed (Triggered)</span>
         </div>
         <div class="legend-item">
             <div class="legend-color" style="background: #26a69a;"></div>
-            <span>Price Up</span>
+            <span>Long Positions</span>
         </div>
         <div class="legend-item">
             <div class="legend-color" style="background: #ef5350;"></div>
-            <span>Price Down</span>
-        </div>
-        <div class="legend-item" id="consumed-indicator" style="display: none;">
-            <div class="legend-color" style="background: rgba(100, 100, 100, 0.5);"></div>
-            <span>Consumed (liquidated)</span>
-        </div>
-        <div class="legend-item" id="time-evolving-badge">
-            <span style="color: #238636; font-weight: bold;">Time-Evolving Mode</span>
+            <span>Short Positions</span>
         </div>
     </div>
 
@@ -136,6 +167,25 @@
     </div>
 
     <div id="status" class="status">Ready - Click "Load Heatmap"</div>
+
+    <div id="stats" class="stats" style="display: none;">
+        <div class="stats-row">
+            <span class="stats-label">Snapshots:</span>
+            <span id="statSnapshots" class="stats-value">-</span>
+        </div>
+        <div class="stats-row">
+            <span class="stats-label">Long Volume:</span>
+            <span id="statLong" class="stats-value long">-</span>
+        </div>
+        <div class="stats-row">
+            <span class="stats-label">Short Volume:</span>
+            <span id="statShort" class="stats-value short">-</span>
+        </div>
+        <div class="stats-row">
+            <span class="stats-label">Consumed:</span>
+            <span id="statConsumed" class="stats-value">-</span>
+        </div>
+    </div>
 
     <script>
         const API_BASE = 'http://localhost:8888';
@@ -146,115 +196,157 @@
             status.className = 'status ' + type;
         }
 
-        async function loadHeatmap() {
-            const limit = document.getElementById('timeframe').value;
-            const interval = document.getElementById('interval').value;
+        function setLoading(isLoading) {
+            const btn = document.getElementById('loadBtn');
+            btn.disabled = isLoading;
+            btn.textContent = isLoading ? 'Loading...' : 'Load Heatmap';
+        }
 
-            setStatus('Loading time-evolving heatmap data...', 'loading');
+        function formatVolume(value) {
+            if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+            if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+            if (value >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
+            return `$${value.toFixed(2)}`;
+        }
+
+        function updateStats(meta) {
+            const statsDiv = document.getElementById('stats');
+            statsDiv.style.display = 'block';
+
+            document.getElementById('statSnapshots').textContent = meta.total_snapshots;
+            document.getElementById('statLong').textContent = formatVolume(meta.total_long_volume || 0);
+            document.getElementById('statShort').textContent = formatVolume(meta.total_short_volume || 0);
+            document.getElementById('statConsumed').textContent = formatVolume(meta.total_consumed || 0);
+        }
+
+        async function loadHeatmap() {
+            const interval = document.getElementById('interval').value;
+            const priceBinSize = document.getElementById('priceBinSize').value;
+            const lookbackDays = document.getElementById('lookbackDays').value;
+
+            // Calculate time range
+            const endTime = new Date();
+            const startTime = new Date(endTime.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
+
+            setLoading(true);
+            setStatus('Loading time-evolving heatmap...', 'loading');
 
             try {
-                // Fetch time-evolving heatmap from new endpoint (T046)
-                const heatmapRes = await fetch(
-                    `${API_BASE}/liquidations/heatmap-timeseries?symbol=BTCUSDT&interval=${interval}&limit=${limit}`
-                );
+                // Fetch time-series heatmap data from new endpoint (T046)
+                const params = new URLSearchParams({
+                    symbol: 'BTCUSDT',
+                    interval: interval,
+                    start_time: startTime.toISOString(),
+                    end_time: endTime.toISOString(),
+                    price_bin_size: priceBinSize
+                });
 
-                if (!heatmapRes.ok) {
-                    const errorData = await heatmapRes.json().catch(() => ({}));
-                    throw new Error(errorData.detail || `HTTP ${heatmapRes.status}`);
+                const response = await fetch(`${API_BASE}/liquidations/heatmap-timeseries?${params}`);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || `HTTP ${response.status}`);
                 }
 
-                const heatmapData = await heatmapRes.json();
+                const result = await response.json();
+                const { data: snapshots, meta } = result;
 
-                if (!heatmapData.data || heatmapData.data.length === 0) {
-                    setStatus('No heatmap data available', 'error');
+                if (!snapshots || snapshots.length === 0) {
+                    setStatus('No heatmap data available for selected period', 'error');
+                    setLoading(false);
                     return;
                 }
 
-                setStatus('Loading price data...', 'loading');
-
-                // Fetch klines for candlestick overlay
-                const klinesRes = await fetch(
-                    `${API_BASE}/prices/klines?symbol=BTCUSDT&interval=${interval}&limit=${limit}`
-                );
-                const klinesData = await klinesRes.json();
-
                 setStatus('Rendering time-evolving heatmap...', 'loading');
 
-                // Transform time-series data to 2D heatmap matrix (T047)
-                const snapshots = heatmapData.data;
-                const meta = heatmapData.meta;
-
-                // Extract all unique timestamps and price levels
+                // T047: Transform time-series data for Plotly
                 const timestamps = snapshots.map(s => s.timestamp);
 
-                // Build unified price bucket list from API price range
-                const minPrice = meta.price_range.min || 90000;
-                const maxPrice = meta.price_range.max || 100000;
-                const priceStep = 100; // $100 buckets as defined in algorithm
-
-                const priceBuckets = [];
-                for (let p = Math.floor(minPrice / priceStep) * priceStep;
-                     p <= Math.ceil(maxPrice / priceStep) * priceStep;
-                     p += priceStep) {
-                    priceBuckets.push(p);
-                }
-
-                // Build heatmap matrix: Z[priceIdx][timeIdx] = density (T048)
-                // CRITICAL: Each column now has DIFFERENT density based on that timestamp's state
-                const heatmapZ = [];
-                let maxDensity = 0;
-                let totalConsumed = 0;
-
-                for (const price of priceBuckets) {
-                    const row = [];
-                    for (let timeIdx = 0; timeIdx < snapshots.length; timeIdx++) {
-                        const snapshot = snapshots[timeIdx];
-                        totalConsumed += snapshot.positions_consumed;
-
-                        // Find density at this price for this timestamp
-                        let density = 0;
-                        for (const level of snapshot.levels) {
-                            // Match price bucket (within tolerance)
-                            if (Math.abs(level.price - price) < priceStep / 2) {
-                                density = level.long_density + level.short_density;
-                                break;
-                            }
-                        }
-
-                        // Apply log scale for better visualization
-                        const logDensity = density > 0 ? Math.log10(density + 1) : 0;
-                        row.push(logDensity);
-                        maxDensity = Math.max(maxDensity, logDensity);
-                    }
-                    heatmapZ.push(row);
-                }
-
-                // Normalize to 0-1 range for colorscale
-                if (maxDensity > 0) {
-                    for (let i = 0; i < heatmapZ.length; i++) {
-                        for (let j = 0; j < heatmapZ[i].length; j++) {
-                            heatmapZ[i][j] = heatmapZ[i][j] / maxDensity;
-                        }
+                // Collect all unique price levels
+                const allPriceLevels = new Set();
+                for (const snapshot of snapshots) {
+                    for (const level of snapshot.levels || []) {
+                        allPriceLevels.add(level.price);
                     }
                 }
+                const priceLevels = Array.from(allPriceLevels).sort((a, b) => a - b);
+
+                if (priceLevels.length === 0) {
+                    setStatus('No liquidation levels found in data', 'error');
+                    setLoading(false);
+                    return;
+                }
+
+                // T048: Build per-column density matrix (each column = one timestamp)
+                const longZ = [];
+                const shortZ = [];
+
+                for (const price of priceLevels) {
+                    const longRow = [];
+                    const shortRow = [];
+
+                    for (const snapshot of snapshots) {
+                        const level = (snapshot.levels || []).find(l => l.price === price);
+                        if (level) {
+                            longRow.push(level.long_density || 0);
+                            shortRow.push(level.short_density || 0);
+                        } else {
+                            longRow.push(0);
+                            shortRow.push(0);
+                        }
+                    }
+
+                    longZ.push(longRow);
+                    shortZ.push(shortRow);
+                }
+
+                // T51: Normalize density for color scale (dynamic range per timestamp)
+                const maxLong = Math.max(...longZ.flat(), 1);
+                const maxShort = Math.max(...shortZ.flat(), 1);
+
+                // Normalize to 0-1 range
+                const normalizedLongZ = longZ.map(row =>
+                    row.map(v => Math.log10(v + 1) / Math.log10(maxLong + 1))
+                );
+                const normalizedShortZ = shortZ.map(row =>
+                    row.map(v => Math.log10(v + 1) / Math.log10(maxShort + 1))
+                );
 
                 // Create traces
                 const traces = [];
 
-                // 1. Time-evolving heatmap trace (T048 - per-column density)
+                // Long liquidations heatmap (green tint)
                 traces.push({
-                    z: heatmapZ,
+                    z: normalizedLongZ,
                     x: timestamps,
-                    y: priceBuckets,
+                    y: priceLevels,
                     type: 'heatmap',
+                    name: 'Long Liquidations',
                     colorscale: [
-                        [0, 'rgba(26, 26, 46, 0.9)'],      // Empty - dark
-                        [0.15, 'rgba(75, 0, 130, 0.8)'],   // Low - purple
-                        [0.3, 'rgba(138, 43, 226, 0.8)'],  // Medium-low - violet
-                        [0.5, 'rgba(0, 191, 255, 0.8)'],   // Medium - cyan
-                        [0.7, 'rgba(0, 255, 127, 0.8)'],   // Medium-high - green
-                        [0.85, 'rgba(255, 165, 0, 0.9)'],  // High - orange
-                        [1, 'rgba(240, 185, 11, 1)']       // Maximum - gold
+                        [0, 'rgba(0, 0, 0, 0)'],
+                        [0.2, 'rgba(38, 166, 154, 0.3)'],
+                        [0.5, 'rgba(38, 166, 154, 0.5)'],
+                        [0.8, 'rgba(38, 166, 154, 0.7)'],
+                        [1, 'rgba(38, 166, 154, 0.9)']
+                    ],
+                    showscale: false,
+                    hovertemplate: 'Time: %{x}<br>Price: $%{y:,.0f}<br>Long Density: %{customdata:,.0f}<extra></extra>',
+                    customdata: longZ
+                });
+
+                // Short liquidations heatmap (red tint)
+                traces.push({
+                    z: normalizedShortZ,
+                    x: timestamps,
+                    y: priceLevels,
+                    type: 'heatmap',
+                    name: 'Short Liquidations',
+                    colorscale: [
+                        [0, 'rgba(0, 0, 0, 0)'],
+                        [0.2, 'rgba(239, 83, 80, 0.3)'],
+                        [0.5, 'rgba(239, 83, 80, 0.5)'],
+                        [0.8, 'rgba(239, 83, 80, 0.7)'],
+                        [1, 'rgba(239, 83, 80, 0.9)']
                     ],
                     showscale: true,
                     colorbar: {
@@ -264,27 +356,64 @@
                         len: 0.5,
                         y: 0.75
                     },
-                    hovertemplate: 'Time: %{x}<br>Price: $%{y:,.0f}<br>Density: %{z:.3f}<extra></extra>'
+                    hovertemplate: 'Time: %{x}<br>Price: $%{y:,.0f}<br>Short Density: %{customdata:,.0f}<extra></extra>',
+                    customdata: shortZ
                 });
 
-                // 2. Candlestick overlay (if klines available)
-                if (klinesData.data && klinesData.data.length > 0) {
-                    const klines = klinesData.data;
+                // T49: Add markers for consumed/liquidated events
+                const consumedX = [];
+                const consumedY = [];
+                const consumedText = [];
+
+                for (let i = 0; i < snapshots.length; i++) {
+                    const snapshot = snapshots[i];
+                    if (snapshot.positions_consumed > 0) {
+                        // Find price level with most consumption (approximation)
+                        const levels = snapshot.levels || [];
+                        if (levels.length > 0) {
+                            const midPrice = priceLevels[Math.floor(priceLevels.length / 2)];
+                            consumedX.push(snapshot.timestamp);
+                            consumedY.push(midPrice);
+                            consumedText.push(`${snapshot.positions_consumed} liquidated`);
+                        }
+                    }
+                }
+
+                if (consumedX.length > 0) {
                     traces.push({
-                        x: klines.map(k => k.timestamp),
-                        open: klines.map(k => k.open),
-                        high: klines.map(k => k.high),
-                        low: klines.map(k => k.low),
-                        close: klines.map(k => k.close),
-                        type: 'candlestick',
-                        increasing: { line: { color: '#26a69a' }, fillcolor: '#26a69a' },
-                        decreasing: { line: { color: '#ef5350' }, fillcolor: '#ef5350' },
-                        name: 'BTC/USDT',
-                        hoverinfo: 'x+y'
+                        x: consumedX,
+                        y: consumedY,
+                        mode: 'markers',
+                        type: 'scatter',
+                        name: 'Liquidations',
+                        marker: {
+                            symbol: 'x',
+                            size: 8,
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            line: { color: 'white', width: 1 }
+                        },
+                        text: consumedText,
+                        hovertemplate: '%{text}<extra></extra>',
+                        showlegend: false
                     });
                 }
 
-                // Layout with timestamp labels (T050)
+                // Add current price line
+                if (meta.price_range && meta.price_range.max) {
+                    const currentPrice = (meta.price_range.min + meta.price_range.max) / 2;
+                    traces.push({
+                        x: [timestamps[0], timestamps[timestamps.length - 1]],
+                        y: [currentPrice, currentPrice],
+                        mode: 'lines',
+                        type: 'scatter',
+                        name: 'Mid Price',
+                        line: { color: '#f0b90b', width: 2, dash: 'dash' },
+                        hoverinfo: 'skip',
+                        showlegend: false
+                    });
+                }
+
+                // T50: Layout with timestamp axis labels
                 const layout = {
                     title: {
                         text: `BTC/USDT Time-Evolving Liquidation Heatmap (${interval})`,
@@ -294,10 +423,11 @@
                     plot_bgcolor: '#161b22',
                     font: { color: '#c9d1d9' },
                     xaxis: {
-                        title: 'Time (Each column = snapshot state)',
+                        title: 'Time',
                         gridcolor: '#30363d',
-                        rangeslider: { visible: false },
-                        tickformat: '%H:%M<br>%m/%d'
+                        tickformat: '%Y-%m-%d %H:%M',
+                        tickangle: -45,
+                        nticks: 10
                     },
                     yaxis: {
                         title: 'Price (USDT)',
@@ -305,18 +435,7 @@
                         tickformat: '$,.0f'
                     },
                     showlegend: false,
-                    margin: { t: 50, b: 70, l: 80, r: 100 },
-                    annotations: totalConsumed > 0 ? [{
-                        x: 0.02,
-                        y: 0.98,
-                        xref: 'paper',
-                        yref: 'paper',
-                        text: `Consumed: ${totalConsumed} positions`,
-                        showarrow: false,
-                        font: { color: '#f0b90b', size: 12 },
-                        bgcolor: 'rgba(22, 27, 34, 0.9)',
-                        borderpad: 4
-                    }] : []
+                    margin: { t: 50, b: 80, l: 80, r: 100 }
                 };
 
                 const config = {
@@ -327,30 +446,32 @@
 
                 Plotly.newPlot('heatmap', traces, layout, config);
 
-                // Show consumed indicator if any liquidations occurred (T049)
-                if (totalConsumed > 0) {
-                    document.getElementById('consumed-indicator').style.display = 'flex';
-                }
+                // Update stats
+                updateStats(meta);
 
-                // Status message with metadata
-                const snapshotCount = snapshots.length;
-                const priceRange = `$${meta.price_range.min?.toLocaleString() || '?'} - $${meta.price_range.max?.toLocaleString() || '?'}`;
                 setStatus(
-                    `Time-evolving: ${snapshotCount} snapshots | ${priceRange} | ` +
-                    `Long: ${meta.total_long_volume?.toFixed(2) || 0} | Short: ${meta.total_short_volume?.toFixed(2) || 0} | ` +
-                    `Consumed: ${totalConsumed}`,
+                    `Loaded: ${meta.total_snapshots} snapshots, ` +
+                    `Price range: $${meta.price_range.min.toFixed(0)} - $${meta.price_range.max.toFixed(0)}`,
                     'success'
                 );
 
             } catch (error) {
-                console.error('Error loading heatmap:', error);
+                console.error('Error:', error);
                 setStatus(`Error: ${error.message}`, 'error');
+            } finally {
+                setLoading(false);
             }
         }
 
-        // Auto-load on page ready
+        // T52: Auto-load on page ready with error handling
         document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(loadHeatmap, 500);
+            // Give the server time to be ready
+            setTimeout(() => {
+                loadHeatmap().catch(err => {
+                    console.error('Initial load failed:', err);
+                    setStatus('Initial load failed. Click "Load Heatmap" to retry.', 'error');
+                });
+            }, 500);
         });
     </script>
 </body>
