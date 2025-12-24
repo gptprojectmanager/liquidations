@@ -26,8 +26,15 @@ class TestSnapshotPersistence:
 
     def test_save_and_load_snapshot(self, db_service):
         """Verify snapshot can be saved and loaded correctly."""
-        # Create a test snapshot
-        test_time = datetime(2025, 12, 1, 12, 0, 0)
+        # Create a test snapshot with unique timestamp to avoid interference
+        test_time = datetime(2025, 12, 1, 10, 0, 0)  # 10:00 to avoid collision with other tests
+
+        # Cleanup first to ensure clean state
+        db_service.conn.execute(
+            "DELETE FROM liquidation_snapshots WHERE symbol = 'BTCUSDT' AND timestamp = ?",
+            [test_time],
+        )
+
         snapshot = HeatmapSnapshot(
             timestamp=test_time,
             symbol="BTCUSDT",
@@ -45,17 +52,17 @@ class TestSnapshotPersistence:
         # Save the snapshot
         db_service.save_snapshot(snapshot)
 
-        # Load the snapshots
+        # Load the snapshots - use exact time range for this specific snapshot
         loaded = db_service.load_snapshots(
             symbol="BTCUSDT",
-            start_time=test_time - timedelta(hours=1),
-            end_time=test_time + timedelta(hours=1),
+            start_time=test_time,
+            end_time=test_time,
         )
 
-        # Verify loaded data
+        # Verify loaded data - now returns HeatmapSnapshot objects
         assert len(loaded) == 1
-        assert loaded[0]["symbol"] == "BTCUSDT"
-        assert len(loaded[0]["cells"]) == 2  # Two cells saved
+        assert loaded[0].symbol == "BTCUSDT"
+        assert len(loaded[0].cells) == 2  # Two cells saved
 
         # Cleanup
         db_service.conn.execute(
@@ -87,8 +94,8 @@ class TestSnapshotPersistence:
         # Verify order and count
         assert len(loaded) == 3
 
-        # Verify timestamps are in order
-        timestamps = [snap["timestamp"] for snap in loaded]
+        # Verify timestamps are in order - now returns HeatmapSnapshot objects
+        timestamps = [snap.timestamp for snap in loaded]
         assert timestamps == sorted(timestamps)
 
         # Cleanup
@@ -150,26 +157,22 @@ class TestSnapshotPersistence:
 
         db_service.save_snapshot(snapshot)
 
-        # Load and verify
+        # Load and verify - now returns HeatmapSnapshot objects
         loaded = db_service.load_snapshots(
             symbol="BTCUSDT",
-            start_time=test_time - timedelta(hours=1),
-            end_time=test_time + timedelta(hours=1),
+            start_time=test_time,
+            end_time=test_time,  # Exact match to get only this snapshot
         )
 
         assert len(loaded) == 1
-        cells = loaded[0]["cells"]
+        loaded_snapshot = loaded[0]
+        assert isinstance(loaded_snapshot, HeatmapSnapshot)
 
-        # Should have 2 rows (one for long, one for short)
-        assert len(cells) == 2
-
-        long_cell = next((c for c in cells if c["side"] == "long"), None)
-        short_cell = next((c for c in cells if c["side"] == "short"), None)
-
-        assert long_cell is not None
-        assert short_cell is not None
-        assert float(long_cell["active_volume"]) == 500000.0
-        assert float(short_cell["active_volume"]) == 750000.0
+        # Check the reconstructed cell has both densities
+        assert len(loaded_snapshot.cells) == 1
+        loaded_cell = loaded_snapshot.get_cell(Decimal("97500"))
+        assert float(loaded_cell.long_density) == 500000.0
+        assert float(loaded_cell.short_density) == 750000.0
 
         # Cleanup
         db_service.conn.execute(

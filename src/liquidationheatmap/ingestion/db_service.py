@@ -706,6 +706,13 @@ class DuckDBService:
     # TIME-EVOLVING HEATMAP SCHEMA (Feature 008)
     # ==========================================================================
 
+    def initialize_snapshot_tables(self) -> None:
+        """Initialize liquidation snapshot tables (alias for ensure_snapshot_tables).
+
+        Deprecated: Use ensure_snapshot_tables() instead.
+        """
+        return self.ensure_snapshot_tables()
+
     def ensure_snapshot_tables(self) -> None:
         """Ensure liquidation snapshot tables exist.
 
@@ -763,7 +770,7 @@ class DuckDBService:
         self,
         snapshot,  # HeatmapSnapshot from models.position
         consumed_volume: Decimal = Decimal("0"),
-    ) -> None:
+    ) -> int:
         """Save a heatmap snapshot to the database.
 
         Persists the snapshot cells for later retrieval, enabling
@@ -773,61 +780,109 @@ class DuckDBService:
             snapshot: HeatmapSnapshot with timestamp, symbol, and cells
             consumed_volume: Total volume consumed (liquidated) this period
 
+        Returns:
+            Number of rows inserted
+
         Per spec.md Phase 2 - database caching layer.
         """
         self.ensure_snapshot_tables()
 
-        # Insert each cell as a row
+        rows_inserted = 0
+
+        # Insert each cell as a row (with upsert semantics for unique constraint)
         for price_bucket, cell in snapshot.cells.items():
             # Insert long density
             if cell.long_density > 0:
-                # Get next id
-                result = self.conn.execute(
-                    "SELECT COALESCE(MAX(id), 0) + 1 FROM liquidation_snapshots"
-                ).fetchone()
-                next_id = result[0]
-
-                self.conn.execute(
+                # Check if row already exists (unique: timestamp, symbol, price_bucket, side)
+                existing = self.conn.execute(
                     """
-                    INSERT INTO liquidation_snapshots
-                    (id, timestamp, symbol, price_bucket, side, active_volume, consumed_volume, created_at)
-                    VALUES (?, ?, ?, ?, 'long', ?, ?, CURRENT_TIMESTAMP)
+                    SELECT id FROM liquidation_snapshots
+                    WHERE timestamp = ? AND symbol = ? AND price_bucket = ? AND side = 'long'
                     """,
-                    [
-                        next_id,
-                        snapshot.timestamp,
-                        snapshot.symbol,
-                        str(price_bucket),  # Use str() to preserve Decimal precision
-                        str(cell.long_density),
-                        str(consumed_volume),
-                    ],
-                )
+                    [snapshot.timestamp, snapshot.symbol, str(price_bucket)],
+                ).fetchone()
+
+                if existing:
+                    # Update existing row
+                    self.conn.execute(
+                        """
+                        UPDATE liquidation_snapshots
+                        SET active_volume = ?, consumed_volume = ?
+                        WHERE id = ?
+                        """,
+                        [str(cell.long_density), str(consumed_volume), existing[0]],
+                    )
+                else:
+                    # Get next id and insert new row
+                    result = self.conn.execute(
+                        "SELECT COALESCE(MAX(id), 0) + 1 FROM liquidation_snapshots"
+                    ).fetchone()
+                    next_id = result[0]
+
+                    self.conn.execute(
+                        """
+                        INSERT INTO liquidation_snapshots
+                        (id, timestamp, symbol, price_bucket, side, active_volume, consumed_volume, created_at)
+                        VALUES (?, ?, ?, ?, 'long', ?, ?, CURRENT_TIMESTAMP)
+                        """,
+                        [
+                            next_id,
+                            snapshot.timestamp,
+                            snapshot.symbol,
+                            str(price_bucket),
+                            str(cell.long_density),
+                            str(consumed_volume),
+                        ],
+                    )
+                    rows_inserted += 1
 
             # Insert short density
             if cell.short_density > 0:
-                # Get next id
-                result = self.conn.execute(
-                    "SELECT COALESCE(MAX(id), 0) + 1 FROM liquidation_snapshots"
-                ).fetchone()
-                next_id = result[0]
-
-                self.conn.execute(
+                # Check if row already exists
+                existing = self.conn.execute(
                     """
-                    INSERT INTO liquidation_snapshots
-                    (id, timestamp, symbol, price_bucket, side, active_volume, consumed_volume, created_at)
-                    VALUES (?, ?, ?, ?, 'short', ?, ?, CURRENT_TIMESTAMP)
+                    SELECT id FROM liquidation_snapshots
+                    WHERE timestamp = ? AND symbol = ? AND price_bucket = ? AND side = 'short'
                     """,
-                    [
-                        next_id,
-                        snapshot.timestamp,
-                        snapshot.symbol,
-                        str(price_bucket),  # Use str() to preserve Decimal precision
-                        str(cell.short_density),
-                        str(consumed_volume),
-                    ],
-                )
+                    [snapshot.timestamp, snapshot.symbol, str(price_bucket)],
+                ).fetchone()
+
+                if existing:
+                    # Update existing row
+                    self.conn.execute(
+                        """
+                        UPDATE liquidation_snapshots
+                        SET active_volume = ?, consumed_volume = ?
+                        WHERE id = ?
+                        """,
+                        [str(cell.short_density), str(consumed_volume), existing[0]],
+                    )
+                else:
+                    # Get next id and insert new row
+                    result = self.conn.execute(
+                        "SELECT COALESCE(MAX(id), 0) + 1 FROM liquidation_snapshots"
+                    ).fetchone()
+                    next_id = result[0]
+
+                    self.conn.execute(
+                        """
+                        INSERT INTO liquidation_snapshots
+                        (id, timestamp, symbol, price_bucket, side, active_volume, consumed_volume, created_at)
+                        VALUES (?, ?, ?, ?, 'short', ?, ?, CURRENT_TIMESTAMP)
+                        """,
+                        [
+                            next_id,
+                            snapshot.timestamp,
+                            snapshot.symbol,
+                            str(price_bucket),
+                            str(cell.short_density),
+                            str(consumed_volume),
+                        ],
+                    )
+                    rows_inserted += 1
 
         logger.debug(f"Saved snapshot for {snapshot.symbol} at {snapshot.timestamp}")
+        return rows_inserted
 
     def load_snapshots(
         self,
@@ -846,10 +901,14 @@ class DuckDBService:
             end_time: End of time range (datetime)
 
         Returns:
-            List of dicts with snapshot data, or empty list
+            List of HeatmapSnapshot objects, or empty list
 
         Per spec.md Phase 2 - cache-first query strategy.
         """
+        from collections import defaultdict
+
+        from src.liquidationheatmap.models.position import HeatmapSnapshot
+
         self.ensure_snapshot_tables()
 
         try:
@@ -875,8 +934,6 @@ class DuckDBService:
                 return []
 
             # Group by timestamp
-            from collections import defaultdict
-
             snapshots_by_ts = defaultdict(list)
             for row in result:
                 ts, sym, price_bucket, side, active_vol, consumed_vol = row
@@ -889,16 +946,19 @@ class DuckDBService:
                     }
                 )
 
-            # Convert to list of snapshot dicts
+            # Convert to list of HeatmapSnapshot objects
             snapshots = []
-            for ts, cells in sorted(snapshots_by_ts.items()):
-                snapshots.append(
-                    {
-                        "timestamp": ts,
-                        "symbol": symbol,
-                        "cells": cells,
-                    }
-                )
+            for ts, cells_data in sorted(snapshots_by_ts.items()):
+                snapshot = HeatmapSnapshot(timestamp=ts, symbol=symbol)
+                # Reconstruct cells from stored data
+                for cell_data in cells_data:
+                    price_bucket = Decimal(str(cell_data["price_bucket"]))
+                    cell = snapshot.get_cell(price_bucket)
+                    if cell_data["side"] == "long":
+                        cell.long_density = Decimal(str(cell_data["active_volume"]))
+                    elif cell_data["side"] == "short":
+                        cell.short_density = Decimal(str(cell_data["active_volume"]))
+                snapshots.append(snapshot)
 
             logger.debug(f"Loaded {len(snapshots)} cached snapshots for {symbol}")
             return snapshots
