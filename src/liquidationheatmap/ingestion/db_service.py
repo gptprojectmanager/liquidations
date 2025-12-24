@@ -42,10 +42,15 @@ class DuckDBService:
     Different db_paths get different singleton instances, allowing:
     - Production API to keep one connection to production DB
     - Tests to use separate DB files (or :memory:)
+
+    Thread-safe: Uses lock for concurrent singleton creation.
+    Health-checked: Validates connection on access, auto-reconnects if stale.
     """
 
     # Singletons keyed by (resolved_path, read_only)
     _instances: dict[tuple[str, bool], "DuckDBService"] = {}
+    # Thread lock for safe concurrent singleton creation
+    _lock = __import__("threading").Lock()
 
     @classmethod
     def reset_singletons(cls, db_path: str | None = None) -> None:
@@ -77,6 +82,9 @@ class DuckDBService:
     def __new__(cls, db_path: str = "data/processed/liquidations.duckdb", read_only: bool = False):
         """Singleton pattern per (db_path, read_only) - reuse existing connection.
 
+        Thread-safe: Uses lock for concurrent singleton creation.
+        Health-checked: Validates existing connections, recreates if stale.
+
         Args:
             db_path: Path to DuckDB database file
             read_only: If True, open in read-only mode (faster for queries)
@@ -84,12 +92,40 @@ class DuckDBService:
         resolved_path = str(Path(db_path).resolve())
         key = (resolved_path, read_only)
 
-        if key not in cls._instances:
+        with cls._lock:
+            # Check if we have an existing instance
+            if key in cls._instances:
+                instance = cls._instances[key]
+                # Health check: verify connection is still valid
+                if instance._initialized and not instance._is_connection_healthy():
+                    logger.warning(f"Stale connection detected for {db_path}, reconnecting...")
+                    try:
+                        instance.conn.close()
+                    except Exception:
+                        pass
+                    instance._initialized = False
+                    del cls._instances[key]
+                else:
+                    return instance
+
+            # Create new instance
             instance = super().__new__(cls)
             instance._initialized = False
             cls._instances[key] = instance
 
         return cls._instances[key]
+
+    def _is_connection_healthy(self) -> bool:
+        """Check if the DuckDB connection is still valid.
+
+        Returns:
+            True if connection responds to queries, False otherwise.
+        """
+        try:
+            self.conn.execute("SELECT 1").fetchone()
+            return True
+        except Exception:
+            return False
 
     def __init__(
         self, db_path: str = "data/processed/liquidations.duckdb", read_only: bool = False
@@ -159,6 +195,15 @@ class DuckDBService:
             logger.debug(f"open_interest_history table not found, loading from CSV: {e}")
 
         # If no data in DB, load from CSV and insert
+        # Guard: read-only connections cannot write, return fallback
+        if self.read_only:
+            logger.warning(f"No OI data for {symbol} and connection is read-only, using fallback")
+            try:
+                current_price = _fetch_binance_price(symbol)
+            except Exception:
+                current_price = Decimal("95000.00")
+            return current_price, Decimal("0")
+
         return self._load_and_cache_data(symbol)
 
     def _load_and_cache_data(self, symbol: str) -> Tuple[Decimal, Decimal]:
@@ -263,6 +308,13 @@ class DuckDBService:
         except duckdb.CatalogException as e:
             # Table doesn't exist, will load from CSV
             logger.debug(f"funding_rate_history table not found, loading from CSV: {e}")
+
+        # Guard: read-only connections cannot write, return fallback
+        if self.read_only:
+            logger.warning(
+                f"No funding rate for {symbol} and connection is read-only, using fallback"
+            )
+            return Decimal("0.0001")  # Default funding rate
 
         # Load from CSV
         csv_pattern = f"data/raw/{symbol}/fundingRate/{symbol}-fundingRate-*.csv"
