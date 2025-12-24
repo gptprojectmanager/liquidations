@@ -144,7 +144,7 @@ class SimpleRateLimiter:
         now = time.time()
         cutoff = now - self.window_size
 
-        # Clean old requests
+        # Clean old requests for this IP
         self.requests[ip] = [t for t in self.requests[ip] if t > cutoff]
 
         # Check limit
@@ -155,6 +155,14 @@ class SimpleRateLimiter:
 
         # Record request
         self.requests[ip].append(now)
+
+        # Periodic cleanup: remove stale IPs to prevent memory leak
+        # Only run cleanup every ~100 requests to avoid performance impact
+        if len(self.requests) > 1000:
+            stale_ips = [ip_key for ip_key, timestamps in self.requests.items() if not timestamps]
+            for stale_ip in stale_ips:
+                del self.requests[stale_ip]
+
         return True, 0
 
 
