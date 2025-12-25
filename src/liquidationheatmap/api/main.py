@@ -495,19 +495,21 @@ async def get_heatmap(
     db = DuckDBService(read_only=True)
 
     try:
-        # Query heatmap cache
+        # Query liquidation_snapshots table (contains actual data)
+        # Aggregate by timestamp and price_bucket, compute density and volume
         query = """
         SELECT
-            time_bucket,
+            timestamp as time_bucket,
             price_bucket,
-            density,
-            volume
-        FROM heatmap_cache
-        WHERE symbol = ? AND model = ?
-        ORDER BY time_bucket, price_bucket
+            COUNT(*) as density,
+            SUM(active_volume) as volume
+        FROM liquidation_snapshots
+        WHERE symbol = ?
+        GROUP BY timestamp, price_bucket
+        ORDER BY timestamp, price_bucket
         """
 
-        df = db.conn.execute(query, [symbol, model]).df()
+        df = db.conn.execute(query, [symbol]).df()
 
         if df.empty:
             # Return empty response if no data
