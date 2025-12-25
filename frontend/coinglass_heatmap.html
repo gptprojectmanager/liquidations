@@ -353,12 +353,12 @@
         async function loadHeatmap() {
             const interval = document.getElementById('interval').value;
             const priceBinSize = document.getElementById('priceBinSize').value;
-            const lookbackDays = document.getElementById('lookbackDays').value;
+            const lookbackDays = parseInt(document.getElementById('lookbackDays').value);
 
-            // Use actual data date range (Nov 10-17, 2025) - TODO: fetch from API
-            // Data in DB is from November 2025, not current date
+            // Data in DB ends at Nov 17, 2025 - calculate startTime based on lookbackDays
             const endTime = new Date('2025-11-17T23:59:59');
-            const startTime = new Date('2025-11-10T00:00:00');
+            const startTime = new Date(endTime);
+            startTime.setDate(startTime.getDate() - lookbackDays);
 
             setLoading(true);
             setStatus('Loading time-evolving heatmap...', 'loading');
