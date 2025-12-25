@@ -3,6 +3,9 @@
 T028 - Tests for saving and loading snapshots from DuckDB.
 """
 
+import os
+import tempfile
+import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -14,11 +17,20 @@ from src.liquidationheatmap.models.position import HeatmapSnapshot
 
 @pytest.fixture
 def db_service():
-    """Create a DuckDB service connection for testing."""
-    db = DuckDBService()
+    """Create a DuckDB service connection for testing.
+
+    Uses a temporary database to avoid conflicts with running server.
+    """
+    temp_db_path = os.path.join(tempfile.gettempdir(), f"test_{uuid.uuid4().hex}.duckdb")
+
+    db = DuckDBService(db_path=temp_db_path, read_only=False)
     db.ensure_snapshot_tables()
     yield db
-    db.close()
+    db.close(force=True)
+
+    # Cleanup temp file
+    if os.path.exists(temp_db_path):
+        os.remove(temp_db_path)
 
 
 class TestSnapshotPersistence:

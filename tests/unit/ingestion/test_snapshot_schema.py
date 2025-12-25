@@ -4,6 +4,8 @@ T026 - Tests for liquidation_snapshots table schema
 T027 - Tests for position_events table schema
 """
 
+import tempfile
+
 import pytest
 
 from src.liquidationheatmap.ingestion.db_service import DuckDBService
@@ -11,10 +13,22 @@ from src.liquidationheatmap.ingestion.db_service import DuckDBService
 
 @pytest.fixture
 def db_service():
-    """Create a DuckDB service connection for testing."""
-    db = DuckDBService()
+    """Create a DuckDB service connection for testing.
+
+    Uses a temporary database to avoid conflicts with running server.
+    """
+    import os
+    import uuid
+
+    temp_db_path = os.path.join(tempfile.gettempdir(), f"test_{uuid.uuid4().hex}.duckdb")
+
+    db = DuckDBService(db_path=temp_db_path, read_only=False)
     yield db
-    db.close()
+    db.close(force=True)
+
+    # Cleanup temp file
+    if os.path.exists(temp_db_path):
+        os.remove(temp_db_path)
 
 
 class TestLiquidationSnapshotsSchema:
