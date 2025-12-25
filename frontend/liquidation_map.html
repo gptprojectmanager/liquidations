@@ -50,7 +50,7 @@
             const timeframe = document.getElementById('timeframeSelect').value;
 
             try {
-                const response = await fetch(`http://localhost:8888/liquidations/levels?symbol=BTCUSDT&model=${model}&timeframe=${timeframe}`);
+                const response = await fetch(`http://localhost:8000/liquidations/levels?symbol=BTCUSDT&model=${model}&timeframe=${timeframe}`);
                 const data = await response.json();
 
                 renderLiquidationMap(data);

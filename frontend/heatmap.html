@@ -37,7 +37,7 @@
     <script>
         async function loadHeatmap() {
             try {
-                const response = await fetch('http://localhost:8888/liquidations/heatmap?symbol=BTCUSDT&model=binance_standard');
+                const response = await fetch('http://localhost:8000/liquidations/heatmap?symbol=BTCUSDT&model=binance_standard');
                 const data = await response.json();
                 
                 if (!data.data || data.data.length === 0) {
@@ -158,7 +158,7 @@
         // T039: Refresh clusters and detect changes (diff)
         async function refreshClustersWithDiff() {
             try {
-                const response = await fetch('http://localhost:8888/api/liquidations/clusters?symbol=BTCUSDT&timeframe_minutes=30&auto_tune=true');
+                const response = await fetch('http://localhost:8000/api/liquidations/clusters?symbol=BTCUSDT&timeframe_minutes=30&auto_tune=true');
                 const newData = await response.json();
 
                 if (!clusterData) {
@@ -186,7 +186,7 @@
         // T030: Fetch clusters from API and display
         async function fetchAndShowClusters() {
             try {
-                const response = await fetch('http://localhost:8888/api/liquidations/clusters?symbol=BTCUSDT&timeframe_minutes=30&auto_tune=true');
+                const response = await fetch('http://localhost:8000/api/liquidations/clusters?symbol=BTCUSDT&timeframe_minutes=30&auto_tune=true');
                 const data = await response.json();
 
                 if (!data.clusters || data.clusters.length === 0) {
@@ -199,7 +199,7 @@
 
             } catch (error) {
                 console.error('Error fetching clusters:', error);
-                alert('Error fetching clusters. Make sure API is running on port 8888.');
+                alert('Error fetching clusters. Make sure API is running on port 8000.');
             }
         }
 

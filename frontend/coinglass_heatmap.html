@@ -188,7 +188,7 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:8888';
+        const API_BASE = 'http://localhost:8000';
 
         function setStatus(message, type = '') {
             const status = document.getElementById('status');
@@ -224,9 +224,10 @@
             const priceBinSize = document.getElementById('priceBinSize').value;
             const lookbackDays = document.getElementById('lookbackDays').value;
 
-            // Calculate time range
-            const endTime = new Date();
-            const startTime = new Date(endTime.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
+            // Use actual data date range (Nov 10-17, 2025) - TODO: fetch from API
+            // Data in DB is from November 2025, not current date
+            const endTime = new Date('2025-11-17T23:59:59');
+            const startTime = new Date('2025-11-10T00:00:00');
 
             setLoading(true);
             setStatus('Loading time-evolving heatmap...', 'loading');
@@ -301,8 +302,11 @@
                 }
 
                 // T51: Normalize density for color scale (dynamic range per timestamp)
-                const maxLong = Math.max(...longZ.flat(), 1);
-                const maxShort = Math.max(...shortZ.flat(), 1);
+                // Use reduce instead of spread to avoid stack overflow with large arrays
+                const maxLong = longZ.reduce((max, row) =>
+                    Math.max(max, row.reduce((m, v) => Math.max(m, v), 0)), 1);
+                const maxShort = shortZ.reduce((max, row) =>
+                    Math.max(max, row.reduce((m, v) => Math.max(m, v), 0)), 1);
 
                 // Normalize to 0-1 range
                 const normalizedLongZ = longZ.map(row =>
