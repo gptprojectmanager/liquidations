@@ -150,20 +150,12 @@
             <span id="currentPriceText">Current Price: $--</span>
         </div>
         <div class="legend-item">
-            <div class="legend-color" style="background: linear-gradient(to right, #1a1a2e, #f0b90b);"></div>
-            <span>Active Liquidation Density</span>
+            <div class="legend-color" style="background: linear-gradient(to right, #0d0221, #2d1b69, #1e8f7f, #7fce5d, #ffcc00); width: 80px;"></div>
+            <span>Liquidation Density (Low to High)</span>
         </div>
         <div class="legend-item">
-            <div class="legend-color" style="background: rgba(100, 100, 100, 0.5);"></div>
-            <span>Consumed (Triggered)</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: #26a69a;"></div>
-            <span>Long Positions</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: #ef5350;"></div>
-            <span>Short Positions</span>
+            <div class="legend-color" style="background: rgba(255, 255, 255, 0.7);"></div>
+            <span>X = Liquidations Triggered</span>
         </div>
     </div>
 
@@ -283,90 +275,94 @@
                     return;
                 }
 
-                // T048: Build per-column density matrix (each column = one timestamp)
+                // T048: Build combined density matrix (Coinglass style - single heatmap)
+                // Each cell contains total liquidation density (long + short combined)
+                const combinedZ = [];
                 const longZ = [];
                 const shortZ = [];
 
                 for (const price of priceLevels) {
+                    const combinedRow = [];
                     const longRow = [];
                     const shortRow = [];
 
                     for (const snapshot of snapshots) {
                         const level = (snapshot.levels || []).find(l => l.price === price);
                         if (level) {
-                            longRow.push(level.long_density || 0);
-                            shortRow.push(level.short_density || 0);
+                            const longDensity = level.long_density || 0;
+                            const shortDensity = level.short_density || 0;
+                            // Combine densities for unified heatmap (Coinglass style)
+                            combinedRow.push(longDensity + shortDensity);
+                            longRow.push(longDensity);
+                            shortRow.push(shortDensity);
                         } else {
+                            combinedRow.push(0);
                             longRow.push(0);
                             shortRow.push(0);
                         }
                     }
 
+                    combinedZ.push(combinedRow);
                     longZ.push(longRow);
                     shortZ.push(shortRow);
                 }
 
-                // T51: Normalize density for color scale (dynamic range per timestamp)
-                // Use reduce instead of spread to avoid stack overflow with large arrays
-                const maxLong = longZ.reduce((max, row) =>
-                    Math.max(max, row.reduce((m, v) => Math.max(m, v), 0)), 1);
-                const maxShort = shortZ.reduce((max, row) =>
+                // T51: Normalize density for color scale using log scale for better visualization
+                const maxDensity = combinedZ.reduce((max, row) =>
                     Math.max(max, row.reduce((m, v) => Math.max(m, v), 0)), 1);
 
-                // Normalize to 0-1 range
-                const normalizedLongZ = longZ.map(row =>
-                    row.map(v => Math.log10(v + 1) / Math.log10(maxLong + 1))
-                );
-                const normalizedShortZ = shortZ.map(row =>
-                    row.map(v => Math.log10(v + 1) / Math.log10(maxShort + 1))
+                // Apply log normalization for better visual spread (like Coinglass)
+                const normalizedZ = combinedZ.map(row =>
+                    row.map(v => v > 0 ? Math.log10(v + 1) / Math.log10(maxDensity + 1) : 0)
                 );
 
-                // Create traces
+                // Create traces - single unified heatmap (Coinglass style)
                 const traces = [];
 
-                // Long liquidations heatmap (green tint)
-                traces.push({
-                    z: normalizedLongZ,
-                    x: timestamps,
-                    y: priceLevels,
-                    type: 'heatmap',
-                    name: 'Long Liquidations',
-                    colorscale: [
-                        [0, 'rgba(0, 0, 0, 0)'],
-                        [0.2, 'rgba(38, 166, 154, 0.3)'],
-                        [0.5, 'rgba(38, 166, 154, 0.5)'],
-                        [0.8, 'rgba(38, 166, 154, 0.7)'],
-                        [1, 'rgba(38, 166, 154, 0.9)']
-                    ],
-                    showscale: false,
-                    hovertemplate: 'Time: %{x}<br>Price: $%{y:,.0f}<br>Long Density: %{customdata:,.0f}<extra></extra>',
-                    customdata: longZ
-                });
+                // Coinglass-style fire colorscale (dark purple -> blue -> cyan -> green -> yellow)
+                // This matches the actual Coinglass liquidation heatmap appearance
+                const coinglassColorscale = [
+                    [0, '#0d0221'],       // Dark purple (background)
+                    [0.1, '#1a0533'],     // Deep purple
+                    [0.2, '#2d1b69'],     // Purple
+                    [0.3, '#3d2d8c'],     // Blue-purple
+                    [0.4, '#2c5f8a'],     // Blue
+                    [0.5, '#1e8f7f'],     // Teal
+                    [0.6, '#2db87f'],     // Green
+                    [0.7, '#7fce5d'],     // Light green
+                    [0.8, '#d4e157'],     // Yellow-green
+                    [0.9, '#ffeb3b'],     // Yellow
+                    [1.0, '#ffcc00']      // Bright gold (highest intensity)
+                ];
 
-                // Short liquidations heatmap (red tint)
+                // Main heatmap trace - unified liquidation density
                 traces.push({
-                    z: normalizedShortZ,
+                    z: normalizedZ,
                     x: timestamps,
                     y: priceLevels,
                     type: 'heatmap',
-                    name: 'Short Liquidations',
-                    colorscale: [
-                        [0, 'rgba(0, 0, 0, 0)'],
-                        [0.2, 'rgba(239, 83, 80, 0.3)'],
-                        [0.5, 'rgba(239, 83, 80, 0.5)'],
-                        [0.8, 'rgba(239, 83, 80, 0.7)'],
-                        [1, 'rgba(239, 83, 80, 0.9)']
-                    ],
+                    name: 'Liquidation Density',
+                    colorscale: coinglassColorscale,
+                    zsmooth: 'best',  // Enable smooth interpolation
                     showscale: true,
                     colorbar: {
-                        title: 'Liquidation<br>Density',
+                        title: {
+                            text: 'Liquidation<br>Density',
+                            font: { color: '#c9d1d9', size: 12 }
+                        },
                         titleside: 'right',
                         thickness: 15,
-                        len: 0.5,
-                        y: 0.75
+                        len: 0.6,
+                        y: 0.5,
+                        tickfont: { color: '#c9d1d9' },
+                        bordercolor: '#30363d',
+                        bgcolor: 'rgba(22, 27, 34, 0.8)'
                     },
-                    hovertemplate: 'Time: %{x}<br>Price: $%{y:,.0f}<br>Short Density: %{customdata:,.0f}<extra></extra>',
-                    customdata: shortZ
+                    hovertemplate: 'Time: %{x}<br>Price: $%{y:,.0f}<br>Total Density: %{customdata[0]:,.0f}<br>Long: %{customdata[1]:,.0f}<br>Short: %{customdata[2]:,.0f}<extra></extra>',
+                    // Custom data for hover: [combined, long, short]
+                    customdata: combinedZ.map((row, i) =>
+                        row.map((val, j) => [val, longZ[i][j], shortZ[i][j]])
+                    )
                 });
 
                 // T49: Add markers for consumed/liquidated events
