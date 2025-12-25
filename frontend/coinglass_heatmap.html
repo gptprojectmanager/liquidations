@@ -120,6 +120,88 @@
         .stats-value { color: #c9d1d9; font-weight: 500; }
         .stats-value.long { color: #26a69a; }
         .stats-value.short { color: #ef5350; }
+
+        /* Help Panel Styles */
+        .help-panel {
+            position: fixed;
+            top: 80px;
+            left: 20px;
+            background: rgba(22, 27, 34, 0.98);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+            font-size: 12px;
+            z-index: 100;
+            max-width: 280px;
+            line-height: 1.5;
+        }
+        .help-panel h3 {
+            color: #f0b90b;
+            margin-bottom: 10px;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .help-panel .close-btn {
+            cursor: pointer;
+            color: #8b949e;
+            font-size: 16px;
+        }
+        .help-panel .close-btn:hover {
+            color: #c9d1d9;
+        }
+        .help-section {
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #30363d;
+        }
+        .help-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .help-section h4 {
+            color: #58a6ff;
+            font-size: 11px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        .help-section p {
+            color: #8b949e;
+            font-size: 11px;
+        }
+        .help-section .highlight {
+            color: #c9d1d9;
+            font-weight: 500;
+        }
+        .color-demo {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .color-demo .swatch {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            margin-right: 8px;
+        }
+        .help-toggle {
+            position: fixed;
+            top: 85px;
+            left: 20px;
+            background: #21262d;
+            border: 1px solid #30363d;
+            color: #58a6ff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            z-index: 99;
+        }
+        .help-toggle:hover {
+            background: #30363d;
+        }
     </style>
 </head>
 <body>
@@ -144,6 +226,57 @@
         </div>
     </div>
 
+    <!-- Help Toggle Button -->
+    <button id="helpToggle" class="help-toggle" onclick="toggleHelp()">? How to Read</button>
+
+    <!-- Help Panel -->
+    <div id="helpPanel" class="help-panel">
+        <h3>
+            How to Read This Heatmap
+            <span class="close-btn" onclick="toggleHelp()">X</span>
+        </h3>
+
+        <div class="help-section">
+            <h4>What You See</h4>
+            <p>This heatmap shows <span class="highlight">where liquidations will occur</span> if BTC price moves to that level.</p>
+        </div>
+
+        <div class="help-section">
+            <h4>Color Meaning</h4>
+            <div class="color-demo">
+                <div class="swatch" style="background: #0d0221;"></div>
+                <span>Dark Purple = Few liquidations</span>
+            </div>
+            <div class="color-demo">
+                <div class="swatch" style="background: #1e8f7f;"></div>
+                <span>Cyan/Teal = Moderate cluster</span>
+            </div>
+            <div class="color-demo">
+                <div class="swatch" style="background: #ffcc00;"></div>
+                <span>Bright Yellow = HOT ZONE (many liquidations)</span>
+            </div>
+            <p style="margin-top: 8px;"><span class="highlight">Yellow bands = Price magnets</span> - Price often moves toward these levels.</p>
+        </div>
+
+        <div class="help-section">
+            <h4>Axes</h4>
+            <p><span class="highlight">X-axis (horizontal)</span> = Time progression</p>
+            <p><span class="highlight">Y-axis (vertical)</span> = BTC price in USDT</p>
+            <p><span class="highlight">Yellow line</span> = Current BTC price</p>
+        </div>
+
+        <div class="help-section">
+            <h4>Trading Insight</h4>
+            <p>Bright yellow zones <span class="highlight">ABOVE</span> current price = Short liquidations (price squeeze up likely)</p>
+            <p>Bright yellow zones <span class="highlight">BELOW</span> current price = Long liquidations (price dump likely)</p>
+        </div>
+
+        <div class="help-section">
+            <h4>Hover for Details</h4>
+            <p>Hover over any cell to see exact Long/Short breakdown.</p>
+        </div>
+    </div>
+
     <div class="legend">
         <div class="legend-item" id="currentPriceLegend" style="display: none;">
             <div class="legend-color" style="background: #f0b90b;"></div>
@@ -151,7 +284,7 @@
         </div>
         <div class="legend-item">
             <div class="legend-color" style="background: linear-gradient(to right, #0d0221, #2d1b69, #1e8f7f, #7fce5d, #ffcc00); width: 80px;"></div>
-            <span>Liquidation Density (Low to High)</span>
+            <span>Liquidation Volume (Low to High)</span>
         </div>
         <div class="legend-item">
             <div class="legend-color" style="background: rgba(255, 255, 255, 0.7);"></div>
@@ -186,6 +319,19 @@
 
     <script>
         const API_BASE = 'http://localhost:8000';
+
+        // Toggle help panel visibility
+        function toggleHelp() {
+            const panel = document.getElementById('helpPanel');
+            const toggle = document.getElementById('helpToggle');
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                toggle.style.display = 'none';
+            } else {
+                panel.style.display = 'none';
+                toggle.style.display = 'block';
+            }
+        }
 
         function setStatus(message, type = '') {
             const status = document.getElementById('status');
@@ -347,16 +493,19 @@
                     showscale: true,
                     colorbar: {
                         title: {
-                            text: 'Liquidation<br>Density',
-                            font: { color: '#c9d1d9', size: 12 }
+                            text: 'Volume<br>(relative)',
+                            font: { color: '#c9d1d9', size: 11 }
                         },
                         titleside: 'right',
-                        thickness: 15,
-                        len: 0.6,
+                        thickness: 18,
+                        len: 0.5,
                         y: 0.5,
-                        tickfont: { color: '#c9d1d9' },
+                        tickfont: { color: '#c9d1d9', size: 10 },
+                        tickvals: [0, 0.25, 0.5, 0.75, 1],
+                        ticktext: ['Low', '', 'Med', '', 'High'],
                         bordercolor: '#30363d',
-                        bgcolor: 'rgba(22, 27, 34, 0.8)'
+                        bgcolor: 'rgba(22, 27, 34, 0.9)',
+                        outlinewidth: 1
                     },
                     hovertemplate: 'Time: %{x}<br>Price: $%{y:,.0f}<br>Total Density: %{customdata[0]:,.0f}<br>Long: %{customdata[1]:,.0f}<br>Short: %{customdata[2]:,.0f}<extra></extra>',
                     // Custom data for hover: [combined, long, short]
@@ -432,30 +581,58 @@
                     console.warn('Could not fetch current price:', e);
                 }
 
-                // T50: Layout with timestamp axis labels
+                // T50: Layout with timestamp axis labels - improved for readability
                 const layout = {
                     title: {
-                        text: `BTC/USDT Time-Evolving Liquidation Heatmap (${interval})`,
-                        font: { color: '#c9d1d9', size: 16 }
+                        text: `BTC/USDT Liquidation Heatmap (${interval} intervals)`,
+                        font: { color: '#c9d1d9', size: 18 },
+                        y: 0.98
                     },
                     paper_bgcolor: '#0d1117',
                     plot_bgcolor: '#161b22',
                     font: { color: '#c9d1d9' },
                     xaxis: {
-                        title: 'Time',
+                        title: {
+                            text: 'Time (Nov 10-17, 2025)',
+                            font: { size: 12 }
+                        },
                         gridcolor: '#30363d',
-                        tickformat: '%Y-%m-%d %H:%M',
-                        tickangle: -45,
-                        nticks: 10
+                        tickformat: '%b %d<br>%H:%M',  // Cleaner: "Nov 10\n14:00"
+                        tickangle: 0,  // Horizontal labels
+                        nticks: 8,     // Fewer ticks for clarity
+                        tickfont: { size: 10 }
                     },
                     yaxis: {
-                        title: 'Price (USDT)',
+                        title: {
+                            text: 'Price Level (USDT)',
+                            font: { size: 12 }
+                        },
                         gridcolor: '#30363d',
-                        tickformat: '$,.0f'
+                        tickformat: '$,.0f',
+                        tickfont: { size: 10 }
                     },
                     showlegend: true,
-                    legend: { x: 1, xanchor: 'right', y: 1, bgcolor: 'rgba(22,27,34,0.8)' },
-                    margin: { t: 50, b: 80, l: 80, r: 120 }
+                    legend: {
+                        x: 0.01,
+                        xanchor: 'left',
+                        y: 0.99,
+                        yanchor: 'top',
+                        bgcolor: 'rgba(22,27,34,0.9)',
+                        bordercolor: '#30363d',
+                        borderwidth: 1,
+                        font: { size: 11 }
+                    },
+                    margin: { t: 60, b: 70, l: 80, r: 100 },
+                    // Add annotations for key insight
+                    annotations: [{
+                        x: 0.5,
+                        y: -0.12,
+                        xref: 'paper',
+                        yref: 'paper',
+                        text: 'Bright bands = Liquidation clusters. Price tends to move toward these "magnetic" zones.',
+                        showarrow: false,
+                        font: { size: 10, color: '#8b949e' }
+                    }]
                 };
 
                 const config = {
