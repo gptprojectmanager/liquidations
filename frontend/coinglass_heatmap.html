@@ -279,7 +279,7 @@
     <!-- Chart legend at top - Coinglass style -->
     <div class="chart-legend">
         <div class="chart-legend-item">
-            <div class="box" style="background: #3d2d8c;"></div>
+            <div class="box" style="background: linear-gradient(to right, #1a0933, #00c8c8, #f0f000);"></div>
             <span>Liquidation Leverage</span>
         </div>
         <div class="chart-legend-item">
@@ -445,31 +445,44 @@
                 const maxDensity = combinedZ.reduce((max, row) =>
                     Math.max(max, row.reduce((m, v) => Math.max(m, v), 0)), 1);
 
-                // Apply log normalization for better visual spread (like Coinglass)
+                // Apply aggressive normalization for Coinglass-style contrast
+                // Coinglass shows MOSTLY dark purple with only HIGH density areas colored
+                // Calculate percentile threshold - only top 20% of values should have color
+                const allValues = combinedZ.flat().filter(v => v > 0).sort((a, b) => a - b);
+                const p80Threshold = allValues.length > 0
+                    ? allValues[Math.floor(allValues.length * 0.80)]
+                    : maxDensity * 0.5;
+
+                console.log('Normalization stats:', { maxDensity, p80Threshold, totalValues: allValues.length });
+
                 const normalizedZ = combinedZ.map(row =>
-                    row.map(v => v > 0 ? Math.log10(v + 1) / Math.log10(maxDensity + 1) : 0)
+                    row.map(v => {
+                        if (v <= 0) return 0;
+                        // Only show values above 80th percentile
+                        if (v < p80Threshold) return 0;
+                        // Scale remaining values from 0 to 1
+                        const ratio = (v - p80Threshold) / (maxDensity - p80Threshold);
+                        // Apply sqrt for smoother gradient in visible range
+                        return Math.sqrt(ratio);
+                    })
                 );
 
                 // Create traces - single unified heatmap (Coinglass style)
                 const traces = [];
 
-                // EXACT Coinglass colorscale - analyzed pixel-by-pixel from screenshots
-                // The gradient is: dark purple -> blue-purple -> cyan -> green -> yellow
+                // Coinglass-style colorscale - dark purple dominant with cyan/yellow highlights
+                // More cyan-focused for the mid-range to match Coinglass aesthetic
                 const coinglassColorscale = [
                     [0, '#1a0933'],       // Dark purple base
-                    [0.08, '#200d40'],    // Purple
-                    [0.15, '#261450'],    // Mid purple
-                    [0.22, '#2a1a5c'],    // Blue-purple
-                    [0.28, '#2a2570'],    // Blue
-                    [0.35, '#1a4a80'],    // Teal-blue
-                    [0.42, '#0a6a8a'],    // Cyan-blue
-                    [0.48, '#008888'],    // Cyan-teal
-                    [0.55, '#00a080'],    // Teal-green
-                    [0.62, '#20b860'],    // Green
-                    [0.70, '#60d040'],    // Light green
-                    [0.78, '#a0e020'],    // Yellow-green
-                    [0.85, '#d0f000'],    // Lime-yellow
-                    [0.92, '#f0f800'],    // Yellow
+                    [0.10, '#1e1045'],    // Purple
+                    [0.20, '#221558'],    // Mid purple
+                    [0.30, '#1a3070'],    // Blue-purple
+                    [0.40, '#0a5090'],    // Cyan-blue
+                    [0.50, '#00aaaa'],    // Cyan (Coinglass signature color)
+                    [0.60, '#20c080'],    // Teal-green
+                    [0.70, '#60d850'],    // Green
+                    [0.80, '#a0e830'],    // Yellow-green
+                    [0.90, '#e0f010'],    // Lime-yellow
                     [1.0, '#ffff00']      // Bright yellow (highest intensity)
                 ];
 
@@ -489,7 +502,7 @@
                     type: 'heatmap',
                     name: 'Liquidation Leverage',
                     colorscale: coinglassColorscale,
-                    zsmooth: false,  // NO smoothing - Coinglass has sharp horizontal bands
+                    zsmooth: 'best',  // Smooth interpolation for professional gradient look
                     showscale: true,
                     colorbar: {
                         // Coinglass style: tall vertical gradient bar on LEFT side
@@ -522,12 +535,14 @@
                         interval: interval,
                         start_time: startTime.toISOString(),
                         end_time: endTime.toISOString(),
-                        limit: 1000
+                        limit: 500  // API max is 500
                     });
+                    console.log('Fetching klines from:', `${API_BASE}/prices/klines?${klinesParams}`);
                     const priceResp = await fetch(`${API_BASE}/prices/klines?${klinesParams}`);
                     if (priceResp.ok) {
                         const priceData = await priceResp.json();
                         const klines = priceData.data || [];
+                        console.log('Received klines:', klines.length, 'sample:', klines[0]);
 
                         if (klines.length > 0) {
                             // Build OHLC candlestick overlay like Coinglass
@@ -545,7 +560,11 @@
                                 candleClose.push(parseFloat(k.close));
                             }
 
+                            console.log('Adding candlestick trace with', candleX.length, 'candles');
+                            console.log('Price range:', Math.min(...candleLow), '-', Math.max(...candleHigh));
+
                             // Add candlestick trace (Coinglass style - overlaid on heatmap)
+                            // Using bright solid colors for maximum visibility over dark heatmap
                             traces.push({
                                 x: candleX,
                                 open: candleOpen,
@@ -554,13 +573,22 @@
                                 close: candleClose,
                                 type: 'candlestick',
                                 name: 'Price',
-                                increasing: { line: { color: '#26a69a', width: 1 }, fillcolor: 'rgba(38, 166, 154, 0.8)' },
-                                decreasing: { line: { color: '#ef5350', width: 1 }, fillcolor: 'rgba(239, 83, 80, 0.8)' },
+                                increasing: {
+                                    line: { color: '#26a69a', width: 1.5 },  // Teal green (Coinglass style)
+                                    fillcolor: '#26a69a'
+                                },
+                                decreasing: {
+                                    line: { color: '#ef5350', width: 1.5 },  // Red (Coinglass style)
+                                    fillcolor: '#ef5350'
+                                },
                                 showlegend: false,
-                                hoverinfo: 'skip',  // Don't show hover for cleaner look
-                                yaxis: 'y'  // Use same y-axis as heatmap
+                                hoverinfo: 'x+y',
+                                yaxis: 'y',
+                                whiskerwidth: 0.8  // Make wicks more visible
                             });
                         }
+                    } else {
+                        console.warn('Klines request failed:', priceResp.status);
                     }
                 } catch (e) {
                     console.warn('Could not fetch price data for candlestick overlay:', e);
