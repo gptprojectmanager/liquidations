@@ -132,7 +132,8 @@
                 <option value="1h">1 hour</option>
                 <option value="4h">4 hour</option>
             </select>
-            <input type="number" id="priceBinSize" value="100" min="50" max="500" step="50" title="Price bin size">
+            <label for="priceBinSize" style="margin-left: 10px; color: #8b949e;">Bin $:</label>
+            <input type="number" id="priceBinSize" value="500" min="100" max="2000" step="100" title="Price bin size in USD (larger = less dense heatmap)">
             <select id="lookbackDays">
                 <option value="1">1 day</option>
                 <option value="3" selected>3 days</option>
@@ -402,19 +403,27 @@
                     });
                 }
 
-                // Add current price line
-                if (meta.price_range && meta.price_range.max) {
-                    const currentPrice = (meta.price_range.min + meta.price_range.max) / 2;
-                    traces.push({
-                        x: [timestamps[0], timestamps[timestamps.length - 1]],
-                        y: [currentPrice, currentPrice],
-                        mode: 'lines',
-                        type: 'scatter',
-                        name: 'Mid Price',
-                        line: { color: '#f0b90b', width: 2, dash: 'dash' },
-                        hoverinfo: 'skip',
-                        showlegend: false
-                    });
+                // Fetch and add current BTC price line
+                try {
+                    const priceResp = await fetch(`${API_BASE}/prices/klines?symbol=BTCUSDT&interval=1m&limit=1`);
+                    if (priceResp.ok) {
+                        const priceData = await priceResp.json();
+                        const currentPrice = priceData.data?.[0]?.close || priceData.close;
+                        if (currentPrice) {
+                            traces.push({
+                                x: [timestamps[0], timestamps[timestamps.length - 1]],
+                                y: [currentPrice, currentPrice],
+                                mode: 'lines',
+                                type: 'scatter',
+                                name: `Current Price: $${Number(currentPrice).toLocaleString()}`,
+                                line: { color: '#f0b90b', width: 3 },
+                                hovertemplate: `Current Price: $${Number(currentPrice).toLocaleString()}<extra></extra>`,
+                                showlegend: true
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Could not fetch current price:', e);
                 }
 
                 // T50: Layout with timestamp axis labels
@@ -438,8 +447,9 @@
                         gridcolor: '#30363d',
                         tickformat: '$,.0f'
                     },
-                    showlegend: false,
-                    margin: { t: 50, b: 80, l: 80, r: 100 }
+                    showlegend: true,
+                    legend: { x: 1, xanchor: 'right', y: 1, bgcolor: 'rgba(22,27,34,0.8)' },
+                    margin: { t: 50, b: 80, l: 80, r: 120 }
                 };
 
                 const config = {
