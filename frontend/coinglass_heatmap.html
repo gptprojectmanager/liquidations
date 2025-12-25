@@ -145,6 +145,10 @@
     </div>
 
     <div class="legend">
+        <div class="legend-item" id="currentPriceLegend" style="display: none;">
+            <div class="legend-color" style="background: #f0b90b;"></div>
+            <span id="currentPriceText">Current Price: $--</span>
+        </div>
         <div class="legend-item">
             <div class="legend-color" style="background: linear-gradient(to right, #1a1a2e, #f0b90b);"></div>
             <span>Active Liquidation Density</span>
@@ -405,10 +409,12 @@
 
                 // Fetch and add current BTC price line
                 try {
-                    const priceResp = await fetch(`${API_BASE}/prices/klines?symbol=BTCUSDT&interval=1m&limit=1`);
+                    const priceResp = await fetch(`${API_BASE}/prices/klines?symbol=BTCUSDT&interval=5m&limit=10`);
                     if (priceResp.ok) {
                         const priceData = await priceResp.json();
-                        const currentPrice = priceData.data?.[0]?.close || priceData.close;
+                        // Get the most recent close price (last item in the data array)
+                        const latestKline = priceData.data?.[priceData.data.length - 1];
+                        const currentPrice = latestKline?.close || priceData.close;
                         if (currentPrice) {
                             traces.push({
                                 x: [timestamps[0], timestamps[timestamps.length - 1]],
@@ -420,6 +426,10 @@
                                 hovertemplate: `Current Price: $${Number(currentPrice).toLocaleString()}<extra></extra>`,
                                 showlegend: true
                             });
+                            // Update legend with current price
+                            document.getElementById('currentPriceLegend').style.display = 'flex';
+                            document.getElementById('currentPriceText').textContent =
+                                `Current Price: $${Number(currentPrice).toLocaleString()}`;
                         }
                     }
                 } catch (e) {
