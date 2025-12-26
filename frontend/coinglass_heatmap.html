@@ -355,15 +355,21 @@
             const priceBinSize = document.getElementById('priceBinSize').value;
             const lookbackDays = parseInt(document.getElementById('lookbackDays').value);
 
-            // Data in DB ends at Nov 17, 2025 - calculate startTime based on lookbackDays
-            const endTime = new Date('2025-11-17T23:59:59');
-            const startTime = new Date(endTime);
-            startTime.setDate(startTime.getDate() - lookbackDays);
-
             setLoading(true);
-            setStatus('Loading time-evolving heatmap...', 'loading');
+            setStatus('Fetching available date range...', 'loading');
 
             try {
+                // Fetch available date range from API (dynamic, not hardcoded)
+                const dateRangeResp = await fetch(`${API_BASE}/data/date-range?symbol=BTCUSDT`);
+                if (!dateRangeResp.ok) {
+                    throw new Error('Failed to fetch date range');
+                }
+                const dateRange = await dateRangeResp.json();
+                const endTime = new Date(dateRange.end_date);
+                const startTime = new Date(endTime);
+                startTime.setDate(startTime.getDate() - lookbackDays);
+
+                setStatus('Loading time-evolving heatmap...', 'loading');
                 // Fetch time-series heatmap data from new endpoint (T046)
                 const params = new URLSearchParams({
                     symbol: 'BTCUSDT',
@@ -601,12 +607,12 @@
                     plot_bgcolor: '#131722',
                     font: { color: '#787b86', family: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif' },
                     xaxis: {
-                        // Coinglass style: "dd, HH:MM" format
+                        // Full date format: "Nov 13, 00:00"
                         gridcolor: 'rgba(42, 46, 57, 0.3)',  // Very subtle grid
                         gridwidth: 1,
-                        tickformat: '%d, %H:%M',  // Coinglass format: "27, 16:20"
+                        tickformat: '%b %d<br>%H:%M',  // Format: "Nov 13\n00:00"
                         tickangle: 0,
-                        nticks: 12,
+                        nticks: 10,
                         tickfont: { size: 11, color: '#787b86' },
                         showline: false,
                         zeroline: false,
@@ -664,7 +670,19 @@
         }
 
         // T52: Auto-load on page ready with error handling
+        // Support URL parameters for testing: ?interval=1h&lookback=7&bin=500
         document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('interval')) {
+                document.getElementById('interval').value = params.get('interval');
+            }
+            if (params.has('lookback')) {
+                document.getElementById('lookbackDays').value = params.get('lookback');
+            }
+            if (params.has('bin')) {
+                document.getElementById('priceBinSize').value = params.get('bin');
+            }
+
             // Give the server time to be ready
             setTimeout(() => {
                 loadHeatmap().catch(err => {

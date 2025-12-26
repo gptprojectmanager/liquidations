@@ -282,6 +282,62 @@ async def health_check():
     return {"status": "ok", "service": "liquidation-heatmap"}
 
 
+@app.get("/data/date-range")
+async def get_data_date_range(
+    symbol: str = Query(
+        "BTCUSDT",
+        description="Trading pair symbol",
+        pattern="^[A-Z]{6,12}$",
+    ),
+):
+    """Get the available date range for heatmap data.
+
+    Returns the earliest and latest timestamps available in the database
+    for the specified symbol. Useful for frontend to set dynamic date ranges.
+
+    Args:
+        symbol: Trading pair (e.g., BTCUSDT)
+
+    Returns:
+        dict: start_date, end_date in ISO format
+    """
+    if symbol not in SUPPORTED_SYMBOLS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid symbol '{symbol}'. Supported: {sorted(SUPPORTED_SYMBOLS)}",
+        )
+
+    db = DuckDBService(read_only=True)
+
+    try:
+        # Get date range from Open Interest data (most comprehensive)
+        query = """
+        SELECT
+            MIN(timestamp) as start_date,
+            MAX(timestamp) as end_date
+        FROM open_interest_history
+        WHERE symbol = ?
+        """
+        result = db.conn.execute(query, [symbol]).fetchone()
+
+        if result and result[0] and result[1]:
+            return {
+                "symbol": symbol,
+                "start_date": result[0].isoformat(),
+                "end_date": result[1].isoformat(),
+            }
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No data found for symbol '{symbol}'",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching date range: {e}")
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+
 @app.get("/cache/stats")
 async def get_cache_stats():
     """Get heatmap cache statistics (T060).
@@ -793,7 +849,9 @@ async def get_klines(
         description="Trading pair symbol",
         pattern="^[A-Z]{6,12}$",
     ),
-    interval: Literal["5m", "15m"] = Query("15m", description="Kline interval"),
+    interval: Literal["5m", "15m", "1h", "4h"] = Query(
+        "15m", description="Kline interval (1h and 4h are aggregated from 5m data)"
+    ),
     limit: int = Query(100, ge=10, le=500, description="Number of klines to return"),
 ):
     """Get OHLC price data for visualization overlay.
@@ -801,9 +859,11 @@ async def get_klines(
     Returns candlestick/kline data from DuckDB for the specified symbol and interval.
     Used to overlay price action on the liquidation heatmap.
 
+    For 1h and 4h intervals, data is aggregated from 5m klines on-the-fly.
+
     Args:
         symbol: Trading pair (e.g., BTCUSDT)
-        interval: Kline interval (5m or 15m)
+        interval: Kline interval (5m, 15m, 1h, 4h)
         limit: Number of klines to return (10-500)
 
     Returns:
@@ -819,23 +879,65 @@ async def get_klines(
     db = DuckDBService(read_only=True)
 
     try:
-        table_name = f"klines_{interval}_history"
+        # For 1h and 4h, aggregate from 5m data
+        if interval in ("1h", "4h"):
+            # Determine aggregation factor (5m -> 1h = 12 candles, 5m -> 4h = 48 candles)
+            agg_minutes = 60 if interval == "1h" else 240
+            # Fetch more raw data to aggregate
+            raw_limit = limit * (agg_minutes // 5) + agg_minutes // 5
 
-        query = f"""
-        SELECT
-            open_time as timestamp,
-            CAST(open AS DOUBLE) as open,
-            CAST(high AS DOUBLE) as high,
-            CAST(low AS DOUBLE) as low,
-            CAST(close AS DOUBLE) as close,
-            CAST(volume AS DOUBLE) as volume
-        FROM {table_name}
-        WHERE symbol = ?
-        ORDER BY open_time DESC
-        LIMIT ?
-        """
+            query = f"""
+            WITH raw_klines AS (
+                SELECT
+                    open_time as timestamp,
+                    CAST(open AS DOUBLE) as open,
+                    CAST(high AS DOUBLE) as high,
+                    CAST(low AS DOUBLE) as low,
+                    CAST(close AS DOUBLE) as close,
+                    CAST(volume AS DOUBLE) as volume
+                FROM klines_5m_history
+                WHERE symbol = ?
+                ORDER BY open_time DESC
+                LIMIT ?
+            ),
+            aggregated AS (
+                SELECT
+                    time_bucket(INTERVAL '{agg_minutes} minutes', timestamp) as bucket,
+                    FIRST(open ORDER BY timestamp) as open,
+                    MAX(high) as high,
+                    MIN(low) as low,
+                    LAST(close ORDER BY timestamp) as close,
+                    SUM(volume) as volume
+                FROM raw_klines
+                GROUP BY bucket
+                ORDER BY bucket DESC
+                LIMIT ?
+            )
+            SELECT bucket as timestamp, open, high, low, close, volume
+            FROM aggregated
+            ORDER BY timestamp DESC
+            """
 
-        df = db.conn.execute(query, [symbol, limit]).df()
+            df = db.conn.execute(query, [symbol, raw_limit, limit]).df()
+        else:
+            # Direct query for 5m and 15m intervals
+            table_name = f"klines_{interval}_history"
+
+            query = f"""
+            SELECT
+                open_time as timestamp,
+                CAST(open AS DOUBLE) as open,
+                CAST(high AS DOUBLE) as high,
+                CAST(low AS DOUBLE) as low,
+                CAST(close AS DOUBLE) as close,
+                CAST(volume AS DOUBLE) as volume
+            FROM {table_name}
+            WHERE symbol = ?
+            ORDER BY open_time DESC
+            LIMIT ?
+            """
+
+            df = db.conn.execute(query, [symbol, limit]).df()
 
         if df.empty:
             return {"symbol": symbol, "interval": interval, "data": []}
