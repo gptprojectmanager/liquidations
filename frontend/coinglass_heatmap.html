@@ -533,15 +533,20 @@
                     )
                 });
 
+                // Get actual time bounds from heatmap data (not lookback settings)
+                // This ensures X-axis matches where heatmap data actually exists
+                const heatmapStartTime = new Date(timestamps[0]);
+                const heatmapEndTime = new Date(timestamps[timestamps.length - 1]);
+                console.log('Heatmap actual time range:', heatmapStartTime, 'to', heatmapEndTime);
+
                 // Coinglass shows candlestick overlay - fetch price data matching heatmap timeframe
                 try {
-                    // Use the heatmap's time range to fetch matching klines
+                    // Use the heatmap's ACTUAL time range to fetch matching klines
                     const klinesParams = new URLSearchParams({
                         symbol: 'BTCUSDT',
                         interval: interval,
-                        start_time: startTime.toISOString(),
-                        end_time: endTime.toISOString(),
-                        limit: 500  // API max is 500
+                        start_time: heatmapStartTime.toISOString(),
+                        end_time: heatmapEndTime.toISOString()
                     });
                     console.log('Fetching klines from:', `${API_BASE}/prices/klines?${klinesParams}`);
                     const priceResp = await fetch(`${API_BASE}/prices/klines?${klinesParams}`);
@@ -607,6 +612,9 @@
                     plot_bgcolor: '#131722',
                     font: { color: '#787b86', family: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif' },
                     xaxis: {
+                        // Set X-axis range to match ACTUAL heatmap data bounds
+                        // This ensures candlesticks and heatmap are aligned
+                        range: [heatmapStartTime, heatmapEndTime],
                         // Full date format: "Nov 13, 00:00"
                         gridcolor: 'rgba(42, 46, 57, 0.3)',  // Very subtle grid
                         gridwidth: 1,

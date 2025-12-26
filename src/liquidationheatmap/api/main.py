@@ -852,7 +852,13 @@ async def get_klines(
     interval: Literal["5m", "15m", "1h", "4h"] = Query(
         "15m", description="Kline interval (1h and 4h are aggregated from 5m data)"
     ),
-    limit: int = Query(100, ge=10, le=500, description="Number of klines to return"),
+    limit: int = Query(100, ge=10, le=2000, description="Number of klines to return"),
+    start_time: Optional[str] = Query(
+        None, description="Start datetime (ISO format) - when provided, overrides limit"
+    ),
+    end_time: Optional[str] = Query(
+        None, description="End datetime (ISO format) - when provided, overrides limit"
+    ),
 ):
     """Get OHLC price data for visualization overlay.
 
@@ -861,10 +867,16 @@ async def get_klines(
 
     For 1h and 4h intervals, data is aggregated from 5m klines on-the-fly.
 
+    When start_time and end_time are provided, the endpoint fetches all klines
+    within that time range (ignoring limit). This allows the heatmap frontend
+    to fetch klines matching exactly the heatmap data time range.
+
     Args:
         symbol: Trading pair (e.g., BTCUSDT)
         interval: Kline interval (5m, 15m, 1h, 4h)
-        limit: Number of klines to return (10-500)
+        limit: Number of klines to return (10-2000, ignored when time range provided)
+        start_time: Optional start datetime (ISO format)
+        end_time: Optional end datetime (ISO format)
 
     Returns:
         List of OHLC data points with timestamp, open, high, low, close, volume
@@ -876,6 +888,22 @@ async def get_klines(
             detail=f"Invalid symbol '{symbol}'. Supported: {sorted(SUPPORTED_SYMBOLS)}",
         )
 
+    # Parse time range if provided
+    from datetime import datetime
+
+    start_dt = None
+    end_dt = None
+    use_time_range = start_time is not None and end_time is not None
+
+    if use_time_range:
+        try:
+            start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00")).replace(
+                tzinfo=None
+            )
+            end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid time format: {e}")
+
     db = DuckDBService(read_only=True)
 
     try:
@@ -883,11 +911,82 @@ async def get_klines(
         if interval in ("1h", "4h"):
             # Determine aggregation factor (5m -> 1h = 12 candles, 5m -> 4h = 48 candles)
             agg_minutes = 60 if interval == "1h" else 240
-            # Fetch more raw data to aggregate
-            raw_limit = limit * (agg_minutes // 5) + agg_minutes // 5
 
-            query = f"""
-            WITH raw_klines AS (
+            if use_time_range:
+                # Time-range based query
+                query = f"""
+                WITH raw_klines AS (
+                    SELECT
+                        open_time as timestamp,
+                        CAST(open AS DOUBLE) as open,
+                        CAST(high AS DOUBLE) as high,
+                        CAST(low AS DOUBLE) as low,
+                        CAST(close AS DOUBLE) as close,
+                        CAST(volume AS DOUBLE) as volume
+                    FROM klines_5m_history
+                    WHERE symbol = ? AND open_time >= ? AND open_time <= ?
+                    ORDER BY open_time
+                ),
+                aggregated AS (
+                    SELECT
+                        time_bucket(INTERVAL '{agg_minutes} minutes', timestamp) as bucket,
+                        FIRST(open ORDER BY timestamp) as open,
+                        MAX(high) as high,
+                        MIN(low) as low,
+                        LAST(close ORDER BY timestamp) as close,
+                        SUM(volume) as volume
+                    FROM raw_klines
+                    GROUP BY bucket
+                    ORDER BY bucket
+                )
+                SELECT bucket as timestamp, open, high, low, close, volume
+                FROM aggregated
+                ORDER BY timestamp
+                """
+                df = db.conn.execute(query, [symbol, start_dt, end_dt]).df()
+            else:
+                # Limit-based query (original behavior)
+                raw_limit = limit * (agg_minutes // 5) + agg_minutes // 5
+
+                query = f"""
+                WITH raw_klines AS (
+                    SELECT
+                        open_time as timestamp,
+                        CAST(open AS DOUBLE) as open,
+                        CAST(high AS DOUBLE) as high,
+                        CAST(low AS DOUBLE) as low,
+                        CAST(close AS DOUBLE) as close,
+                        CAST(volume AS DOUBLE) as volume
+                    FROM klines_5m_history
+                    WHERE symbol = ?
+                    ORDER BY open_time DESC
+                    LIMIT ?
+                ),
+                aggregated AS (
+                    SELECT
+                        time_bucket(INTERVAL '{agg_minutes} minutes', timestamp) as bucket,
+                        FIRST(open ORDER BY timestamp) as open,
+                        MAX(high) as high,
+                        MIN(low) as low,
+                        LAST(close ORDER BY timestamp) as close,
+                        SUM(volume) as volume
+                    FROM raw_klines
+                    GROUP BY bucket
+                    ORDER BY bucket DESC
+                    LIMIT ?
+                )
+                SELECT bucket as timestamp, open, high, low, close, volume
+                FROM aggregated
+                ORDER BY timestamp DESC
+                """
+                df = db.conn.execute(query, [symbol, raw_limit, limit]).df()
+        else:
+            # Direct query for 5m and 15m intervals
+            table_name = f"klines_{interval}_history"
+
+            if use_time_range:
+                # Time-range based query
+                query = f"""
                 SELECT
                     open_time as timestamp,
                     CAST(open AS DOUBLE) as open,
@@ -895,49 +994,27 @@ async def get_klines(
                     CAST(low AS DOUBLE) as low,
                     CAST(close AS DOUBLE) as close,
                     CAST(volume AS DOUBLE) as volume
-                FROM klines_5m_history
+                FROM {table_name}
+                WHERE symbol = ? AND open_time >= ? AND open_time <= ?
+                ORDER BY open_time
+                """
+                df = db.conn.execute(query, [symbol, start_dt, end_dt]).df()
+            else:
+                # Limit-based query (original behavior)
+                query = f"""
+                SELECT
+                    open_time as timestamp,
+                    CAST(open AS DOUBLE) as open,
+                    CAST(high AS DOUBLE) as high,
+                    CAST(low AS DOUBLE) as low,
+                    CAST(close AS DOUBLE) as close,
+                    CAST(volume AS DOUBLE) as volume
+                FROM {table_name}
                 WHERE symbol = ?
                 ORDER BY open_time DESC
                 LIMIT ?
-            ),
-            aggregated AS (
-                SELECT
-                    time_bucket(INTERVAL '{agg_minutes} minutes', timestamp) as bucket,
-                    FIRST(open ORDER BY timestamp) as open,
-                    MAX(high) as high,
-                    MIN(low) as low,
-                    LAST(close ORDER BY timestamp) as close,
-                    SUM(volume) as volume
-                FROM raw_klines
-                GROUP BY bucket
-                ORDER BY bucket DESC
-                LIMIT ?
-            )
-            SELECT bucket as timestamp, open, high, low, close, volume
-            FROM aggregated
-            ORDER BY timestamp DESC
-            """
-
-            df = db.conn.execute(query, [symbol, raw_limit, limit]).df()
-        else:
-            # Direct query for 5m and 15m intervals
-            table_name = f"klines_{interval}_history"
-
-            query = f"""
-            SELECT
-                open_time as timestamp,
-                CAST(open AS DOUBLE) as open,
-                CAST(high AS DOUBLE) as high,
-                CAST(low AS DOUBLE) as low,
-                CAST(close AS DOUBLE) as close,
-                CAST(volume AS DOUBLE) as volume
-            FROM {table_name}
-            WHERE symbol = ?
-            ORDER BY open_time DESC
-            LIMIT ?
-            """
-
-            df = db.conn.execute(query, [symbol, limit]).df()
+                """
+                df = db.conn.execute(query, [symbol, limit]).df()
 
         if df.empty:
             return {"symbol": symbol, "interval": interval, "data": []}
