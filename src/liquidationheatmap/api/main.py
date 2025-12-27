@@ -1508,15 +1508,23 @@ async def get_heatmap_timeseries(
                 ),
             )
 
-        # Query OI data with delta calculation
-        oi_query = """
+        # Query OI data with delta calculation - OPTIMIZED: aggregate to interval
+        # This reduces O(n*m) matching to O(n) dict lookup
+        oi_query = f"""
+        WITH oi_bucketed AS (
+            SELECT
+                time_bucket(INTERVAL '{agg_minutes} minutes', timestamp) as bucket,
+                AVG(open_interest_value) as avg_oi
+            FROM open_interest_history
+            WHERE symbol = ? AND timestamp >= ? AND timestamp <= ?
+            GROUP BY bucket
+        )
         SELECT
-            timestamp,
-            open_interest_value,
-            open_interest_value - LAG(open_interest_value) OVER (ORDER BY timestamp) as oi_delta
-        FROM open_interest_history
-        WHERE symbol = ? AND timestamp >= ? AND timestamp <= ?
-        ORDER BY timestamp
+            bucket,
+            avg_oi,
+            avg_oi - LAG(avg_oi) OVER (ORDER BY bucket) as oi_delta
+        FROM oi_bucketed
+        ORDER BY bucket
         """
 
         oi_df = db.conn.execute(oi_query, [symbol, start_dt, end_dt]).df()
@@ -1536,22 +1544,25 @@ async def get_heatmap_timeseries(
             for _, row in candles_df.iterrows()
         ]
 
-        # Match OI deltas to candles (approximate by nearest timestamp)
-        oi_deltas = []
-        oi_timestamps = oi_df["timestamp"].tolist() if not oi_df.empty else []
-        oi_values = oi_df["oi_delta"].fillna(0).tolist() if not oi_df.empty else []
+        # Match OI deltas to candles - OPTIMIZED: O(1) dict lookup
+        # Build lookup dict from pre-aggregated OI buckets
+        oi_lookup: dict[datetime, Decimal] = {}
+        if not oi_df.empty:
+            for _, row in oi_df.iterrows():
+                bucket = row["bucket"]
+                if hasattr(bucket, "to_pydatetime"):
+                    bucket = bucket.to_pydatetime()
+                delta_val = row["oi_delta"]
+                oi_lookup[bucket] = (
+                    Decimal(str(delta_val))
+                    if delta_val and delta_val == delta_val
+                    else Decimal("0")
+                )
 
+        oi_deltas = []
         for candle in candles:
-            # Find closest OI data point within 15-min window
-            delta = Decimal("0")
-            min_diff = float("inf")
-            if oi_timestamps:
-                for i, oi_ts in enumerate(oi_timestamps):
-                    oi_ts_dt = oi_ts.to_pydatetime() if hasattr(oi_ts, "to_pydatetime") else oi_ts
-                    diff = abs((candle.open_time - oi_ts_dt).total_seconds())
-                    if diff < 900 and diff < min_diff:  # 15 min window, closest match
-                        min_diff = diff
-                        delta = Decimal(str(oi_values[i])) if oi_values[i] else Decimal("0")
+            # Direct O(1) lookup - buckets should match exactly
+            delta = oi_lookup.get(candle.open_time, Decimal("0"))
             oi_deltas.append(delta)
 
         # Calculate time-evolving heatmap
