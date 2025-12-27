@@ -126,11 +126,11 @@ def main():
     print("SUMMARY")
     print(f"{'=' * 60}")
     for task, status in results.items():
-        icon = "✅" if status == True else ("⏭️" if status == "skipped" else "❌")
+        icon = "✅" if status is True else ("⏭️" if status == "skipped" else "❌")
         print(f"  {icon} {task}")
 
     # Return exit code
-    failed = sum(1 for s in results.values() if s == False)
+    failed = sum(1 for s in results.values() if s is False)
     if failed > 0:
         print(f"\n⚠️  {failed} task(s) failed")
         sys.exit(1)

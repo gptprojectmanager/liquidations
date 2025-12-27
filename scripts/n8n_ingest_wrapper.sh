@@ -38,7 +38,13 @@ done
 
 echo "✅ Database available, starting ingestion..."
 
+# Track overall status
+BTCUSDT_STATUS=0
+ETHUSDT_STATUS=0
+
 if [ "$MODE" = "PRODUCTION" ]; then
+    echo ""
+    echo "📊 Ingesting BTCUSDT aggTrades..."
     python3 ingest_full_history_n8n.py \
         --symbol BTCUSDT \
         --data-dir /workspace/3TB-WDC/binance-history-data-downloader/data \
@@ -47,11 +53,60 @@ if [ "$MODE" = "PRODUCTION" ]; then
         --start-date "$START_DATE" \
         --end-date "$END_DATE" \
         --throttle-ms 200
+    BTCUSDT_STATUS=$?
+
+    echo ""
+    echo "📊 Ingesting ETHUSDT aggTrades..."
+    python3 ingest_full_history_n8n.py \
+        --symbol ETHUSDT \
+        --data-dir /workspace/3TB-WDC/binance-history-data-downloader/data \
+        --db /workspace/1TB/LiquidationHeatmap/data/processed/liquidations.duckdb \
+        --mode full \
+        --start-date "$START_DATE" \
+        --end-date "$END_DATE" \
+        --throttle-ms 200
+    ETHUSDT_STATUS=$?
 else
+    echo ""
+    echo "📊 Ingesting BTCUSDT aggTrades (auto mode)..."
     python3 ingest_full_history_n8n.py \
         --symbol BTCUSDT \
         --data-dir /workspace/3TB-WDC/binance-history-data-downloader/data \
         --db /workspace/1TB/LiquidationHeatmap/data/processed/liquidations.duckdb \
         --mode auto \
         --throttle-ms 200
+    BTCUSDT_STATUS=$?
+
+    echo ""
+    echo "📊 Ingesting ETHUSDT aggTrades (auto mode)..."
+    python3 ingest_full_history_n8n.py \
+        --symbol ETHUSDT \
+        --data-dir /workspace/3TB-WDC/binance-history-data-downloader/data \
+        --db /workspace/1TB/LiquidationHeatmap/data/processed/liquidations.duckdb \
+        --mode auto \
+        --throttle-ms 200
+    ETHUSDT_STATUS=$?
 fi
+
+echo ""
+echo "=========================================="
+echo "📈 AggTrades Ingestion Summary"
+echo "=========================================="
+if [ $BTCUSDT_STATUS -eq 0 ]; then
+    echo "✅ BTCUSDT: Success"
+else
+    echo "❌ BTCUSDT: Failed (exit code: $BTCUSDT_STATUS)"
+fi
+if [ $ETHUSDT_STATUS -eq 0 ]; then
+    echo "✅ ETHUSDT: Success"
+else
+    echo "❌ ETHUSDT: Failed (exit code: $ETHUSDT_STATUS)"
+fi
+
+# Exit with error if any symbol failed
+if [ $BTCUSDT_STATUS -ne 0 ] || [ $ETHUSDT_STATUS -ne 0 ]; then
+    exit 1
+fi
+
+echo ""
+echo "✅ Orchestration complete!"

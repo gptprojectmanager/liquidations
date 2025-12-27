@@ -468,7 +468,9 @@
                         // Only show values above 80th percentile
                         if (v < p80Threshold) return 0;
                         // Scale remaining values from 0 to 1
-                        const ratio = (v - p80Threshold) / (maxDensity - p80Threshold);
+                        // Guard against division by zero when all top values are identical
+                        const denominator = maxDensity - p80Threshold;
+                        const ratio = denominator > 0 ? (v - p80Threshold) / denominator : 1;
                         // Apply sqrt for smoother gradient in visible range
                         return Math.sqrt(ratio);
                     })
