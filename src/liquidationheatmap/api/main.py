@@ -262,6 +262,14 @@ app.add_middleware(
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
 
+@app.get("/coinglass")
+async def coinglass_redirect():
+    """Redirect /coinglass to the actual heatmap page."""
+    from fastapi.responses import RedirectResponse
+
+    return RedirectResponse(url="/frontend/coinglass_heatmap.html")
+
+
 class LiquidationResponse(BaseModel):
     """Response model for liquidations endpoint."""
 
@@ -907,9 +915,9 @@ async def get_klines(
     db = DuckDBService(read_only=True)
 
     try:
-        # For 1h and 4h, aggregate from 5m data
+        # For 1h and 4h, aggregate from 15m data (5m data incomplete)
         if interval in ("1h", "4h"):
-            # Determine aggregation factor (5m -> 1h = 12 candles, 5m -> 4h = 48 candles)
+            # Determine aggregation factor (15m -> 1h = 4 candles, 15m -> 4h = 16 candles)
             agg_minutes = 60 if interval == "1h" else 240
 
             if use_time_range:
@@ -923,7 +931,7 @@ async def get_klines(
                         CAST(low AS DOUBLE) as low,
                         CAST(close AS DOUBLE) as close,
                         CAST(volume AS DOUBLE) as volume
-                    FROM klines_5m_history
+                    FROM klines_15m_history
                     WHERE symbol = ? AND open_time >= ? AND open_time <= ?
                     ORDER BY open_time
                 ),
@@ -946,7 +954,8 @@ async def get_klines(
                 df = db.conn.execute(query, [symbol, start_dt, end_dt]).df()
             else:
                 # Limit-based query (original behavior)
-                raw_limit = limit * (agg_minutes // 5) + agg_minutes // 5
+                # Using 15m base: 1h needs 4x, 4h needs 16x candles
+                raw_limit = limit * (agg_minutes // 15) + agg_minutes // 15
 
                 query = f"""
                 WITH raw_klines AS (
@@ -957,7 +966,7 @@ async def get_klines(
                         CAST(low AS DOUBLE) as low,
                         CAST(close AS DOUBLE) as close,
                         CAST(volume AS DOUBLE) as volume
-                    FROM klines_5m_history
+                    FROM klines_15m_history
                     WHERE symbol = ?
                     ORDER BY open_time DESC
                     LIMIT ?
@@ -1260,15 +1269,6 @@ async def get_heatmap_timeseries(
     except LeverageWeightsParseError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Determine kline table based on interval
-    interval_table_map = {
-        "5m": "klines_5m_history",
-        "15m": "klines_15m_history",
-        "1h": "klines_5m_history",  # Aggregate from 5m
-        "4h": "klines_5m_history",  # Aggregate from 5m
-    }
-    kline_table = interval_table_map.get(interval, "klines_15m_history")
-
     # Mock candle class for algorithm
     @dataclass
     class Candle:
@@ -1282,21 +1282,57 @@ async def get_heatmap_timeseries(
     db = DuckDBService(read_only=True)
 
     try:
-        # Query candles
-        candle_query = f"""
-        SELECT
-            open_time,
-            CAST(open AS DECIMAL(18,8)) as open,
-            CAST(high AS DECIMAL(18,8)) as high,
-            CAST(low AS DECIMAL(18,8)) as low,
-            CAST(close AS DECIMAL(18,8)) as close,
-            CAST(volume AS DECIMAL(18,8)) as volume
-        FROM {kline_table}
-        WHERE symbol = ? AND open_time >= ? AND open_time <= ?
-        ORDER BY open_time
-        """
+        # Query candles - use appropriate base table and aggregate for larger intervals
+        interval_agg_map = {
+            "5m": 5,  # Direct from 5m table
+            "15m": 15,  # Direct from 15m table
+            "1h": 60,  # Aggregate from 15m
+            "4h": 240,  # Aggregate from 15m
+        }
+        agg_minutes = interval_agg_map.get(interval, 15)
 
-        candles_df = db.conn.execute(candle_query, [symbol, start_dt, end_dt]).df()
+        if agg_minutes <= 15:
+            # Direct query for 5m or 15m
+            table_name = f"klines_{interval}_history"
+            candle_query = f"""
+            SELECT
+                open_time,
+                CAST(open AS DECIMAL(18,8)) as open,
+                CAST(high AS DECIMAL(18,8)) as high,
+                CAST(low AS DECIMAL(18,8)) as low,
+                CAST(close AS DECIMAL(18,8)) as close,
+                CAST(volume AS DECIMAL(18,8)) as volume
+            FROM {table_name}
+            WHERE symbol = ? AND open_time >= ? AND open_time <= ?
+            ORDER BY open_time
+            """
+            candles_df = db.conn.execute(candle_query, [symbol, start_dt, end_dt]).df()
+        else:
+            # Aggregate 15m candles into larger intervals (1h, 4h)
+            candle_query = f"""
+            WITH aggregated AS (
+                SELECT
+                    time_bucket(INTERVAL '{agg_minutes} minutes', open_time) as bucket,
+                    FIRST(open ORDER BY open_time) as open,
+                    MAX(high) as high,
+                    MIN(low) as low,
+                    LAST(close ORDER BY open_time) as close,
+                    SUM(volume) as volume
+                FROM klines_15m_history
+                WHERE symbol = ? AND open_time >= ? AND open_time <= ?
+                GROUP BY bucket
+            )
+            SELECT
+                bucket as open_time,
+                CAST(open AS DECIMAL(18,8)) as open,
+                CAST(high AS DECIMAL(18,8)) as high,
+                CAST(low AS DECIMAL(18,8)) as low,
+                CAST(close AS DECIMAL(18,8)) as close,
+                CAST(volume AS DECIMAL(18,8)) as volume
+            FROM aggregated
+            ORDER BY open_time
+            """
+            candles_df = db.conn.execute(candle_query, [symbol, start_dt, end_dt]).df()
 
         if candles_df.empty:
             return HeatmapTimeseriesResponse(

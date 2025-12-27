@@ -310,7 +310,8 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:8000';
+        // Use current host so it works from any device on the network
+        const API_BASE = window.location.origin;
 
         // Toggle help panel visibility
         function toggleHelp() {
@@ -595,7 +596,7 @@
                                 showlegend: false,
                                 hoverinfo: 'x+y',
                                 yaxis: 'y',
-                                whiskerwidth: 0.8  // Make wicks more visible
+                                whiskerwidth: 0  // No horizontal lines at wick ends (was 0.8 which caused visible "whiskers" on 4h candles)
                             });
                         }
                     } else {
