@@ -327,6 +327,12 @@ async def prepare_for_ingestion():
     }
 
     try:
+        # Set ingestion lock FIRST to prevent new connections
+        if DuckDBService.set_ingestion_lock():
+            result["details"].append("Ingestion lock acquired")
+        else:
+            result["details"].append("Warning: Failed to acquire ingestion lock")
+
         # Close all read-only singleton instances
         closed = DuckDBService.close_all_instances()
         result["connections_closed"] = closed
@@ -336,10 +342,12 @@ async def prepare_for_ingestion():
         gc.collect()
         result["details"].append("Garbage collection completed")
 
-        logger.info(f"Prepared for ingestion: closed {closed} DB connections")
+        logger.info(f"Prepared for ingestion: closed {closed} DB connections, lock acquired")
         return result
     except Exception as e:
         logger.error(f"Failed to prepare for ingestion: {e}")
+        # Release lock on error
+        DuckDBService.release_ingestion_lock()
         result["status"] = "error"
         result["error"] = str(e)
         return result
@@ -361,6 +369,12 @@ async def refresh_connections():
     }
 
     try:
+        # Release ingestion lock FIRST to allow new connections
+        if DuckDBService.release_ingestion_lock():
+            result["details"].append("Ingestion lock released")
+        else:
+            result["details"].append("Warning: Failed to release ingestion lock")
+
         # Create a new read-only instance to warm up connections
         db = DuckDBService(read_only=True)
 

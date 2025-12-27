@@ -13,6 +13,15 @@ from .csv_loader import load_csv_glob, load_funding_rate_csv
 
 logger = logging.getLogger(__name__)
 
+# Lock file to prevent API from opening DB during ingestion
+INGESTION_LOCK_FILE = Path("/tmp/duckdb-ingestion.lock")
+
+
+class IngestionLockError(Exception):
+    """Raised when trying to connect while ingestion is in progress."""
+
+    pass
+
 
 def _fetch_binance_price(symbol: str, timeout: int = 5) -> Decimal:
     """Fetch current price from Binance API.
@@ -109,6 +118,46 @@ class DuckDBService:
         logger.info(f"Closed {closed_count} DuckDB instances total")
         return closed_count
 
+    @classmethod
+    def is_ingestion_locked(cls) -> bool:
+        """Check if ingestion lock is active.
+
+        Returns:
+            True if lock file exists (ingestion in progress)
+        """
+        return INGESTION_LOCK_FILE.exists()
+
+    @classmethod
+    def set_ingestion_lock(cls) -> bool:
+        """Create ingestion lock file.
+
+        Returns:
+            True if lock was created successfully
+        """
+        try:
+            INGESTION_LOCK_FILE.touch()
+            logger.info("Ingestion lock acquired")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create ingestion lock: {e}")
+            return False
+
+    @classmethod
+    def release_ingestion_lock(cls) -> bool:
+        """Remove ingestion lock file.
+
+        Returns:
+            True if lock was released successfully
+        """
+        try:
+            if INGESTION_LOCK_FILE.exists():
+                INGESTION_LOCK_FILE.unlink()
+            logger.info("Ingestion lock released")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to release ingestion lock: {e}")
+            return False
+
     def __new__(cls, db_path: str = "data/processed/liquidations.duckdb", read_only: bool = False):
         """Singleton pattern per (db_path, read_only) - reuse existing connection.
 
@@ -123,6 +172,12 @@ class DuckDBService:
         key = (resolved_path, read_only)
 
         with cls._lock:
+            # Check ingestion lock BEFORE allowing new connections
+            if cls.is_ingestion_locked():
+                raise IngestionLockError(
+                    "Database locked for ingestion. Try again after ingestion completes."
+                )
+
             # Check if we have an existing instance
             if key in cls._instances:
                 instance = cls._instances[key]
