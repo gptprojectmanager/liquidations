@@ -47,7 +47,7 @@ KLINES_5M_ETH=$?
 
 echo ""
 echo "[3/4] Ingesting BTCUSDT 15m klines..."
-$UV_CMD scripts/ingest_klines_15m.py \
+$PYTHON_CMD scripts/ingest_klines_15m.py \
     --symbol BTCUSDT \
     --start-date "$START_DATE" \
     --end-date "$END_DATE" \
@@ -57,7 +57,7 @@ KLINES_15M_BTC=$?
 
 echo ""
 echo "[4/4] Ingesting ETHUSDT 15m klines..."
-$UV_CMD scripts/ingest_klines_15m.py \
+$PYTHON_CMD scripts/ingest_klines_15m.py \
     --symbol ETHUSDT \
     --start-date "$START_DATE" \
     --end-date "$END_DATE" \
