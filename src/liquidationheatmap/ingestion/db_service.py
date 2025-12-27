@@ -79,6 +79,36 @@ class DuckDBService:
                     pass
                 del cls._instances[key]
 
+    @classmethod
+    def close_all_instances(cls) -> int:
+        """Close all singleton instances. Used before external ingestion.
+
+        This method safely closes all DuckDB connections held by the singleton
+        pattern, allowing external processes (like N8N ingestion) to acquire
+        write locks on the database.
+
+        Returns:
+            Number of instances closed
+        """
+        closed_count = 0
+        with cls._lock:
+            keys_to_remove = list(cls._instances.keys())
+            for key in keys_to_remove:
+                try:
+                    instance = cls._instances[key]
+                    if hasattr(instance, "conn") and instance.conn is not None:
+                        instance.conn.close()
+                        instance._initialized = False
+                        closed_count += 1
+                        logger.info(f"Closed DuckDB instance: {key}")
+                except Exception as e:
+                    logger.warning(f"Error closing instance {key}: {e}")
+                finally:
+                    del cls._instances[key]
+
+        logger.info(f"Closed {closed_count} DuckDB instances total")
+        return closed_count
+
     def __new__(cls, db_path: str = "data/processed/liquidations.duckdb", read_only: bool = False):
         """Singleton pattern per (db_path, read_only) - reuse existing connection.
 

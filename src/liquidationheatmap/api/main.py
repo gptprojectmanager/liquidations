@@ -240,6 +240,24 @@ SUPPORTED_SYMBOLS = {
     "LINKUSDT",
 }
 
+# =============================================================================
+# TIME WINDOW CONFIGURATION - Extended Timeframes
+# =============================================================================
+# Each time window auto-selects optimal klines interval for ~100-365 candles
+TimeWindow = Literal["48h", "3d", "7d", "14d", "30d", "60d", "90d", "180d", "1y"]
+
+TIME_WINDOW_CONFIG: dict[str, dict] = {
+    "48h": {"hours": 48, "klines_interval": "30m", "agg_minutes": 30},
+    "3d": {"hours": 72, "klines_interval": "1h", "agg_minutes": 60},
+    "7d": {"hours": 168, "klines_interval": "1h", "agg_minutes": 60},
+    "14d": {"hours": 336, "klines_interval": "2h", "agg_minutes": 120},
+    "30d": {"hours": 720, "klines_interval": "4h", "agg_minutes": 240},
+    "60d": {"hours": 1440, "klines_interval": "8h", "agg_minutes": 480},
+    "90d": {"hours": 2160, "klines_interval": "12h", "agg_minutes": 720},
+    "180d": {"hours": 4320, "klines_interval": "1d", "agg_minutes": 1440},
+    "1y": {"hours": 8760, "klines_interval": "1d", "agg_minutes": 1440},
+}
+
 app = FastAPI(
     title="Liquidation Heatmap API",
     description="Calculate and visualize cryptocurrency liquidation levels",
@@ -288,6 +306,76 @@ async def health_check():
         dict: Status of the API
     """
     return {"status": "ok", "service": "liquidation-heatmap"}
+
+
+@app.post("/api/v1/prepare-for-ingestion")
+async def prepare_for_ingestion():
+    """Prepare database for external ingestion by closing all read connections.
+
+    Call this endpoint before running N8N ingestion workflows to release
+    any database locks held by the API.
+
+    Returns:
+        dict: Status of connection cleanup with count of closed instances
+    """
+    import gc
+
+    result = {
+        "status": "success",
+        "connections_closed": 0,
+        "details": [],
+    }
+
+    try:
+        # Close all read-only singleton instances
+        closed = DuckDBService.close_all_instances()
+        result["connections_closed"] = closed
+        result["details"].append(f"Closed {closed} DuckDBService instances")
+
+        # Force garbage collection to release any lingering handles
+        gc.collect()
+        result["details"].append("Garbage collection completed")
+
+        logger.info(f"Prepared for ingestion: closed {closed} DB connections")
+        return result
+    except Exception as e:
+        logger.error(f"Failed to prepare for ingestion: {e}")
+        result["status"] = "error"
+        result["error"] = str(e)
+        return result
+
+
+@app.post("/api/v1/refresh-connections")
+async def refresh_connections():
+    """Re-establish database connections after ingestion completes.
+
+    Call this endpoint after N8N ingestion workflows finish to warm up
+    connections for subsequent API requests.
+
+    Returns:
+        dict: Status of connection refresh
+    """
+    result = {
+        "status": "success",
+        "details": [],
+    }
+
+    try:
+        # Create a new read-only instance to warm up connections
+        db = DuckDBService(read_only=True)
+
+        # Verify connection works
+        test_result = db.conn.execute("SELECT 1 as test").fetchone()
+        if test_result:
+            result["details"].append("Database connection verified")
+
+        logger.info("Database connections refreshed successfully")
+        return result
+    except Exception as e:
+        logger.error(f"Failed to refresh connections: {e}")
+        result["status"] = "error"
+        result["error"] = str(e)
+        return result
 
 
 @app.get("/data/date-range")
@@ -857,8 +945,9 @@ async def get_klines(
         description="Trading pair symbol",
         pattern="^[A-Z]{6,12}$",
     ),
-    interval: Literal["5m", "15m", "1h", "4h"] = Query(
-        "15m", description="Kline interval (1h and 4h are aggregated from 5m data)"
+    interval: Literal["5m", "15m", "30m", "1h", "2h", "4h", "8h", "12h", "1d"] = Query(
+        "15m",
+        description="Kline interval. 5m/15m direct from tables; larger intervals aggregated from 15m (or 5m for 30m).",
     ),
     limit: int = Query(100, ge=10, le=2000, description="Number of klines to return"),
     start_time: Optional[str] = Query(
@@ -873,7 +962,10 @@ async def get_klines(
     Returns candlestick/kline data from DuckDB for the specified symbol and interval.
     Used to overlay price action on the liquidation heatmap.
 
-    For 1h and 4h intervals, data is aggregated from 5m klines on-the-fly.
+    Interval aggregation:
+    - 5m, 15m: Direct query from respective tables
+    - 30m: Aggregated from 5m data (6 candles)
+    - 1h, 2h, 4h, 8h, 12h, 1d: Aggregated from 15m data
 
     When start_time and end_time are provided, the endpoint fetches all klines
     within that time range (ignoring limit). This allows the heatmap frontend
@@ -881,7 +973,7 @@ async def get_klines(
 
     Args:
         symbol: Trading pair (e.g., BTCUSDT)
-        interval: Kline interval (5m, 15m, 1h, 4h)
+        interval: Kline interval (5m, 15m, 30m, 1h, 2h, 4h, 8h, 12h, 1d)
         limit: Number of klines to return (10-2000, ignored when time range provided)
         start_time: Optional start datetime (ISO format)
         end_time: Optional end datetime (ISO format)
@@ -915,10 +1007,25 @@ async def get_klines(
     db = DuckDBService(read_only=True)
 
     try:
-        # For 1h and 4h, aggregate from 15m data (5m data incomplete)
-        if interval in ("1h", "4h"):
-            # Determine aggregation factor (15m -> 1h = 4 candles, 15m -> 4h = 16 candles)
-            agg_minutes = 60 if interval == "1h" else 240
+        # Map intervals to aggregation minutes (matches heatmap-timeseries logic)
+        interval_agg_map = {
+            "5m": 5,
+            "15m": 15,
+            "30m": 30,
+            "1h": 60,
+            "2h": 120,
+            "4h": 240,
+            "8h": 480,
+            "12h": 720,
+            "1d": 1440,
+        }
+        agg_minutes = interval_agg_map.get(interval, 15)
+
+        # For intervals > 15m, aggregate from base tables
+        # 30m uses 5m base table (6 candles), all others use 15m
+        if agg_minutes > 15:
+            base_table = "klines_5m_history" if interval == "30m" else "klines_15m_history"
+            base_minutes = 5 if interval == "30m" else 15
 
             if use_time_range:
                 # Time-range based query
@@ -931,7 +1038,7 @@ async def get_klines(
                         CAST(low AS DOUBLE) as low,
                         CAST(close AS DOUBLE) as close,
                         CAST(volume AS DOUBLE) as volume
-                    FROM klines_15m_history
+                    FROM {base_table}
                     WHERE symbol = ? AND open_time >= ? AND open_time <= ?
                     ORDER BY open_time
                 ),
@@ -954,8 +1061,8 @@ async def get_klines(
                 df = db.conn.execute(query, [symbol, start_dt, end_dt]).df()
             else:
                 # Limit-based query (original behavior)
-                # Using 15m base: 1h needs 4x, 4h needs 16x candles
-                raw_limit = limit * (agg_minutes // 15) + agg_minutes // 15
+                # Calculate raw_limit based on base table interval
+                raw_limit = limit * (agg_minutes // base_minutes) + agg_minutes // base_minutes
 
                 query = f"""
                 WITH raw_klines AS (
@@ -966,7 +1073,7 @@ async def get_klines(
                         CAST(low AS DOUBLE) as low,
                         CAST(close AS DOUBLE) as close,
                         CAST(volume AS DOUBLE) as volume
-                    FROM klines_15m_history
+                    FROM {base_table}
                     WHERE symbol = ?
                     ORDER BY open_time DESC
                     LIMIT ?
@@ -1179,17 +1286,23 @@ async def get_heatmap_timeseries(
         pattern="^[A-Z]{6,12}$",
         examples=["BTCUSDT"],
     ),
+    time_window: Optional[TimeWindow] = Query(
+        None,
+        description="Time window preset (auto-selects optimal klines interval). "
+        "Options: 48h, 3d, 7d, 14d, 30d, 60d, 90d, 180d, 1y. "
+        "Overrides start_time and interval if provided.",
+    ),
     start_time: Optional[str] = Query(
         None,
-        description="Start of time range (ISO 8601). Defaults to 7 days ago.",
+        description="Start of time range (ISO 8601). Ignored if time_window is set.",
     ),
     end_time: Optional[str] = Query(
         None,
         description="End of time range (ISO 8601). Defaults to now.",
     ),
-    interval: Literal["5m", "15m", "1h", "4h"] = Query(
-        "15m",
-        description="Time interval for snapshots",
+    interval: Optional[Literal["5m", "15m", "30m", "1h", "2h", "4h", "8h", "12h", "1d"]] = Query(
+        None,
+        description="Time interval for snapshots. Auto-selected if time_window is used.",
     ),
     price_bin_size: float = Query(
         100,
@@ -1208,17 +1321,18 @@ async def get_heatmap_timeseries(
     levels are consumed when price crosses them. This is the new implementation
     that correctly models position lifecycle.
 
-    **DEPRECATION NOTICE**: The `/liquidations/levels` endpoint is deprecated.
-    Use this endpoint for accurate time-varying heatmap data.
+    **NEW**: Use `time_window` parameter for extended timeframes (48h to 1y).
+    The optimal klines interval is auto-selected for each window.
 
     **CACHING**: Responses are cached for 5 minutes (configurable via LH_CACHE_TTL).
     Use GET /cache/stats to monitor cache performance.
 
     Args:
         symbol: Trading pair (e.g., BTCUSDT)
-        start_time: Start of time range (ISO 8601, defaults to 7 days ago)
+        time_window: Preset time window (48h, 3d, 7d, 14d, 30d, 60d, 90d, 180d, 1y)
+        start_time: Start of time range (ISO 8601, ignored if time_window set)
         end_time: End of time range (ISO 8601, defaults to now)
-        interval: Time interval for snapshots (5m, 15m, 1h, 4h)
+        interval: Time interval for snapshots (auto-selected if time_window used)
         price_bin_size: Price bucket size in USD for aggregation
         leverage_weights: Custom leverage distribution weights
 
@@ -1230,9 +1344,23 @@ async def get_heatmap_timeseries(
 
     from ..models.time_evolving_heatmap import calculate_time_evolving_heatmap
 
+    # Resolve time_window to start_time and interval if provided
+    effective_interval = interval
+    effective_start_time = start_time
+    if time_window:
+        config = TIME_WINDOW_CONFIG[time_window]
+        effective_interval = config["klines_interval"]
+        # start_time will be calculated from hours below
+        logger.info(f"Using time_window={time_window}: interval={effective_interval}")
+    elif interval is None:
+        # Default to 15m if neither time_window nor interval provided
+        effective_interval = "15m"
+
     # T059: Check cache first (cache-first query strategy)
+    # Use effective values for cache key
+    cache_key_start = effective_start_time if not time_window else f"tw:{time_window}"
     cached_response = _heatmap_cache.get(
-        symbol, start_time, end_time, interval, price_bin_size, leverage_weights
+        symbol, cache_key_start, end_time, effective_interval, price_bin_size, leverage_weights
     )
     if cached_response is not None:
         logger.debug(f"Cache HIT for {symbol} heatmap-timeseries")
@@ -1254,8 +1382,12 @@ async def get_heatmap_timeseries(
         else:
             end_dt = datetime.now()
 
-        if start_time:
-            start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00")).replace(
+        if time_window:
+            # Calculate start_time from time_window hours
+            config = TIME_WINDOW_CONFIG[time_window]
+            start_dt = end_dt - timedelta(hours=config["hours"])
+        elif effective_start_time:
+            start_dt = datetime.fromisoformat(effective_start_time.replace("Z", "+00:00")).replace(
                 tzinfo=None
             )
         else:
@@ -1283,17 +1415,23 @@ async def get_heatmap_timeseries(
 
     try:
         # Query candles - use appropriate base table and aggregate for larger intervals
+        # Extended to support new time windows (30m, 2h, 8h, 12h, 1d)
         interval_agg_map = {
             "5m": 5,  # Direct from 5m table
             "15m": 15,  # Direct from 15m table
-            "1h": 60,  # Aggregate from 15m
-            "4h": 240,  # Aggregate from 15m
+            "30m": 30,  # Aggregate from 5m (6 candles)
+            "1h": 60,  # Aggregate from 15m (4 candles)
+            "2h": 120,  # Aggregate from 15m (8 candles)
+            "4h": 240,  # Aggregate from 15m (16 candles)
+            "8h": 480,  # Aggregate from 15m (32 candles)
+            "12h": 720,  # Aggregate from 15m (48 candles)
+            "1d": 1440,  # Aggregate from 15m (96 candles)
         }
-        agg_minutes = interval_agg_map.get(interval, 15)
+        agg_minutes = interval_agg_map.get(effective_interval, 15)
 
         if agg_minutes <= 15:
             # Direct query for 5m or 15m
-            table_name = f"klines_{interval}_history"
+            table_name = f"klines_{effective_interval}_history"
             candle_query = f"""
             SELECT
                 open_time,
@@ -1308,7 +1446,13 @@ async def get_heatmap_timeseries(
             """
             candles_df = db.conn.execute(candle_query, [symbol, start_dt, end_dt]).df()
         else:
-            # Aggregate 15m candles into larger intervals (1h, 4h)
+            # Aggregate candles into larger intervals
+            # 30m uses 5m base table, all others use 15m
+            if effective_interval == "30m":
+                base_table = "klines_5m_history"
+            else:
+                base_table = "klines_15m_history"
+
             candle_query = f"""
             WITH aggregated AS (
                 SELECT
@@ -1318,7 +1462,7 @@ async def get_heatmap_timeseries(
                     MIN(low) as low,
                     LAST(close ORDER BY open_time) as close,
                     SUM(volume) as volume
-                FROM klines_15m_history
+                FROM {base_table}
                 WHERE symbol = ? AND open_time >= ? AND open_time <= ?
                 GROUP BY bucket
             )
@@ -1341,7 +1485,7 @@ async def get_heatmap_timeseries(
                     symbol=symbol,
                     start_time=start_dt.isoformat(),
                     end_time=end_dt.isoformat(),
-                    interval=interval,
+                    interval=effective_interval,
                     total_snapshots=0,
                     price_range={"min": 0, "max": 0},
                     total_long_volume=0.0,
@@ -1449,7 +1593,7 @@ async def get_heatmap_timeseries(
                 symbol=symbol,
                 start_time=start_dt.isoformat(),
                 end_time=end_dt.isoformat(),
-                interval=interval,
+                interval=effective_interval,
                 total_snapshots=len(snapshots),
                 price_range=price_range,
                 total_long_volume=total_long,
@@ -1459,8 +1603,15 @@ async def get_heatmap_timeseries(
         )
 
         # T059: Cache the response for future requests
+        # Use same cache key as lookup (with time_window prefix if applicable)
         _heatmap_cache.set(
-            symbol, start_time, end_time, interval, price_bin_size, leverage_weights, response
+            symbol,
+            cache_key_start,
+            end_time,
+            effective_interval,
+            price_bin_size,
+            leverage_weights,
+            response,
         )
         logger.debug(f"Cached response for {symbol} heatmap-timeseries")
 

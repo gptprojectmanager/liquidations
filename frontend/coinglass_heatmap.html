@@ -225,20 +225,20 @@
     <div class="header">
         <h1>BTC Liquidation Heatmap</h1>
         <div class="controls">
-            <select id="interval">
-                <option value="5m">5m</option>
-                <option value="15m" selected>15m</option>
-                <option value="1h">1h</option>
-                <option value="4h">4h</option>
+            <label for="timeWindow">Finestra:</label>
+            <select id="timeWindow">
+                <option value="48h">48 ore (30m)</option>
+                <option value="3d">3 giorni (1h)</option>
+                <option value="7d" selected>7 giorni (1h)</option>
+                <option value="14d">14 giorni (2h)</option>
+                <option value="30d">30 giorni (4h)</option>
+                <option value="60d">60 giorni (8h)</option>
+                <option value="90d">90 giorni (12h)</option>
+                <option value="180d">6 mesi (1d)</option>
+                <option value="1y">1 anno (1d)</option>
             </select>
             <label for="priceBinSize">Bin:</label>
             <input type="number" id="priceBinSize" value="500" min="100" max="2000" step="100">
-            <select id="lookbackDays">
-                <option value="1">1d</option>
-                <option value="3" selected>3d</option>
-                <option value="7">7d</option>
-                <option value="14">14d</option>
-            </select>
             <button id="loadBtn" class="primary" onclick="loadHeatmap()">Load</button>
         </div>
     </div>
@@ -352,31 +352,17 @@
         }
 
         async function loadHeatmap() {
-            const interval = document.getElementById('interval').value;
+            const timeWindow = document.getElementById('timeWindow').value;
             const priceBinSize = document.getElementById('priceBinSize').value;
-            const lookbackDays = parseInt(document.getElementById('lookbackDays').value);
 
             setLoading(true);
-            setStatus('Fetching available date range...', 'loading');
+            setStatus('Loading time-evolving heatmap...', 'loading');
 
             try {
-                // Fetch available date range from API (dynamic, not hardcoded)
-                const dateRangeResp = await fetch(`${API_BASE}/data/date-range?symbol=BTCUSDT`);
-                if (!dateRangeResp.ok) {
-                    throw new Error('Failed to fetch date range');
-                }
-                const dateRange = await dateRangeResp.json();
-                const endTime = new Date(dateRange.end_date);
-                const startTime = new Date(endTime);
-                startTime.setDate(startTime.getDate() - lookbackDays);
-
-                setStatus('Loading time-evolving heatmap...', 'loading');
-                // Fetch time-series heatmap data from new endpoint (T046)
+                // Use time_window parameter - API auto-calculates interval and start_time
                 const params = new URLSearchParams({
                     symbol: 'BTCUSDT',
-                    interval: interval,
-                    start_time: startTime.toISOString(),
-                    end_time: endTime.toISOString(),
+                    time_window: timeWindow,
                     price_bin_size: priceBinSize
                 });
 
@@ -545,9 +531,10 @@
                 // Coinglass shows candlestick overlay - fetch price data matching heatmap timeframe
                 try {
                     // Use the heatmap's ACTUAL time range to fetch matching klines
+                    // Use meta.interval from API response (auto-calculated from time_window)
                     const klinesParams = new URLSearchParams({
                         symbol: 'BTCUSDT',
-                        interval: interval,
+                        interval: meta.interval,
                         start_time: heatmapStartTime.toISOString(),
                         end_time: heatmapEndTime.toISOString()
                     });
@@ -681,14 +668,11 @@
         }
 
         // T52: Auto-load on page ready with error handling
-        // Support URL parameters for testing: ?interval=1h&lookback=7&bin=500
+        // Support URL parameters for testing: ?window=7d&bin=500
         document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams(window.location.search);
-            if (params.has('interval')) {
-                document.getElementById('interval').value = params.get('interval');
-            }
-            if (params.has('lookback')) {
-                document.getElementById('lookbackDays').value = params.get('lookback');
+            if (params.has('window')) {
+                document.getElementById('timeWindow').value = params.get('window');
             }
             if (params.has('bin')) {
                 document.getElementById('priceBinSize').value = params.get('bin');
