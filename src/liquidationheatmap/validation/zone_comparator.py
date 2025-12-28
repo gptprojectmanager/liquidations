@@ -84,8 +84,10 @@ class APIPriceLevels:
         top_zones = sorted_levels[:top_n]
 
         # Classify by density type (long_density > 0 means long zone, etc.)
-        long_zones = [z for z in top_zones if z.get("long_density", 0) > z.get("short_density", 0)]
-        short_zones = [z for z in top_zones if z.get("short_density", 0) > z.get("long_density", 0)]
+        # BUG FIX: Also include zones where densities are equal (split to both)
+        # or where only one type has density
+        long_zones = [z for z in top_zones if z.get("long_density", 0) > 0]
+        short_zones = [z for z in top_zones if z.get("short_density", 0) > 0]
 
         # Calculate totals
         total_long = sum(z.get("long_density", 0) for z in long_zones)
@@ -182,6 +184,7 @@ class AggregateMetrics:
     processed: int = 0
     ocr_failures: int = 0
     api_failures: int = 0
+    no_data_failures: int = 0  # API returned empty zones
 
     # Hit rate statistics
     avg_hit_rate: float = 0.0
@@ -219,6 +222,7 @@ class AggregateMetrics:
             if self.total_screenshots
             else 0,
             "api_failures": self.api_failures,
+            "no_data_failures": self.no_data_failures,
             "metrics": {
                 "avg_hit_rate": self.avg_hit_rate,
                 "median_hit_rate": self.median_hit_rate,
@@ -323,6 +327,7 @@ def calculate_aggregate_metrics(
     successful = [r for r in results if r.status == "success"]
     ocr_failures = sum(1 for r in results if r.status == "ocr_failed")
     api_failures = sum(1 for r in results if r.status == "api_failed")
+    no_data_failures = sum(1 for r in results if r.status == "no_data")
 
     hit_rates = [r.hit_rate for r in successful]
 
@@ -374,6 +379,7 @@ def calculate_aggregate_metrics(
         processed=len(successful),
         ocr_failures=ocr_failures,
         api_failures=api_failures,
+        no_data_failures=no_data_failures,
         avg_hit_rate=round(avg_hit_rate, 4),
         median_hit_rate=round(median_hit_rate, 4),
         std_hit_rate=round(std_hit_rate, 4),
@@ -408,15 +414,22 @@ async def fetch_api_heatmap(
     Returns:
         APIPriceLevels or None if request fails
     """
+    from datetime import timedelta
+
     # Map symbol to API format
     api_symbol = f"{symbol}USDT"
 
-    # Build query
+    # BUG FIX: Calculate start_time and end_time from timestamp + window
+    # The API expects start_time and end_time, not timestamp and window_minutes
+    start_time = timestamp - timedelta(minutes=timestamp_window_minutes)
+    end_time = timestamp + timedelta(minutes=timestamp_window_minutes)
+
+    # Build query with correct API parameters
     endpoint = f"{api_url}/liquidations/heatmap-timeseries"
     params = {
         "symbol": api_symbol,
-        "timestamp": timestamp.isoformat(),
-        "window_minutes": timestamp_window_minutes,
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(),
     }
 
     try:
@@ -504,6 +517,22 @@ class ZoneComparator:
                 error="API request failed",
             )
 
+        # Check if API returned any zones
+        all_api = api_data.long_zones + api_data.short_zones
+        if not all_api:
+            return ValidationResult(
+                screenshot_path=ocr_result.screenshot_path,
+                timestamp=screenshot_timestamp,
+                symbol=symbol,
+                status="no_data",
+                ocr_confidence=ocr_result.confidence,
+                ocr_long_zones=ocr_result.long_zones,
+                ocr_short_zones=ocr_result.short_zones,
+                processing_time_ms=int((time.time() - start_time) * 1000),
+                tolerance_pct=self.tolerance_pct,
+                error="API returned no zone data for this timestamp",
+            )
+
         # Reclassify OCR zones using API's current price
         all_ocr_zones = ocr_result.all_zones
         ocr_long = [p for p in all_ocr_zones if p < api_data.current_price]
@@ -515,7 +544,6 @@ class ZoneComparator:
 
         # Overall hit rate
         all_ocr = ocr_long + ocr_short
-        all_api = api_data.long_zones + api_data.short_zones
         overall_comparison = calculate_hit_rate(all_ocr, all_api, self.tolerance_pct)
 
         processing_time_ms = int((time.time() - start_time) * 1000)

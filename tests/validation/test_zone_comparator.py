@@ -367,3 +367,36 @@ class TestZoneComparator:
             )
 
         assert result.status == "api_failed"
+
+    @pytest.mark.asyncio
+    async def test_compare_no_data(self):
+        """Return no_data status when API returns empty zones."""
+        ocr_result = ExtractedPriceLevels(
+            screenshot_path="/path/to/screenshot.png",
+            short_zones=[100000.0, 95000.0],
+            confidence=0.85,
+        )
+
+        # API response with no zones
+        api_response = APIPriceLevels(
+            symbol="ETHUSDT",
+            timestamp=datetime.now(),
+            current_price=3500,
+            long_zones=[],
+            short_zones=[],
+        )
+
+        with patch(
+            "src.liquidationheatmap.validation.zone_comparator.fetch_api_heatmap",
+            new_callable=AsyncMock,
+            return_value=api_response,
+        ):
+            comparator = ZoneComparator()
+            result = await comparator.compare(
+                ocr_result=ocr_result,
+                screenshot_timestamp=datetime.now(),
+                symbol="ETH",
+            )
+
+        assert result.status == "no_data"
+        assert "no zone data" in result.error

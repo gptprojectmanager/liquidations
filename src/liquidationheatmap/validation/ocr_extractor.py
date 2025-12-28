@@ -177,7 +177,10 @@ class OCRExtractor:
         """
         # Find all numbers - support both formatted (130,000) and unformatted (130000)
         # Pattern matches: integers (130000), comma-separated (130,000), decimal (130000.50)
-        pattern = r"(\d{4,7}(?:\.\d+)?)"  # Match 4-7 digit numbers (covers $1k-$999k range)
+        # BUG FIX: Include optional comma separators in pattern
+        pattern = r"(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{4,7}(?:\.\d+)?)"
+        # First alternative: comma-separated (e.g., 130,000 or 1,234,567)
+        # Second alternative: 4-7 digit numbers without commas
         matches = re.findall(pattern, text)
 
         prices = []
@@ -218,7 +221,28 @@ class OCRExtractor:
             # Preprocess image
             preprocessed = self._preprocess_image(image_path)
 
-            # Try pytesseract first
+            # Check for standalone "No Data" message in full image
+            # (Coinglass shows this when no heatmap data available)
+            # Note: All screenshots have a tip saying "If the message 'NO DATA' appears..."
+            # We need to detect the ACTUAL "No data" message, not the tip
+            full_img = cv2.imread(image_path)
+            if full_img is not None:
+                full_text = pytesseract.image_to_string(full_img, config="--psm 11")
+                lines = full_text.split("\n")
+                # Check for standalone "No data" line (not part of the tip)
+                has_standalone_nodata = any(
+                    line.strip().lower() in ["no data", "nodata"] for line in lines
+                )
+                if has_standalone_nodata:
+                    return ExtractedPriceLevels(
+                        screenshot_path=image_path,
+                        confidence=0.0,  # Mark as invalid
+                        extraction_method="pytesseract",
+                        processing_time_ms=int((time.time() - start_time) * 1000),
+                        raw_text="Screenshot shows 'No Data' - no heatmap data available",
+                    )
+
+            # Try pytesseract first on preprocessed (cropped) image
             text, confidence = self._extract_with_pytesseract(preprocessed)
             extraction_method = "pytesseract"
 
