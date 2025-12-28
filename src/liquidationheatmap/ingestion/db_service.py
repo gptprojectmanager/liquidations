@@ -42,6 +42,34 @@ def _fetch_binance_price(symbol: str, timeout: int = 5) -> Decimal:
         return Decimal(data["price"])
 
 
+# Symbol-aware fallback prices (approximate, used when all other sources fail)
+# These are order-of-magnitude estimates - actual price fetched from Binance when possible
+_SYMBOL_FALLBACK_PRICES = {
+    "BTCUSDT": Decimal("95000.00"),
+    "ETHUSDT": Decimal("3500.00"),
+    "BNBUSDT": Decimal("700.00"),
+    "SOLUSDT": Decimal("200.00"),
+    "XRPUSDT": Decimal("2.50"),
+    "ADAUSDT": Decimal("1.00"),
+    "DOGEUSDT": Decimal("0.40"),
+    "DOTUSDT": Decimal("8.00"),
+    "MATICUSDT": Decimal("0.50"),
+    "LINKUSDT": Decimal("15.00"),
+}
+
+
+def _get_fallback_price(symbol: str) -> Decimal:
+    """Get fallback price for a symbol when API and DB both fail.
+
+    Args:
+        symbol: Trading pair (e.g., BTCUSDT, ETHUSDT)
+
+    Returns:
+        Approximate fallback price (order-of-magnitude estimate)
+    """
+    return _SYMBOL_FALLBACK_PRICES.get(symbol, Decimal("1000.00"))
+
+
 class DuckDBService:
     """Service for managing DuckDB connection and queries.
 
@@ -272,8 +300,8 @@ class DuckDBService:
                     current_price = _fetch_binance_price(symbol)
                 except Exception as e:
                     logger.warning(f"Binance API price fetch failed for {symbol}: {e}")
-                    # Fallback: estimate from OI value / contracts if available
-                    current_price = Decimal("95000.00")  # Reasonable fallback for BTC
+                    # Fallback: symbol-aware estimate when API fails
+                    current_price = _get_fallback_price(symbol)
                 return current_price, oi_value
         except duckdb.CatalogException as e:
             # Table doesn't exist, load from CSV
@@ -286,7 +314,7 @@ class DuckDBService:
             try:
                 current_price = _fetch_binance_price(symbol)
             except Exception:
-                current_price = Decimal("95000.00")
+                current_price = _get_fallback_price(symbol)
             return current_price, Decimal("0")
 
         return self._load_and_cache_data(symbol)
@@ -312,7 +340,7 @@ class DuckDBService:
                 current_price = _fetch_binance_price(symbol)
             except Exception as e:
                 logger.warning(f"Binance price fetch also failed for {symbol}: {e}")
-                current_price = Decimal("95000.00")  # Fallback for BTC
+                current_price = _get_fallback_price(symbol)
             return current_price, Decimal("100000000.00")
 
         if df.empty:
@@ -321,7 +349,7 @@ class DuckDBService:
                 current_price = _fetch_binance_price(symbol)
             except Exception as e:
                 logger.warning(f"Binance price fetch failed for empty CSV {symbol}: {e}")
-                current_price = Decimal("95000.00")  # Fallback for BTC
+                current_price = _get_fallback_price(symbol)
             return current_price, Decimal("100000000.00")
 
         # Create table if not exists with UNIQUE constraint
@@ -362,7 +390,7 @@ class DuckDBService:
             current_price = _fetch_binance_price(symbol)
         except Exception as e:
             logger.warning(f"Binance API price fetch failed for {symbol}: {e}")
-            current_price = Decimal("95000.00")  # Fallback for BTC
+            current_price = _get_fallback_price(symbol)
 
         return current_price, oi_value
 

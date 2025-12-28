@@ -197,10 +197,14 @@ class TestValidateSymbol:
         """Test that BTCUSDT is accepted by default."""
         assert validate_symbol("BTCUSDT") is True
 
-    def test_validate_symbol_rejects_other_symbols(self):
-        """Test that other symbols are rejected by default."""
-        assert validate_symbol("ETHUSDT") is False
+    def test_validate_symbol_accepts_ethusdt(self):
+        """Test that ETHUSDT is accepted by default (multi-symbol support)."""
+        assert validate_symbol("ETHUSDT") is True
+
+    def test_validate_symbol_rejects_unsupported_symbols(self):
+        """Test that unsupported symbols are rejected by default."""
         assert validate_symbol("SOLUSDT") is False
+        assert validate_symbol("XYZUSDT") is False
 
     def test_validate_symbol_with_custom_list(self):
         """Test that custom symbol list works."""

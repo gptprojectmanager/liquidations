@@ -1,39 +1,31 @@
 {
-  "total_screenshots": 3159,
-  "processed": 672,
-  "ocr_failures": 1061,
-  "ocr_failure_rate": 0.33586578031022474,
-  "api_failures": 1426,
+  "total_screenshots": 1,
+  "processed": 0,
+  "ocr_failures": 0,
+  "ocr_failure_rate": 0.0,
+  "api_failures": 0,
+  "no_data_failures": 1,
   "metrics": {
-    "avg_hit_rate": 0.124,
+    "avg_hit_rate": 0.0,
     "median_hit_rate": 0.0,
-    "std_hit_rate": 0.1995,
+    "std_hit_rate": 0.0,
     "min_hit_rate": 0.0,
-    "max_hit_rate": 1.0,
-    "pass_rate": 0.0283,
+    "max_hit_rate": 0.0,
+    "pass_rate": 0.0,
     "hit_rate_distribution": {
-      "0-25%": 531,
-      "25-50%": 79,
-      "50-75%": 43,
-      "75-100%": 19
+      "0-25%": 0,
+      "25-50%": 0,
+      "50-75%": 0,
+      "75-100%": 0
     }
   },
-  "by_symbol": {
-    "BTC": {
-      "count": 391,
-      "avg_hit_rate": 0.2132
-    },
-    "ETH": {
-      "count": 281,
-      "avg_hit_rate": 0.0
-    }
-  },
+  "by_symbol": {},
   "timestamp_range": {
-    "earliest": "2025-10-30T14:54:32",
-    "latest": "2025-12-28T13:17:24"
+    "earliest": "2025-12-26T13:08:59",
+    "latest": "2025-12-26T13:08:59"
   },
   "performance": {
-    "total_time_ms": 352200,
-    "avg_time_ms": 111.49
+    "total_time_ms": 494,
+    "avg_time_ms": 494.0
   }
 }

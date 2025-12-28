@@ -168,8 +168,8 @@ def validate_symbol(symbol: str, allowed_symbols: List[str] = None) -> bool:
     """Validate that trading symbol is supported.
 
     Args:
-        symbol: Trading pair symbol (e.g., 'BTCUSDT')
-        allowed_symbols: List of allowed symbols (default: ['BTCUSDT'])
+        symbol: Trading pair symbol (e.g., 'BTCUSDT', 'ETHUSDT')
+        allowed_symbols: List of allowed symbols (default: ['BTCUSDT', 'ETHUSDT'])
 
     Returns:
         True if symbol is valid, False otherwise
@@ -177,10 +177,12 @@ def validate_symbol(symbol: str, allowed_symbols: List[str] = None) -> bool:
     Examples:
         >>> validate_symbol('BTCUSDT')
         True
-        >>> validate_symbol('ETHUSDT', allowed_symbols=['BTCUSDT'])
+        >>> validate_symbol('ETHUSDT')
+        True
+        >>> validate_symbol('XYZUSDT', allowed_symbols=['BTCUSDT', 'ETHUSDT'])
         False
     """
     if allowed_symbols is None:
-        allowed_symbols = ["BTCUSDT"]  # MVP only supports BTC/USDT
+        allowed_symbols = ["BTCUSDT", "ETHUSDT"]  # Supported perpetual pairs
 
     return symbol in allowed_symbols
