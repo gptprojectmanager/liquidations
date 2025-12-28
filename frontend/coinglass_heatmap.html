@@ -223,8 +223,13 @@
 </head>
 <body>
     <div class="header">
-        <h1>BTC Liquidation Heatmap</h1>
+        <h1>Liquidation Heatmap</h1>
         <div class="controls">
+            <label for="symbolSelect">Symbol:</label>
+            <select id="symbolSelect">
+                <option value="BTCUSDT" selected>BTC/USDT</option>
+                <option value="ETHUSDT">ETH/USDT</option>
+            </select>
             <label for="timeWindow">Finestra:</label>
             <select id="timeWindow">
                 <option value="48h">48 ore (30m)</option>
@@ -352,16 +357,17 @@
         }
 
         async function loadHeatmap() {
+            const symbol = document.getElementById('symbolSelect').value;
             const timeWindow = document.getElementById('timeWindow').value;
             const priceBinSize = document.getElementById('priceBinSize').value;
 
             setLoading(true);
-            setStatus('Loading time-evolving heatmap...', 'loading');
+            setStatus(`Loading ${symbol} time-evolving heatmap...`, 'loading');
 
             try {
                 // Use time_window parameter - API auto-calculates interval and start_time
                 const params = new URLSearchParams({
-                    symbol: 'BTCUSDT',
+                    symbol: symbol,
                     time_window: timeWindow,
                     price_bin_size: priceBinSize
                 });
@@ -533,7 +539,7 @@
                     // Use the heatmap's ACTUAL time range to fetch matching klines
                     // Use meta.interval from API response (auto-calculated from time_window)
                     const klinesParams = new URLSearchParams({
-                        symbol: 'BTCUSDT',
+                        symbol: symbol,
                         interval: meta.interval,
                         start_time: heatmapStartTime.toISOString(),
                         end_time: heatmapEndTime.toISOString()

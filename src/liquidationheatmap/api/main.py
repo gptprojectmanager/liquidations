@@ -486,7 +486,7 @@ async def get_liquidation_levels(
         ...,
         description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)",
         pattern="^[A-Z]{6,12}$",
-        examples=["BTCUSDT"],
+        examples=["BTCUSDT", "ETHUSDT"],
     ),
     model: str = Query(
         "openinterest",
@@ -628,7 +628,7 @@ async def get_heatmap(
         ...,
         description="Trading pair symbol (e.g., BTCUSDT, ETHUSDT)",
         pattern="^[A-Z]{6,12}$",
-        examples=["BTCUSDT"],
+        examples=["BTCUSDT", "ETHUSDT"],
     ),
     model: Literal["binance_standard", "ensemble"] = Query(
         "ensemble", description="Liquidation model to use"
@@ -1298,7 +1298,7 @@ async def get_heatmap_timeseries(
         ...,
         description="Trading pair symbol (e.g., BTCUSDT)",
         pattern="^[A-Z]{6,12}$",
-        examples=["BTCUSDT"],
+        examples=["BTCUSDT", "ETHUSDT"],
     ),
     time_window: Optional[TimeWindow] = Query(
         None,

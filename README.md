@@ -51,6 +51,15 @@ See `CLAUDE.md` for detailed architecture and development workflow.
 
 **Note**: Raw data is read-only (symlinked). All analytics use DuckDB as single source of truth.
 
+## Supported Trading Pairs
+
+| Symbol | Status | Data Coverage | Notes |
+|--------|--------|---------------|-------|
+| **BTC/USDT** | ✅ Production | 2021-12-01 to present | Primary pair, full validation |
+| **ETH/USDT** | ✅ Production | 2021-12-01 to present | Symbol-agnostic pipeline |
+
+All pairs use identical liquidation formulas (Binance USDT-M perpetuals). The pipeline is fully symbol-agnostic - new pairs require only data ingestion, no code changes.
+
 ## Development
 
 ### Setup
