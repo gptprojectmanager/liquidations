@@ -162,6 +162,49 @@ As a **developer**, I want screenshot validation to run in CI pipeline so that m
 - **SC-005**: Zero Claude API tokens consumed during validation process
 - **SC-006**: Comparison matches manual validation example: Coinglass Long ~$87k → Our $86.3k (0.8% error), Coinglass Short ~$90k → Our $90.9k (1% error)
 
+### Actual Results (2025-12-28)
+
+| Criterion | Target | Actual | Status |
+|-----------|--------|--------|--------|
+| SC-001: OCR success rate | >90% | 66.4% (2098/3159) | ❌ FAIL |
+| SC-002: Average hit_rate | >70% | 12.4% | ❌ FAIL |
+| SC-003: Manual spot-check | 10/10 pass | Pending | ⏳ |
+| SC-004: Processing time | <4 hours | 0.10 hours | ✅ PASS |
+| SC-005: Claude tokens | 0 | 0 | ✅ PASS |
+| SC-006: Manual example | ~1% error | Methodology mismatch | ⚠️ ISSUE |
+
+**Root Cause Analysis**:
+
+1. **Methodology Difference** (Primary Issue):
+   - Coinglass heatmaps show zones at $100k-$130k (short liquidations above current price)
+   - Our API shows zones at $70k-$96k based on historical Binance data
+   - This suggests fundamentally different calculation methodologies
+
+2. **ETH Data Gap**:
+   - ETH screenshots return 0% hit rate
+   - API may not have ETH liquidation data loaded
+
+3. **OCR Challenges** (33.6% failure rate):
+   - Some screenshots have different Y-axis scales
+   - Edge cases with non-standard layouts
+
+**Summary Statistics** (from full batch run):
+```json
+{
+  "total_screenshots": 3159,
+  "processed": 672,
+  "ocr_failures": 1061,
+  "api_failures": 1426,
+  "avg_hit_rate": 0.124,
+  "by_symbol": {
+    "BTC": {"count": 391, "avg_hit_rate": 0.213},
+    "ETH": {"count": 281, "avg_hit_rate": 0.0}
+  }
+}
+```
+
+**Conclusion**: The validation pipeline is technically functional, but reveals a fundamental methodology difference between our liquidation calculations and Coinglass's approach. Further investigation is needed to understand and align the calculation methods.
+
 ## Technical Approach
 
 ### OCR Strategy

@@ -148,17 +148,27 @@
 - [X] T043 [US2] Add memory management for large batches
   - Process in chunks of 100 screenshots
   - Clear OCR cache between chunks
-- [ ] T044 [US2] Run full batch validation:
+- [X] T044 [US2] Run full batch validation:
   ```bash
   uv run python scripts/validate_screenshots.py \
     --screenshots /media/sam/1TB/N8N_dev/screenshots/ \
     --workers 8 \
     --output data/validation/validation_results.jsonl
   ```
-- [ ] T045 [US2] Verify summary meets success criteria:
+- [X] T045 [US2] Verify summary meets success criteria:
   - OCR success rate >90%
   - avg_hit_rate >70%
   - Processing time <4 hours
+
+  **Actual Results** (2025-12-28):
+  - OCR success rate: 66.4% (FAIL - target >90%)
+  - avg_hit_rate: 12.4% (FAIL - target >70%)
+  - Processing time: 0.10 hours (PASS - target <4h)
+
+  **Root Causes**:
+  1. Methodology difference: Our API calculates liquidation zones differently than Coinglass
+  2. ETH data gap: ETH screenshots return 0% hit rate (no ETH data in API)
+  3. OCR challenges: 33.6% of screenshots failed OCR extraction
 
 **Checkpoint**: Batch validation works with full dataset ✅
 
@@ -202,14 +212,20 @@
 - [X] T052 [P] Run all unit tests: `uv run pytest tests/validation/test_screenshot*.py tests/validation/test_ocr*.py tests/validation/test_zone*.py -v`
 - [X] T053 [P] Run linting: `ruff check src/liquidationheatmap/validation/ scripts/validate_screenshots.py`
 - [X] T054 [P] Format code: `ruff format src/liquidationheatmap/validation/ scripts/validate_screenshots.py`
-- [ ] T055 Update spec.md with actual results (hit_rate achieved)
-- [ ] T056 [P] Add docstrings to all public functions
-- [ ] T057 Manual spot-check (10 random screenshots):
+- [X] T055 Update spec.md with actual results (hit_rate achieved)
+- [X] T056 [P] Add docstrings to all public functions (already complete - all modules have full docstrings)
+- [X] T057 Manual spot-check (10 random screenshots):
   1. Select 10 random screenshots using: `ls /media/sam/1TB/N8N_dev/screenshots/ | shuf | head -10`
   2. For each screenshot: run single-file validation, manually verify OCR output matches visible Y-axis labels
   3. Document findings in `reports/spot_check_results.md` with pass/fail per screenshot
   4. All 10 must pass OCR extraction; ≥7 must match API zones within tolerance
-- [ ] T058 Create validation report in `reports/screenshot_validation_2025.md`
+
+  **Actual Results**: 7/10 OCR success (70%), 3/10 had API matches (30%)
+  **Criteria NOT MET** - See `reports/spot_check_results.md` for details
+
+- [X] T058 Create validation report in `reports/screenshot_validation_2025.md`
+
+  **Created**: Full validation report with executive summary, methodology analysis, and recommendations
 - [X] T059 [P] NFR-001 Performance test: Verify single screenshot OCR <5s (achieved: 1.51s)
   ```bash
   time uv run python scripts/validate_screenshots.py \
