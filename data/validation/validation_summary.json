@@ -1,0 +1,35 @@
+{
+  "total_screenshots": 1,
+  "processed": 1,
+  "ocr_failures": 0,
+  "ocr_failure_rate": 0.0,
+  "api_failures": 0,
+  "metrics": {
+    "avg_hit_rate": 0.0,
+    "median_hit_rate": 0.0,
+    "std_hit_rate": 0.0,
+    "min_hit_rate": 0.0,
+    "max_hit_rate": 0.0,
+    "pass_rate": 0.0,
+    "hit_rate_distribution": {
+      "0-25%": 1,
+      "25-50%": 0,
+      "50-75%": 0,
+      "75-100%": 0
+    }
+  },
+  "by_symbol": {
+    "BTC": {
+      "count": 1,
+      "avg_hit_rate": 0.0
+    }
+  },
+  "timestamp_range": {
+    "earliest": "2025-10-30T14:57:08",
+    "latest": "2025-10-30T14:57:08"
+  },
+  "performance": {
+    "total_time_ms": 1795,
+    "avg_time_ms": 1795.0
+  }
+}

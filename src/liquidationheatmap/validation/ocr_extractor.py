@@ -145,6 +145,8 @@ class OCRExtractor:
 
         # Load and crop image for EasyOCR (RIGHT side)
         img = cv2.imread(image_path)
+        if img is None:
+            return "", 0.0
         height, width = img.shape[:2]
         y_axis_crop = img[:, width - self.Y_AXIS_CROP_WIDTH :]
 

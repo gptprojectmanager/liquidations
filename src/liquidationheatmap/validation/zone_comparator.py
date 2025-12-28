@@ -46,22 +46,52 @@ class APIPriceLevels:
                 current_price=0.0,
             )
 
-        levels = data[0].get("levels", [])
+        # Aggregate levels from all timestamps in the time-series response
+        all_levels: dict[float, dict] = {}
+        for snapshot in data:
+            for level in snapshot.get("levels", []):
+                price = level.get("price", 0)
+                # API returns long_density/short_density, not volume
+                long_density = level.get("long_density", 0) or 0
+                short_density = level.get("short_density", 0) or 0
+                volume = long_density + short_density
+
+                if price in all_levels:
+                    all_levels[price]["volume"] += volume
+                    all_levels[price]["long_density"] += long_density
+                    all_levels[price]["short_density"] += short_density
+                else:
+                    all_levels[price] = {
+                        "price": price,
+                        "volume": volume,
+                        "long_density": long_density,
+                        "short_density": short_density,
+                    }
+
+        levels = list(all_levels.values())
+
+        # Get current price from meta or estimate from price_range midpoint
+        price_range = meta.get("price_range", {})
         current_price = meta.get("current_price", 0)
+        if not current_price and price_range:
+            min_price = price_range.get("min", 0)
+            max_price = price_range.get("max", 0)
+            if min_price and max_price:
+                current_price = (min_price + max_price) / 2
 
         # Sort by volume (descending) and take top N
         sorted_levels = sorted(levels, key=lambda x: x.get("volume", 0), reverse=True)
         top_zones = sorted_levels[:top_n]
 
-        # Classify by side
-        long_zones = [z for z in top_zones if z.get("price", 0) < current_price]
-        short_zones = [z for z in top_zones if z.get("price", 0) > current_price]
+        # Classify by density type (long_density > 0 means long zone, etc.)
+        long_zones = [z for z in top_zones if z.get("long_density", 0) > z.get("short_density", 0)]
+        short_zones = [z for z in top_zones if z.get("short_density", 0) > z.get("long_density", 0)]
 
         # Calculate totals
-        total_long = sum(z.get("volume", 0) for z in long_zones)
-        total_short = sum(z.get("volume", 0) for z in short_zones)
+        total_long = sum(z.get("long_density", 0) for z in long_zones)
+        total_short = sum(z.get("short_density", 0) for z in short_zones)
 
-        timestamp_str = meta.get("timestamp", "")
+        timestamp_str = meta.get("timestamp", meta.get("start_time", ""))
         try:
             timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
         except (ValueError, AttributeError):
@@ -88,7 +118,7 @@ class ValidationResult:
     """Comparison result for a single screenshot."""
 
     screenshot_path: str
-    timestamp: datetime
+    timestamp: datetime | None
     symbol: str
     status: str = "pending"  # "success", "ocr_failed", "api_failed", "no_match"
 
@@ -118,7 +148,7 @@ class ValidationResult:
         """Convert to JSON-serializable dict."""
         return {
             "screenshot": self.screenshot_path,
-            "timestamp": self.timestamp.isoformat(),
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "symbol": self.symbol,
             "status": self.status,
             "ocr_confidence": self.ocr_confidence,

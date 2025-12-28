@@ -107,11 +107,12 @@ class TestAPIPriceLevels:
             },
             "data": [
                 {
+                    "timestamp": "2025-10-30T14:57:08",
                     "levels": [
-                        {"price": 100000, "volume": 1000},
-                        {"price": 90000, "volume": 900},
-                        {"price": 85000, "volume": 800},
-                    ]
+                        {"price": 100000, "long_density": 0, "short_density": 1000},
+                        {"price": 90000, "long_density": 900, "short_density": 0},
+                        {"price": 85000, "long_density": 800, "short_density": 0},
+                    ],
                 }
             ],
         }
@@ -120,20 +121,21 @@ class TestAPIPriceLevels:
 
         assert result.symbol == "BTCUSDT"
         assert result.current_price == 95000
-        assert len(result.short_zones) == 1  # 100k > 95k
-        assert len(result.long_zones) == 2  # 90k, 85k < 95k
+        assert len(result.short_zones) == 1  # short_density > long_density
+        assert len(result.long_zones) == 2  # long_density > short_density
 
     def test_from_api_response_sorts_by_volume(self):
-        """Top N zones are sorted by volume."""
+        """Top N zones are sorted by volume (long_density + short_density)."""
         response = {
             "meta": {"symbol": "BTCUSDT", "current_price": 95000},
             "data": [
                 {
+                    "timestamp": "2025-10-30T14:57:08",
                     "levels": [
-                        {"price": 100000, "volume": 100},
-                        {"price": 99000, "volume": 1000},  # Higher volume
-                        {"price": 98000, "volume": 500},
-                    ]
+                        {"price": 100000, "long_density": 0, "short_density": 100},
+                        {"price": 99000, "long_density": 0, "short_density": 1000},  # Higher volume
+                        {"price": 98000, "long_density": 0, "short_density": 500},
+                    ],
                 }
             ],
         }
@@ -180,6 +182,22 @@ class TestValidationResult:
         assert data["ocr_confidence"] == 0.85
         assert data["comparison"]["hit_rate"] == 0.75
         assert data["processing_time_ms"] == 1500
+
+    def test_to_dict_handles_none_timestamp(self):
+        """to_dict handles None timestamp gracefully."""
+        result = ValidationResult(
+            screenshot_path="/path/to/screenshot.png",
+            timestamp=None,
+            symbol="BTC",
+            status="error",
+            error="Test error",
+        )
+
+        data = result.to_dict()
+
+        assert data["screenshot"] == "/path/to/screenshot.png"
+        assert data["timestamp"] is None
+        assert data["status"] == "error"
 
 
 class TestCalculateAggregateMetrics:
