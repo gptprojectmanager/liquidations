@@ -3,6 +3,31 @@
 ## Overview
 Real-time self-adapting liquidation signals with feedback from trading performance.
 
+## Acceptance Criteria
+
+### AC1: Signal Publisher
+- [ ] Publishes top 5 liquidation zones to Redis channel `liquidation:signals:{symbol}`
+- [ ] Each signal includes: price, side, confidence (0.0-1.0), timestamp
+- [ ] Publish latency < 10ms
+- [ ] Graceful handling if Redis unavailable (log warning, continue without publish)
+
+### AC2: Feedback Consumer
+- [ ] Subscribes to `liquidation:feedback:{symbol}` channel
+- [ ] Stores all feedback in DuckDB `signal_feedback` table
+- [ ] Processing latency < 50ms per message
+- [ ] Handles malformed messages gracefully (log error, skip)
+
+### AC3: Adaptive Engine
+- [ ] Calculates rolling hit_rate for 1h, 24h, 7d windows
+- [ ] Adjusts weights using EMA (alpha=0.1)
+- [ ] Rollback to default weights if hit_rate < 0.50
+- [ ] Stores weight history in DuckDB `adaptive_weights` table
+
+### AC4: API Endpoints
+- [ ] GET /signals/status returns connection state and 24h counts
+- [ ] GET /signals/metrics returns hit_rate, signal count, avg_pnl
+- [ ] Response time < 100ms p95
+
 ## Architecture
 
 ```
@@ -43,19 +68,20 @@ Nautilus   UTXOracle
 ## Components to Build
 
 1. **Signal Publisher** (`src/liquidationheatmap/signals/publisher.py`)
-   - Redis connection
-   - Publish top N zones as signals
-   - Include confidence scores
+   - Redis connection with graceful fallback if unavailable
+   - Publish top 5 zones as signals (configurable via `SIGNAL_TOP_N` env var)
+   - Include confidence scores (0.0-1.0 from heatmap density)
 
 2. **Feedback Consumer** (`src/liquidationheatmap/signals/feedback.py`)
-   - Subscribe to P&L feedback
-   - Update model weights
-   - Store in DuckDB for analysis
+   - Subscribe to P&L feedback from `liquidation:feedback:{symbol}`
+   - Store feedback in DuckDB `signal_feedback` table (does NOT update weights directly)
+   - Handle malformed messages gracefully
 
 3. **Adaptive Engine** (`src/liquidationheatmap/signals/adaptive.py`)
-   - Rolling accuracy metrics
-   - Weight adjustment algorithm
-   - Regime detection (trending/ranging/volatile)
+   - Reads feedback from DuckDB, calculates rolling accuracy metrics
+   - Weight adjustment using EMA algorithm (alpha=0.1)
+   - Rollback to defaults if hit_rate < 0.50
+   - **[P2 Future]** Regime detection (trending/ranging/volatile) - deferred
 
 ## Validation Results (from 014)
 - Gate 1 (Coinglass): hit_rate = 77.8% ✅
@@ -63,6 +89,10 @@ Nautilus   UTXOracle
 - Methodology: Recall-focused ("did we cover important levels?")
 
 ## Dependencies
+
+**Required (P0)**:
 - Redis running on localhost:6379
-- Nautilus TradingNode configured
-- UTXOracle API running
+
+**Optional (P2 - Future Integration)**:
+- Nautilus TradingNode configured (for automated trading)
+- UTXOracle API running (for dashboard visualization)
