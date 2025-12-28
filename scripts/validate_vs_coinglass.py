@@ -373,6 +373,33 @@ def get_mock_coinglass_liquidations() -> list[CoinglassLiquidation]:
     ]
 
 
+def load_hyperliquid_liquidations() -> list[CoinglassLiquidation]:
+    """Load real liquidations from Hyperliquid collector."""
+    liq_file = Path("data/validation/hyperliquid_liquidations.jsonl")
+    if not liq_file.exists():
+        logger.warning("No Hyperliquid data found, run collect_liquidations.py first")
+        return []
+
+    liquidations = []
+    with open(liq_file) as f:
+        for line in f:
+            if not line.strip():
+                continue
+            data = json.loads(line)
+            liquidations.append(
+                CoinglassLiquidation(
+                    symbol="BTCUSDT",
+                    price=data["price"],
+                    value_usd=data["price"] * data["size"],
+                    side=data["side"],
+                    timestamp=datetime.fromisoformat(data["ts"]),
+                )
+            )
+
+    logger.info(f"Loaded {len(liquidations)} liquidations from Hyperliquid")
+    return liquidations
+
+
 def get_mock_high_density_zones() -> list[HighDensityZone]:
     """
     Return mock high-density zones for testing when API returns empty data.
@@ -538,7 +565,7 @@ def get_accuracy_summary() -> dict:
     }
 
 
-async def run_validation(use_mock: bool = False):
+async def run_validation(use_mock: bool = False, use_hyperliquid: bool = False):
     """Run one validation cycle."""
     logger.info("Starting price-level validation...")
 
@@ -566,16 +593,19 @@ async def run_validation(use_mock: bool = False):
         logger.warning("No high-density zones found - falling back to mock zones for demo")
         our_zones = get_mock_high_density_zones()
 
-    # 3. Get Coinglass liquidations (real or mock)
-    if use_mock:
-        logger.info("Using mock Coinglass data...")
+    # 3. Get liquidations (Hyperliquid, Coinglass, or mock)
+    if use_hyperliquid:
+        logger.info("Loading Hyperliquid liquidations...")
+        coinglass_liqs = load_hyperliquid_liquidations()
+    elif use_mock:
+        logger.info("Using mock data...")
         coinglass_liqs = get_mock_coinglass_liquidations()
     else:
         logger.info("Scraping Coinglass liquidations via Playwright...")
         coinglass_liqs = await scrape_coinglass_liquidations_playwright(headless=True)
 
     if not coinglass_liqs:
-        logger.warning("No Coinglass liquidations found, using mock data as fallback")
+        logger.warning("No liquidations found, using mock data as fallback")
         coinglass_liqs = get_mock_coinglass_liquidations()
 
     # 4. Calculate hit rate
@@ -590,8 +620,9 @@ async def run_validation(use_mock: bool = False):
 
 def main():
     parser = argparse.ArgumentParser(description="Coinglass Price Level Validation")
+    parser.add_argument("--mock", action="store_true", help="Use mock data instead of real")
     parser.add_argument(
-        "--mock", action="store_true", help="Use mock Coinglass data instead of scraping"
+        "--hyperliquid", action="store_true", help="Use Hyperliquid liquidations (real data)"
     )
     parser.add_argument("--summary", action="store_true", help="Show accuracy summary from history")
     args = parser.parse_args()
@@ -602,7 +633,7 @@ def main():
         return
 
     # Run async validation
-    asyncio.run(run_validation(use_mock=args.mock))
+    asyncio.run(run_validation(use_mock=args.mock, use_hyperliquid=args.hyperliquid))
 
 
 if __name__ == "__main__":
