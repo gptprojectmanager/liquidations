@@ -95,29 +95,40 @@ class FeedbackDBService:
         """
         cutoff = datetime.utcnow() - timedelta(hours=hours)
 
-        result = self.conn.execute(
-            """
-            SELECT
-                COUNT(*) as total,
-                COUNT(CASE WHEN pnl > 0 THEN 1 END) as profitable,
-                AVG(pnl) as avg_pnl
-            FROM signal_feedback
-            WHERE symbol = ? AND timestamp >= ?
-            """,
-            [symbol, cutoff],
-        ).fetchone()
+        try:
+            result = self.conn.execute(
+                """
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN pnl > 0 THEN 1 END) as profitable,
+                    AVG(pnl) as avg_pnl
+                FROM signal_feedback
+                WHERE symbol = ? AND timestamp >= ?
+                """,
+                [symbol, cutoff],
+            ).fetchone()
 
-        total = result[0] or 0
-        profitable = result[1] or 0
-        avg_pnl = result[2] or 0.0
+            total = result[0] or 0
+            profitable = result[1] or 0
+            avg_pnl = result[2] or 0.0
 
-        return {
-            "total": total,
-            "profitable": profitable,
-            "unprofitable": total - profitable,
-            "hit_rate": profitable / total if total > 0 else 0.0,
-            "avg_pnl": avg_pnl,
-        }
+            return {
+                "total": total,
+                "profitable": profitable,
+                "unprofitable": total - profitable,
+                "hit_rate": profitable / total if total > 0 else 0.0,
+                "avg_pnl": avg_pnl,
+            }
+        except Exception as e:
+            # Table may not exist yet - return empty metrics
+            logger.warning(f"Could not fetch rolling metrics for {symbol}: {e}")
+            return {
+                "total": 0,
+                "profitable": 0,
+                "unprofitable": 0,
+                "hit_rate": 0.0,
+                "avg_pnl": 0.0,
+            }
 
     def close(self) -> None:
         """Close database connection."""
@@ -253,9 +264,11 @@ class FeedbackConsumer:
                 logger.info("Feedback subscription interrupted")
 
     def close(self) -> None:
-        """Close Redis connection."""
+        """Close Redis and database connections."""
         if self._redis_client is not None:
             self._redis_client.disconnect()
+        if self._db_service is not None and hasattr(self._db_service, "close"):
+            self._db_service.close()
 
 
 def main():

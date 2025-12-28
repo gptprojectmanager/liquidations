@@ -94,10 +94,24 @@ class SignalPublisher:
                 f"Published signal to {channel}: "
                 f"price={signal.price}, side={signal.side}, confidence={signal.confidence}"
             )
+            # Update last publish timestamp for status tracking
+            self._update_last_publish()
             return True
         else:
             logger.warning(f"Failed to publish signal to {channel}")
             return False
+
+    def _update_last_publish(self) -> None:
+        """Update last publish timestamp for API status tracking."""
+        try:
+            from datetime import datetime
+
+            from src.liquidationheatmap.api.routers.signals import set_last_publish
+
+            set_last_publish(datetime.utcnow())
+        except ImportError:
+            # API router may not be available (e.g., in tests or standalone mode)
+            pass
 
     def publish_batch(self, signals: list[LiquidationSignal]) -> int:
         """Publish multiple signals.
@@ -159,17 +173,25 @@ class SignalPublisher:
         # Take top N
         top_zones = sorted_zones[:top_n]
 
-        # Convert to signals
+        # Convert to signals (skip invalid zones)
         signals = []
         for zone in top_zones:
-            signal = LiquidationSignal(
-                symbol=symbol,
-                price=Decimal(str(zone.get("price", 0))),
-                side=zone.get("side", "long"),
-                confidence=zone.get("intensity", 0),
-                signal_id=str(uuid.uuid4())[:8],
-            )
-            signals.append(signal)
+            price = zone.get("price", 0)
+            if price <= 0:
+                logger.warning(f"Skipping zone with invalid price: {price}")
+                continue
+            try:
+                signal = LiquidationSignal(
+                    symbol=symbol,
+                    price=Decimal(str(price)),
+                    side=zone.get("side", "long"),
+                    confidence=zone.get("intensity", 0),
+                    signal_id=str(uuid.uuid4())[:8],
+                )
+                signals.append(signal)
+            except ValueError as e:
+                logger.warning(f"Skipping invalid zone: {e}")
+                continue
 
         logger.debug(f"Extracted {len(signals)} top signals from heatmap for {symbol}")
         return signals

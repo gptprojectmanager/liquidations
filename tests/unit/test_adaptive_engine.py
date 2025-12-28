@@ -201,6 +201,32 @@ class TestAdaptiveEngineWeightCalculation:
         result = calculate_ema(0.5, 0.8, alpha=0.0)
         assert result == pytest.approx(0.5, rel=0.001)
 
+    def test_zero_weight_edge_case_reverts_to_defaults(self):
+        """When EMA results in zero weights, should revert to defaults.
+
+        Edge case: If alpha=1.0 and hit_rate=0.0 for both sides,
+        the normalization would divide by zero. This test ensures
+        graceful fallback to defaults.
+        """
+        from src.liquidationheatmap.signals.adaptive import DEFAULT_WEIGHTS, AdaptiveEngine
+
+        mock_db = MagicMock()
+        # Return 0 hit_rate which with alpha=1 would result in zero weights
+        mock_db.get_rolling_metrics.return_value = {
+            "total": 100,
+            "profitable": 0,
+            "hit_rate": 0.0,  # Zero hit rate
+            "avg_pnl": -100.0,
+        }
+
+        engine = AdaptiveEngine(db_service=mock_db, ema_alpha=1.0)  # Alpha=1 means instant change
+
+        # Adjust weights - should not crash with division by zero
+        engine.adjust_weights("BTCUSDT")
+
+        # Should have reverted to defaults instead of crashing
+        assert engine.weights == DEFAULT_WEIGHTS
+
 
 class TestAdaptiveEngineIntegration:
     """Integration tests for AdaptiveEngine with mocked components."""

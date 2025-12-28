@@ -234,6 +234,41 @@ class TestSignalPublisher:
 
             assert len(signals) == 0
 
+    def test_extract_top_signals_skips_invalid_prices(self):
+        """extract_top_signals should skip zones with invalid prices.
+
+        Edge case: Zones with price=0, missing price, or negative price
+        should be skipped gracefully instead of raising ValidationError.
+        """
+        from src.liquidationheatmap.signals.publisher import SignalPublisher
+
+        heatmap_data = {
+            "zones": [
+                {"price": 0, "intensity": 0.9, "side": "long"},  # Invalid: zero
+                {"intensity": 0.8, "side": "short"},  # Invalid: missing (defaults to 0)
+                {"price": 95000, "intensity": 0.7, "side": "long"},  # Valid
+                {"price": -100, "intensity": 0.6, "side": "short"},  # Invalid: negative
+                {"price": 94500, "intensity": 0.5, "side": "long"},  # Valid
+            ]
+        }
+
+        with patch(
+            "src.liquidationheatmap.signals.publisher.get_redis_client",
+            return_value=MagicMock(),
+        ):
+            publisher = SignalPublisher()
+            signals = publisher.extract_top_signals(
+                symbol="BTCUSDT",
+                heatmap_data=heatmap_data,
+                top_n=10,
+            )
+
+            # Only 2 valid zones should be extracted
+            assert len(signals) == 2
+            prices = [s.price for s in signals]
+            assert Decimal("95000") in prices
+            assert Decimal("94500") in prices
+
 
 class TestSignalPublisherIntegrationPoints:
     """Tests for SignalPublisher integration with heatmap calculation."""

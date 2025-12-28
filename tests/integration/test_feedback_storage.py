@@ -169,3 +169,26 @@ class TestFeedbackDBService:
         ).fetchone()[0]
 
         assert btc_count == 2
+
+    def test_get_rolling_metrics_handles_missing_table(self):
+        """get_rolling_metrics should return empty metrics if table doesn't exist.
+
+        Edge case: When the database is new and migrations haven't run yet,
+        the function should gracefully return empty metrics instead of crashing.
+        """
+        from src.liquidationheatmap.signals.feedback import FeedbackDBService
+
+        # Create a fresh in-memory DB without running migrations
+        conn = duckdb.connect(":memory:")
+        db_service = FeedbackDBService(conn)
+
+        # Should return empty metrics, not crash
+        metrics = db_service.get_rolling_metrics("BTCUSDT", hours=24)
+
+        assert metrics["total"] == 0
+        assert metrics["profitable"] == 0
+        assert metrics["unprofitable"] == 0
+        assert metrics["hit_rate"] == 0.0
+        assert metrics["avg_pnl"] == 0.0
+
+        conn.close()

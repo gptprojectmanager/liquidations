@@ -45,12 +45,16 @@ async def get_signal_status():
 
     # Get feedback count from DuckDB
     feedback_24h = 0
+    db_service = None
     try:
         db_service = FeedbackDBService()
         metrics = db_service.get_rolling_metrics("BTCUSDT", hours=24)
         feedback_24h = metrics.get("total", 0)
     except Exception as e:
         logger.warning(f"Could not fetch feedback metrics: {e}")
+    finally:
+        if db_service is not None:
+            db_service.close()
 
     # Signals published (using cached timestamp, actual count would need Redis MONITOR)
     # This is a simplified implementation - in production, track via metrics
@@ -95,6 +99,7 @@ async def get_signal_metrics(
     window_hours = {"1h": 1, "24h": 24, "7d": 168}
     hours = window_hours.get(window, 24)
 
+    db_service = None
     try:
         db_service = FeedbackDBService()
         metrics = db_service.get_rolling_metrics(symbol, hours=hours)
@@ -118,6 +123,9 @@ async def get_signal_metrics(
             feedback_count=0,
             avg_pnl=0.0,
         )
+    finally:
+        if db_service is not None:
+            db_service.close()
 
 
 @router.get("/health")

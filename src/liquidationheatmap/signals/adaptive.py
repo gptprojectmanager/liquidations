@@ -143,6 +143,10 @@ class AdaptiveEngine:
         if total > 0:
             self.weights["long"] = Decimal(str(new_long / total))
             self.weights["short"] = Decimal(str(new_short / total))
+        else:
+            # Edge case: both EMA results are zero, reset to defaults
+            logger.warning("EMA resulted in zero weights, reverting to defaults")
+            self.weights = DEFAULT_WEIGHTS.copy()
 
         logger.info(
             f"Adjusted weights for {symbol}: "
