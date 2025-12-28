@@ -191,7 +191,7 @@ class ValidationPipeline:
         with open(self.results_file, "a") as f:
             f.write(json.dumps(result.to_dict()) + "\n")
         logger.info(
-            f"Logged validation: long_ratio={result.long_ratio:.2f}, short_ratio={result.short_ratio:.2f}"
+            f"Logged validation: long={result.long_ratio:.2f}, short={result.short_ratio:.2f}"
         )
 
     def get_history(self, limit: int = 100) -> list[dict]:

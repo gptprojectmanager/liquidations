@@ -1,0 +1,81 @@
+name: Screenshot Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      threshold:
+        description: 'Hit rate threshold (0.0-1.0)'
+        required: false
+        default: '0.70'
+      filter_symbol:
+        description: 'Filter by symbol (BTC or ETH)'
+        required: false
+        default: ''
+      workers:
+        description: 'Number of parallel workers'
+        required: false
+        default: '4'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 hours for full validation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+
+      - name: Verify Tesseract installation
+        run: tesseract --version
+
+      - name: Create output directory
+        run: mkdir -p data/validation
+
+      - name: Run screenshot validation
+        id: validate
+        run: |
+          ARGS="--screenshots ${{ github.workspace }}/test-screenshots/"
+          ARGS="$ARGS --output data/validation/validation_results.jsonl"
+          ARGS="$ARGS --threshold ${{ inputs.threshold }}"
+          ARGS="$ARGS --workers ${{ inputs.workers }}"
+          ARGS="$ARGS --summary"
+
+          if [ -n "${{ inputs.filter_symbol }}" ]; then
+            ARGS="$ARGS --filter-symbol ${{ inputs.filter_symbol }}"
+          fi
+
+          # Run validation (without --fail-below-threshold for artifact upload)
+          uv run python scripts/validate_screenshots.py $ARGS --verbose
+
+          # Check threshold separately for job status
+          uv run python scripts/validate_screenshots.py $ARGS --fail-below-threshold
+        continue-on-error: true
+
+      - name: Upload validation results
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-results
+          path: |
+            data/validation/validation_results.jsonl
+            data/validation/validation_summary.json
+          retention-days: 30
+
+      - name: Check validation status
+        if: steps.validate.outcome == 'failure'
+        run: |
+          echo "Validation failed - hit rate below threshold"
+          exit 1
