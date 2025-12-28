@@ -61,7 +61,10 @@ async def get_signal_status():
     signals_24h = 0
     if _last_publish_timestamp:
         # Estimate: 96 signals/day = 4 per hour (15min interval)
-        hours_active = min(24, (datetime.utcnow() - _last_publish_timestamp).total_seconds() / 3600)
+        # Use max(0, ...) to handle edge case where timestamp is in future (clock skew)
+        hours_active = max(
+            0, min(24, (datetime.utcnow() - _last_publish_timestamp).total_seconds() / 3600)
+        )
         signals_24h = int(hours_active * 4)
 
     return SignalStatus(
