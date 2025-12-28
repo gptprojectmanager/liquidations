@@ -24,7 +24,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-## Architecture
+## Architecture Documentation
+
+> **Canonical Source**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+>
+> ARCHITECTURE.md is the single source of truth for:
+> - System architecture and component diagrams
+> - Data flow and pipeline documentation
+> - Technical decisions and rationale
+>
+> **Auto-validated** by architecture-validator hook on each commit.
+> Below is a summary - see ARCHITECTURE.md for complete details.
 
 **3-Layer Design** (KISS approach - no custom binary parsing):
 
