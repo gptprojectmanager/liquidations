@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ValidationResult",
+  "description": "Per-screenshot validation result comparing Coinglass OCR extraction with our API heatmap data",
+  "type": "object",
+  "required": ["screenshot", "timestamp", "symbol", "status"],
+  "properties": {
+    "screenshot": {
+      "type": "string",
+      "description": "Absolute path to screenshot file",
+      "example": "/media/sam/1TB/N8N_dev/screenshots/coinglass_btc_m1_1month_20251030_145708.png"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Screenshot timestamp in ISO 8601 format",
+      "example": "2025-10-30T14:57:08"
+    },
+    "symbol": {
+      "type": "string",
+      "enum": ["BTC", "ETH"],
+      "description": "Cryptocurrency symbol"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "ocr_failed", "api_failed", "no_match"],
+      "description": "Validation status"
+    },
+    "ocr_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "OCR extraction confidence score (0-1)"
+    },
+    "coinglass_zones": {
+      "type": "object",
+      "description": "Price levels extracted from Coinglass screenshot via OCR",
+      "properties": {
+        "long": {
+          "type": "array",
+          "items": {"type": "number"},
+          "description": "Long liquidation price levels (below current price)"
+        },
+        "short": {
+          "type": "array",
+          "items": {"type": "number"},
+          "description": "Short liquidation price levels (above current price)"
+        }
+      }
+    },
+    "api_zones": {
+      "type": "object",
+      "description": "High-density zones from our heatmap API",
+      "properties": {
+        "long": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "price": {"type": "number"},
+              "volume": {"type": "number"}
+            }
+          }
+        },
+        "short": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "price": {"type": "number"},
+              "volume": {"type": "number"}
+            }
+          }
+        }
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "description": "Comparison metrics between Coinglass and API zones",
+      "properties": {
+        "hit_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Percentage of Coinglass zones matched by API (0-1)"
+        },
+        "long_hit_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Hit rate for long zones only"
+        },
+        "short_hit_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Hit rate for short zones only"
+        },
+        "matched": {
+          "type": "array",
+          "description": "Zones that matched within tolerance",
+          "items": {
+            "type": "object",
+            "properties": {
+              "coinglass": {"type": "number", "description": "Coinglass price level"},
+              "api": {"type": "number", "description": "Matched API price level"},
+              "error_pct": {"type": "number", "description": "Percentage difference"}
+            }
+          }
+        },
+        "missed": {
+          "type": "array",
+          "items": {"type": "number"},
+          "description": "Coinglass zones not found in API data"
+        },
+        "extra": {
+          "type": "array",
+          "description": "API zones not present in Coinglass",
+          "items": {
+            "type": "object",
+            "properties": {
+              "price": {"type": "number"},
+              "volume": {"type": "number"}
+            }
+          }
+        }
+      }
+    },
+    "processing_time_ms": {
+      "type": "integer",
+      "description": "Total processing time in milliseconds"
+    },
+    "tolerance_pct": {
+      "type": "number",
+      "description": "Price match tolerance used (default 1.0%)"
+    },
+    "error": {
+      "type": "string",
+      "description": "Error message if status is not 'success'"
+    }
+  },
+  "examples": [
+    {
+      "screenshot": "/media/sam/1TB/N8N_dev/screenshots/coinglass_btc_m1_1month_20251030_145708.png",
+      "timestamp": "2025-10-30T14:57:08",
+      "symbol": "BTC",
+      "status": "success",
+      "ocr_confidence": 0.92,
+      "coinglass_zones": {
+        "long": [87000, 85000, 83000],
+        "short": [90000, 92000, 95000]
+      },
+      "api_zones": {
+        "long": [{"price": 86300, "volume": 1500000}],
+        "short": [{"price": 90900, "volume": 2000000}]
+      },
+      "comparison": {
+        "hit_rate": 0.33,
+        "long_hit_rate": 0.33,
+        "short_hit_rate": 0.33,
+        "matched": [
+          {"coinglass": 87000, "api": 86300, "error_pct": 0.8}
+        ],
+        "missed": [85000, 83000, 92000, 95000],
+        "extra": []
+      },
+      "processing_time_ms": 1250,
+      "tolerance_pct": 1.0
+    }
+  ]
+}

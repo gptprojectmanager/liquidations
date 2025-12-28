@@ -41,6 +41,7 @@ htmlcov/
 # Data (IMPORTANT: Don't commit processed data)
 data/processed/
 data/cache/
+data/validation/*.jsonl
 *.duckdb
 *.duckdb.wal
 *.rdb
