@@ -102,3 +102,64 @@ aggregation:
   enabled: false
   window_minutes: 15  # Group alerts within 15-minute window
   max_batch_size: 5   # Maximum alerts to batch together
+
+# ============================================================================
+# Liquidation Zone Alert Configuration
+# ============================================================================
+# Real-time alerts when BTC price approaches liquidation zones
+liquidation_alerts:
+  enabled: true
+
+  # Alert thresholds by severity level
+  thresholds:
+    critical:
+      distance_pct: 1.0      # Alert when within 1% of zone
+      min_density: 10000000  # Minimum $10M cluster size
+    warning:
+      distance_pct: 3.0      # Alert when within 3% of zone
+      min_density: 5000000   # Minimum $5M cluster size
+    info:
+      distance_pct: 5.0      # Alert when within 5% of zone
+      min_density: 1000000   # Minimum $1M cluster size
+
+  # Rate limiting configuration
+  cooldown:
+    per_zone_minutes: 60     # 1 alert per zone per hour
+    max_daily_alerts: 10     # Max 10 alerts per day (UTC)
+
+  # Data source endpoints
+  data_sources:
+    price_endpoint: "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
+    heatmap_endpoint: "http://localhost:8000/liquidations/heatmap-timeseries"
+    symbol: "BTCUSDT"
+
+  # Notification channels
+  channels:
+    discord:
+      enabled: true
+      webhook_url: null      # Set via DISCORD_WEBHOOK_URL env var
+      severity_filter:
+        - "critical"
+        - "warning"
+        - "info"
+
+    telegram:
+      enabled: false
+      bot_token: null        # Set via TELEGRAM_BOT_TOKEN env var
+      chat_id: null          # Set via TELEGRAM_CHAT_ID env var
+      severity_filter:
+        - "critical"
+        - "warning"
+
+    email:
+      enabled: false
+      recipients:
+        - "trader@example.com"
+      severity_filter:
+        - "critical"
+
+  # Alert history storage
+  history:
+    enabled: true
+    db_path: "data/processed/alerts.duckdb"
+    retention_days: 90

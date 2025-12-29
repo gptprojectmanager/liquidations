@@ -24,10 +24,10 @@
 
 **Purpose**: Project initialization and module structure
 
-- [ ] T001 Create alerts module structure: `src/liquidationheatmap/alerts/__init__.py`
-- [ ] T002 [P] Create channels submodule: `src/liquidationheatmap/alerts/channels/__init__.py`
-- [ ] T003 [P] Create test directory structure: `tests/unit/alerts/`, `tests/integration/`
-- [ ] T004 [P] Extend alert_settings.yaml with liquidation_alerts section in `config/alert_settings.yaml`
+- [X] T001 Create alerts module structure: `src/liquidationheatmap/alerts/__init__.py`
+- [X] T002 [P] Create channels submodule: `src/liquidationheatmap/alerts/channels/__init__.py`
+- [X] T003 [P] Create test directory structure: `tests/unit/alerts/`, `tests/integration/`
+- [X] T004 [P] Extend alert_settings.yaml with liquidation_alerts section in `config/alert_settings.yaml`
 
 ---
 
@@ -37,12 +37,12 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T005 Create database initialization script `scripts/init_alert_db.py` (creates alerts.duckdb with schema from data-model.md)
-- [ ] T006 [P] Write contract test for config schema validation in `tests/contract/test_alert_config_schema.py`
-- [ ] T007 Implement AlertConfig dataclass and YAML loader in `src/liquidationheatmap/alerts/config.py`
-- [ ] T008 Implement LiquidationZone and ZoneProximity dataclasses in `src/liquidationheatmap/alerts/models.py`
-- [ ] T009 [P] Implement Alert and AlertSeverity/DeliveryStatus enums in `src/liquidationheatmap/alerts/models.py`
-- [ ] T010 [P] Implement AlertCooldown dataclass in `src/liquidationheatmap/alerts/models.py`
+- [X] T005 Create database initialization script `scripts/init_alert_db.py` (creates alerts.duckdb with schema from data-model.md)
+- [X] T006 [P] Write contract test for config schema validation in `tests/contract/test_alert_config_schema.py`
+- [X] T007 Implement AlertConfig dataclass and YAML loader in `src/liquidationheatmap/alerts/config.py`
+- [X] T008 Implement LiquidationZone and ZoneProximity dataclasses in `src/liquidationheatmap/alerts/models.py`
+- [X] T009 [P] Implement Alert and AlertSeverity/DeliveryStatus enums in `src/liquidationheatmap/alerts/models.py`
+- [X] T010 [P] Implement AlertCooldown dataclass in `src/liquidationheatmap/alerts/models.py`
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -56,18 +56,18 @@
 
 ### Tests for User Story 1 (TDD - Write FIRST, must FAIL)
 
-- [ ] T011 [P] [US1] Unit test for distance calculation in `tests/unit/alerts/test_engine.py::test_distance_calculation`
-- [ ] T012 [P] [US1] Unit test for threshold evaluation in `tests/unit/alerts/test_engine.py::test_threshold_evaluation`
-- [ ] T013 [P] [US1] Unit test for zone fetching from API in `tests/unit/alerts/test_engine.py::test_zone_fetcher`
-- [ ] T014 [P] [US1] Unit test for price fetching from Binance in `tests/unit/alerts/test_engine.py::test_price_fetcher`
+- [X] T011 [P] [US1] Unit test for distance calculation in `tests/unit/alerts/test_engine.py::test_distance_calculation`
+- [X] T012 [P] [US1] Unit test for threshold evaluation in `tests/unit/alerts/test_engine.py::test_threshold_evaluation`
+- [X] T013 [P] [US1] Unit test for zone fetching from API in `tests/unit/alerts/test_engine.py::test_zone_fetcher`
+- [X] T014 [P] [US1] Unit test for price fetching from Binance in `tests/unit/alerts/test_engine.py::test_price_fetcher`
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Implement PriceFetcher (Binance API client with fallback) in `src/liquidationheatmap/alerts/engine.py`
-- [ ] T016 [US1] Implement ZoneFetcher (heatmap-timeseries API client) in `src/liquidationheatmap/alerts/engine.py`
-- [ ] T017 [US1] Implement distance_pct calculation in `src/liquidationheatmap/alerts/engine.py::calculate_zone_proximity()`
-- [ ] T018 [US1] Implement AlertEvaluationEngine (threshold check, zone prioritization) in `src/liquidationheatmap/alerts/engine.py`
-- [ ] T019 [US1] Add logging for price/zone fetch and evaluation in `src/liquidationheatmap/alerts/engine.py`
+- [X] T015 [US1] Implement PriceFetcher (Binance API client with fallback) in `src/liquidationheatmap/alerts/engine.py`
+- [X] T016 [US1] Implement ZoneFetcher (heatmap-timeseries API client) in `src/liquidationheatmap/alerts/engine.py`
+- [X] T017 [US1] Implement distance_pct calculation in `src/liquidationheatmap/alerts/engine.py::calculate_zone_proximity()`
+- [X] T018 [US1] Implement AlertEvaluationEngine (threshold check, zone prioritization) in `src/liquidationheatmap/alerts/engine.py`
+- [X] T019 [US1] Add logging for price/zone fetch and evaluation in `src/liquidationheatmap/alerts/engine.py`
 
 **Checkpoint**: User Story 1 core logic functional - can detect when price approaches zones
 
@@ -81,22 +81,22 @@
 
 ### Tests for User Story 2 (TDD - Write FIRST, must FAIL)
 
-- [ ] T020 [P] [US2] Unit test for Discord webhook client in `tests/unit/alerts/test_channels.py::test_discord_client`
-- [ ] T021 [P] [US2] Unit test for Telegram bot client in `tests/unit/alerts/test_channels.py::test_telegram_client`
-- [ ] T022 [P] [US2] Unit test for Email SMTP client in `tests/unit/alerts/test_channels.py::test_email_client`
-- [ ] T023 [P] [US2] Unit test for message formatter in `tests/unit/alerts/test_channels.py::test_message_formatter`
-- [ ] T024 [P] [US2] Unit test for AlertDispatcher (parallel delivery) in `tests/unit/alerts/test_dispatcher.py`
-- [ ] T025 [P] [US2] Unit test for channel failure isolation in `tests/unit/alerts/test_dispatcher.py::test_channel_isolation`
+- [X] T020 [P] [US2] Unit test for Discord webhook client in `tests/unit/alerts/test_channels.py::test_discord_client`
+- [X] T021 [P] [US2] Unit test for Telegram bot client in `tests/unit/alerts/test_channels.py::test_telegram_client`
+- [X] T022 [P] [US2] Unit test for Email SMTP client in `tests/unit/alerts/test_channels.py::test_email_client`
+- [X] T023 [P] [US2] Unit test for message formatter in `tests/unit/alerts/test_channels.py::test_message_formatter`
+- [X] T024 [P] [US2] Unit test for AlertDispatcher (parallel delivery) in `tests/unit/alerts/test_dispatcher.py`
+- [X] T025 [P] [US2] Unit test for channel failure isolation in `tests/unit/alerts/test_dispatcher.py::test_channel_isolation`
 
 ### Implementation for User Story 2
 
-- [ ] T026 [P] [US2] Implement base channel interface in `src/liquidationheatmap/alerts/channels/base.py`
-- [ ] T027 [P] [US2] Implement Discord webhook client in `src/liquidationheatmap/alerts/channels/discord.py`
-- [ ] T028 [P] [US2] Implement Telegram bot client in `src/liquidationheatmap/alerts/channels/telegram.py`
-- [ ] T029 [P] [US2] Implement Email SMTP client in `src/liquidationheatmap/alerts/channels/email.py`
-- [ ] T030 [US2] Implement message formatter (Discord embed, Telegram markdown, Email HTML) in `src/liquidationheatmap/alerts/formatter.py`
-- [ ] T031 [US2] Implement AlertDispatcher (parallel send, failure isolation, retry) in `src/liquidationheatmap/alerts/dispatcher.py`
-- [ ] T032 [US2] Add delivery status tracking (success/partial/failed) in `src/liquidationheatmap/alerts/dispatcher.py`
+- [X] T026 [P] [US2] Implement base channel interface in `src/liquidationheatmap/alerts/channels/base.py`
+- [X] T027 [P] [US2] Implement Discord webhook client in `src/liquidationheatmap/alerts/channels/discord.py`
+- [X] T028 [P] [US2] Implement Telegram bot client in `src/liquidationheatmap/alerts/channels/telegram.py`
+- [X] T029 [P] [US2] Implement Email SMTP client in `src/liquidationheatmap/alerts/channels/email.py`
+- [X] T030 [US2] Implement message formatter (Discord embed, Telegram markdown, Email HTML) in `src/liquidationheatmap/alerts/formatter.py`
+- [X] T031 [US2] Implement AlertDispatcher (parallel send, failure isolation, retry) in `src/liquidationheatmap/alerts/dispatcher.py`
+- [X] T032 [US2] Add delivery status tracking (success/partial/failed) in `src/liquidationheatmap/alerts/dispatcher.py`
 
 **Checkpoint**: User Stories 1 AND 2 complete - can detect zones AND send multi-channel alerts
 
@@ -110,16 +110,16 @@
 
 ### Tests for User Story 3 (TDD - Write FIRST, must FAIL)
 
-- [ ] T033 [P] [US3] Unit test for severity assignment in `tests/unit/alerts/test_engine.py::test_severity_assignment`
-- [ ] T034 [P] [US3] Unit test for severity-based channel routing in `tests/unit/alerts/test_dispatcher.py::test_severity_filter`
-- [ ] T035 [P] [US3] Unit test for threshold validation in `tests/unit/alerts/test_config.py::test_threshold_validation`
+- [X] T033 [P] [US3] Unit test for severity assignment in `tests/unit/alerts/test_engine.py::test_severity_assignment`
+- [X] T034 [P] [US3] Unit test for severity-based channel routing in `tests/unit/alerts/test_dispatcher.py::test_severity_filter`
+- [X] T035 [P] [US3] Unit test for threshold validation in `tests/unit/alerts/test_config.py::test_threshold_validation`
 
 ### Implementation for User Story 3
 
-- [ ] T036 [US3] Extend AlertConfig with ThresholdConfig validation (adds to T007) in `src/liquidationheatmap/alerts/config.py`
-- [ ] T037 [US3] Implement severity determination (critical/warning/info) in `src/liquidationheatmap/alerts/engine.py::determine_severity()`
-- [ ] T038 [US3] Implement severity_filter routing in AlertDispatcher in `src/liquidationheatmap/alerts/dispatcher.py`
-- [ ] T039 [US3] Add severity to alert message templates in `src/liquidationheatmap/alerts/formatter.py`
+- [X] T036 [US3] Extend AlertConfig with ThresholdConfig validation (adds to T007) in `src/liquidationheatmap/alerts/config.py`
+- [X] T037 [US3] Implement severity determination (critical/warning/info) in `src/liquidationheatmap/alerts/engine.py::determine_severity()`
+- [X] T038 [US3] Implement severity_filter routing in AlertDispatcher in `src/liquidationheatmap/alerts/dispatcher.py`
+- [X] T039 [US3] Add severity to alert message templates in `src/liquidationheatmap/alerts/formatter.py`
 
 **Checkpoint**: User Stories 1, 2, AND 3 complete - full alert generation with severity levels
 
@@ -133,19 +133,19 @@
 
 ### Tests for User Story 4 (TDD - Write FIRST, must FAIL)
 
-- [ ] T040 [P] [US4] Unit test for per-zone cooldown in `tests/unit/alerts/test_cooldown.py::test_zone_cooldown`
-- [ ] T041 [P] [US4] Unit test for daily limit enforcement in `tests/unit/alerts/test_cooldown.py::test_daily_limit`
-- [ ] T042 [P] [US4] Unit test for cooldown reset at UTC midnight in `tests/unit/alerts/test_cooldown.py::test_daily_reset`
-- [ ] T043 [P] [US4] Unit test for cooldown persistence in DuckDB in `tests/unit/alerts/test_cooldown.py::test_db_persistence`
-- [ ] T043b [P] [US4] Unit test for database lock handling with retry in `tests/unit/alerts/test_cooldown.py::test_db_lock_retry`
+- [X] T040 [P] [US4] Unit test for per-zone cooldown in `tests/unit/alerts/test_cooldown.py::test_zone_cooldown`
+- [X] T041 [P] [US4] Unit test for daily limit enforcement in `tests/unit/alerts/test_cooldown.py::test_daily_limit`
+- [X] T042 [P] [US4] Unit test for cooldown reset at UTC midnight in `tests/unit/alerts/test_cooldown.py::test_daily_reset`
+- [X] T043 [P] [US4] Unit test for cooldown persistence in DuckDB in `tests/unit/alerts/test_cooldown.py::test_db_persistence`
+- [X] T043b [P] [US4] Unit test for database lock handling with retry in `tests/unit/alerts/test_cooldown.py::test_db_lock_retry`
 
 ### Implementation for User Story 4
 
-- [ ] T044 [US4] Implement CooldownManager with DuckDB persistence in `src/liquidationheatmap/alerts/cooldown.py`
-- [ ] T045 [US4] Implement zone_key generation for cooldown tracking in `src/liquidationheatmap/alerts/cooldown.py`
-- [ ] T046 [US4] Implement daily counter with UTC midnight reset in `src/liquidationheatmap/alerts/cooldown.py`
-- [ ] T047 [US4] Integrate CooldownManager into AlertEvaluationEngine in `src/liquidationheatmap/alerts/engine.py`
-- [ ] T048 [US4] Implement alert history logging to DuckDB in `src/liquidationheatmap/alerts/history.py`
+- [X] T044 [US4] Implement CooldownManager with DuckDB persistence in `src/liquidationheatmap/alerts/cooldown.py`
+- [X] T045 [US4] Implement zone_key generation for cooldown tracking in `src/liquidationheatmap/alerts/cooldown.py`
+- [X] T046 [US4] Implement daily counter with UTC midnight reset in `src/liquidationheatmap/alerts/cooldown.py`
+- [X] T047 [US4] Integrate CooldownManager into AlertEvaluationEngine in `src/liquidationheatmap/alerts/engine.py`
+- [X] T048 [US4] Implement alert history logging to DuckDB in `src/liquidationheatmap/alerts/history.py`
 
 **Checkpoint**: All user stories complete - full alert system with rate limiting
 
