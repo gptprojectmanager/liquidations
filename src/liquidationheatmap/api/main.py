@@ -276,6 +276,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register API routers
+from src.liquidationheatmap.api.routers import signals_router
+
+app.include_router(signals_router)
+
 # Mount static files for frontend dashboards
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
