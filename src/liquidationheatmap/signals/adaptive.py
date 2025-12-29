@@ -7,7 +7,7 @@ Automatically rolls back to defaults if hit_rate falls below 0.50 (Section 6).
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Literal, Protocol
 
@@ -155,7 +155,7 @@ class AdaptiveEngine:
 
         # Store history if DB service available
         if self._db_service and hasattr(self._db_service, "store_weight_history"):
-            self._db_service.store_weight_history(symbol, self.weights, datetime.utcnow())
+            self._db_service.store_weight_history(symbol, self.weights, datetime.now(timezone.utc))
 
     def check_rollback(self, symbol: str) -> bool:
         """Check if rollback to defaults is needed.
@@ -191,7 +191,7 @@ class AdaptiveEngine:
 
         # Store history if DB service available
         if self._db_service and hasattr(self._db_service, "store_weight_history"):
-            self._db_service.store_weight_history(symbol, self.weights, datetime.utcnow())
+            self._db_service.store_weight_history(symbol, self.weights, datetime.now(timezone.utc))
 
     def get_weighted_confidence(self, confidence: float, side: Literal["long", "short"]) -> float:
         """Apply weight to signal confidence.

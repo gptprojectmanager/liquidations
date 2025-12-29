@@ -4,11 +4,16 @@ Signal and Feedback schemas for Redis pub/sub communication.
 Uses Decimal for price precision per Constitution Section 1.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+
+def _utc_now() -> datetime:
+    """Return current UTC time (Python 3.12+ compatible)."""
+    return datetime.now(timezone.utc)
 
 
 class LiquidationSignal(BaseModel):
@@ -30,7 +35,7 @@ class LiquidationSignal(BaseModel):
     price: Decimal = Field(..., gt=0, description="Liquidation price level")
     side: Literal["long", "short"] = Field(..., description="Position side")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Signal confidence (0.0-1.0)")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Signal timestamp")
+    timestamp: datetime = Field(default_factory=_utc_now, description="Signal timestamp")
     source: str = Field(default="liquidationheatmap", description="Signal source identifier")
     signal_id: str | None = Field(default=None, description="Unique signal identifier")
 
@@ -88,7 +93,7 @@ class TradeFeedback(BaseModel):
     entry_price: Decimal = Field(..., gt=0, description="Trade entry price")
     exit_price: Decimal = Field(..., gt=0, description="Trade exit price")
     pnl: Decimal = Field(..., description="Realized P&L (positive or negative)")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Feedback timestamp")
+    timestamp: datetime = Field(default_factory=_utc_now, description="Feedback timestamp")
     source: Literal["nautilus", "manual"] = Field(..., description="Feedback source")
 
     @field_validator("entry_price", "exit_price", "pnl", mode="before")

@@ -104,11 +104,11 @@ class SignalPublisher:
     def _update_last_publish(self) -> None:
         """Update last publish timestamp for API status tracking."""
         try:
-            from datetime import datetime
+            from datetime import datetime, timezone
 
             from src.liquidationheatmap.api.routers.signals import set_last_publish
 
-            set_last_publish(datetime.utcnow())
+            set_last_publish(datetime.now(timezone.utc))
         except ImportError:
             # API router may not be available (e.g., in tests or standalone mode)
             pass

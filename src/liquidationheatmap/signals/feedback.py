@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 
 import duckdb
@@ -93,7 +93,7 @@ class FeedbackDBService:
         Returns:
             Dict with metrics: total, profitable, unprofitable, hit_rate, avg_pnl
         """
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         try:
             result = self.conn.execute(
