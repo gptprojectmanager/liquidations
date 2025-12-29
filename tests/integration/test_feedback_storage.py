@@ -82,11 +82,15 @@ class TestFeedbackStorage:
 
     def test_query_rolling_metrics(self, temp_db):
         """Should support rolling metric queries."""
+        from datetime import timedelta, timezone
+
         from src.liquidationheatmap.signals.feedback import FeedbackDBService
 
         db_service = FeedbackDBService(temp_db)
 
         # Insert mix of profitable and unprofitable feedback
+        # Use timestamps relative to now so they fall within the 24h window
+        now = datetime.now(timezone.utc)
         for i in range(10):
             pnl = Decimal("100") if i % 2 == 0 else Decimal("-50")
             feedback = TradeFeedback(
@@ -95,7 +99,7 @@ class TestFeedbackStorage:
                 entry_price=Decimal("95000"),
                 exit_price=Decimal("95100") if i % 2 == 0 else Decimal("94950"),
                 pnl=pnl,
-                timestamp=datetime(2025, 12, 28, i, 0, 0),
+                timestamp=now - timedelta(hours=i),  # Recent timestamps within 24h window
                 source="nautilus",
             )
             db_service.store_feedback(feedback)
