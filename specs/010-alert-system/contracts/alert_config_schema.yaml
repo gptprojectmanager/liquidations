@@ -1,0 +1,250 @@
+# Alert Configuration Schema
+# JSON Schema for validating alert_settings.yaml liquidation_alerts section
+
+$schema: "http://json-schema.org/draft-07/schema#"
+$id: "https://liquidationheatmap.local/schemas/alert-config-v1.0"
+title: "Liquidation Alert Configuration"
+description: "Schema for liquidation zone alert system configuration"
+type: object
+
+required:
+  - liquidation_alerts
+
+properties:
+  # Existing alert settings (validation alerts) - not modified
+  alerts:
+    type: object
+    description: "Existing validation alert settings"
+
+  # NEW: Liquidation zone alerts
+  liquidation_alerts:
+    type: object
+    required:
+      - enabled
+      - thresholds
+      - cooldown
+      - data_sources
+      - channels
+    properties:
+      enabled:
+        type: boolean
+        default: true
+        description: "Enable/disable liquidation alerts globally"
+
+      thresholds:
+        type: object
+        description: "Alert thresholds by severity level"
+        required:
+          - critical
+          - warning
+          - info
+        additionalProperties: false
+        properties:
+          critical:
+            $ref: "#/definitions/threshold"
+          warning:
+            $ref: "#/definitions/threshold"
+          info:
+            $ref: "#/definitions/threshold"
+
+      cooldown:
+        type: object
+        description: "Rate limiting configuration"
+        required:
+          - per_zone_minutes
+          - max_daily_alerts
+        properties:
+          per_zone_minutes:
+            type: integer
+            minimum: 1
+            maximum: 1440
+            default: 60
+            description: "Cooldown period per zone in minutes"
+          max_daily_alerts:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+            description: "Maximum alerts per day (UTC)"
+
+      data_sources:
+        type: object
+        description: "API endpoints for price and zone data"
+        required:
+          - price_endpoint
+          - heatmap_endpoint
+          - symbol
+        properties:
+          price_endpoint:
+            type: string
+            format: uri
+            description: "Binance price API endpoint"
+            examples:
+              - "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
+          heatmap_endpoint:
+            type: string
+            format: uri
+            description: "Internal heatmap API endpoint"
+            examples:
+              - "http://localhost:8000/liquidations/heatmap-timeseries"
+          symbol:
+            type: string
+            pattern: "^[A-Z]{6,12}$"
+            description: "Trading pair symbol"
+            examples:
+              - "BTCUSDT"
+              - "ETHUSDT"
+
+      channels:
+        type: object
+        description: "Notification channel configurations"
+        additionalProperties: false
+        properties:
+          discord:
+            $ref: "#/definitions/discord_channel"
+          telegram:
+            $ref: "#/definitions/telegram_channel"
+          email:
+            $ref: "#/definitions/email_channel"
+
+      history:
+        type: object
+        description: "Alert history storage configuration"
+        properties:
+          enabled:
+            type: boolean
+            default: true
+          db_path:
+            type: string
+            default: "data/processed/alerts.duckdb"
+          retention_days:
+            type: integer
+            minimum: 1
+            maximum: 365
+            default: 90
+
+definitions:
+  threshold:
+    type: object
+    required:
+      - distance_pct
+      - min_density
+    properties:
+      distance_pct:
+        type: number
+        minimum: 0.01
+        maximum: 100
+        description: "Distance from zone as percentage"
+      min_density:
+        type: number
+        minimum: 0
+        description: "Minimum cluster size in USD"
+    examples:
+      - distance_pct: 1.0
+        min_density: 10000000
+
+  discord_channel:
+    type: object
+    required:
+      - enabled
+    properties:
+      enabled:
+        type: boolean
+        default: false
+      webhook_url:
+        type:
+          - string
+          - "null"
+        description: "Discord webhook URL (set via DISCORD_WEBHOOK_URL env var)"
+      severity_filter:
+        type: array
+        items:
+          type: string
+          enum: ["critical", "warning", "info"]
+        default: ["critical", "warning", "info"]
+        description: "Severity levels to send to this channel"
+
+  telegram_channel:
+    type: object
+    required:
+      - enabled
+    properties:
+      enabled:
+        type: boolean
+        default: false
+      bot_token:
+        type:
+          - string
+          - "null"
+        description: "Telegram bot token (set via TELEGRAM_BOT_TOKEN env var)"
+      chat_id:
+        type:
+          - string
+          - "null"
+        description: "Telegram chat ID (set via TELEGRAM_CHAT_ID env var)"
+      severity_filter:
+        type: array
+        items:
+          type: string
+          enum: ["critical", "warning", "info"]
+        default: ["critical", "warning"]
+
+  email_channel:
+    type: object
+    required:
+      - enabled
+    properties:
+      enabled:
+        type: boolean
+        default: false
+      recipients:
+        type: array
+        items:
+          type: string
+          format: email
+        description: "List of email addresses"
+      severity_filter:
+        type: array
+        items:
+          type: string
+          enum: ["critical", "warning", "info"]
+        default: ["critical"]
+
+examples:
+  - liquidation_alerts:
+      enabled: true
+      thresholds:
+        critical:
+          distance_pct: 1.0
+          min_density: 10000000
+        warning:
+          distance_pct: 3.0
+          min_density: 5000000
+        info:
+          distance_pct: 5.0
+          min_density: 1000000
+      cooldown:
+        per_zone_minutes: 60
+        max_daily_alerts: 10
+      data_sources:
+        price_endpoint: "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
+        heatmap_endpoint: "http://localhost:8000/liquidations/heatmap-timeseries"
+        symbol: "BTCUSDT"
+      channels:
+        discord:
+          enabled: true
+          webhook_url: null
+          severity_filter: ["critical", "warning", "info"]
+        telegram:
+          enabled: false
+          bot_token: null
+          chat_id: null
+          severity_filter: ["critical", "warning"]
+        email:
+          enabled: false
+          recipients: ["trader@example.com"]
+          severity_filter: ["critical"]
+      history:
+        enabled: true
+        db_path: "data/processed/alerts.duckdb"
+        retention_days: 90

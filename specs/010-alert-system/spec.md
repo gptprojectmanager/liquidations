@@ -1,6 +1,6 @@
 # Feature Specification: Liquidation Zone Alert System
 
-**Feature Branch**: `alert-system-mvp`
+**Feature Branch**: `010-alert-system`
 **Created**: 2025-12-28
 **Status**: Draft
 **Priority**: P1 - High Value (Real-time risk monitoring)
@@ -133,7 +133,7 @@ A trader wants to limit alerts to max 1 per zone per hour to avoid notification 
   → Log error, retry with exponential backoff (max 3 attempts), skip alert if fails
 
 - **What happens when multiple zones have same density?**
-  → Alert for closest zone first, batch others if within same threshold tier
+  → Alert for closest zone first; other zones in same threshold tier are logged but not alerted (cooldown prevents spam)
 
 - **What happens when price moves rapidly through multiple zones?**
   → Cooldown prevents spam, alert for highest-density zone only
@@ -167,7 +167,7 @@ A trader wants to limit alerts to max 1 per zone per hour to avoid notification 
 
 - **NFR-001**: Alert latency < 60 seconds from threshold crossing to notification delivery
 - **NFR-002**: Configuration via YAML file (extend existing `config/alert_settings.yaml`)
-- **NFR-003**: No external dependencies beyond existing stack (requests, pyyaml, duckdb)
+- **NFR-003**: No external dependencies beyond existing stack (httpx, pyyaml, duckdb)
 - **NFR-004**: Memory footprint < 100MB for background service
 - **NFR-005**: Secrets (webhook URLs, API keys) via environment variables
 
@@ -345,7 +345,7 @@ Generated: 2025-12-28 14:35:22 UTC
 | 1.5 | Implement cooldown manager (DuckDB) | 2h |
 | 1.6 | Write unit tests for core logic | 2h |
 
-**Deliverable**: `src/alerts/engine.py`, `src/alerts/config.py`, `src/alerts/cooldown.py`
+**Deliverable**: `src/liquidationheatmap/alerts/engine.py`, `src/liquidationheatmap/alerts/config.py`, `src/liquidationheatmap/alerts/cooldown.py`
 
 ### Phase 2: Channel Integrations (Day 1-2)
 
@@ -357,7 +357,7 @@ Generated: 2025-12-28 14:35:22 UTC
 | 2.4 | Implement message formatter | 1h |
 | 2.5 | Write integration tests (mock webhooks) | 2h |
 
-**Deliverable**: `src/alerts/channels/`, `tests/test_alerts/test_channels.py`
+**Deliverable**: `src/liquidationheatmap/alerts/channels/`, `tests/test_alerts/test_channels.py`
 
 ### Phase 3: Monitoring Loop (Day 2)
 
@@ -429,8 +429,8 @@ Generated: 2025-12-28 14:35:22 UTC
 - DuckDB service singleton (✅ exists)
 
 ### New Dependencies
-- `requests` - HTTP client for webhooks (already in project)
-- `python-telegram-bot` - Telegram API client (NEW - add to pyproject.toml)
+- `httpx` - HTTP client for webhooks (already in project)
+- Telegram Bot API via `httpx` (REST-based, no additional library needed)
 - Existing `smtplib` for email (stdlib)
 
 ---
