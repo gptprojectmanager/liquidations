@@ -63,17 +63,28 @@ class DiscordChannel(BaseChannel):
             logger.error(error_msg)
             return ChannelResult(success=False, channel_name=self.name, error_message=str(e))
 
-    async def test_connection(self) -> bool:
+    async def test_connection(self) -> ChannelResult:
         """Test webhook connectivity.
 
         Returns:
-            True if webhook is reachable
+            ChannelResult indicating if connection is valid
         """
         try:
             # Discord webhooks return info on GET
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(self.webhook_url)
-                return response.status_code == 200
+                if response.status_code == 200:
+                    return ChannelResult(success=True, channel_name=self.name)
+                else:
+                    return ChannelResult(
+                        success=False,
+                        channel_name=self.name,
+                        error_message=f"HTTP {response.status_code}",
+                    )
         except Exception as e:
             logger.warning(f"Discord connection test failed: {e}")
-            return False
+            return ChannelResult(
+                success=False,
+                channel_name=self.name,
+                error_message=str(e),
+            )

@@ -86,18 +86,29 @@ class TelegramChannel(BaseChannel):
             logger.error(error_msg)
             return ChannelResult(success=False, channel_name=self.name, error_message=str(e))
 
-    async def test_connection(self) -> bool:
+    async def test_connection(self) -> ChannelResult:
         """Test bot connectivity via getMe endpoint.
 
         Returns:
-            True if bot is reachable
+            ChannelResult indicating if connection is valid
         """
         try:
             url = f"{self.api_url}/getMe"
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.get(url)
                 data = response.json()
-                return data.get("ok", False)
+                if data.get("ok", False):
+                    return ChannelResult(success=True, channel_name=self.name)
+                else:
+                    return ChannelResult(
+                        success=False,
+                        channel_name=self.name,
+                        error_message=data.get("description", "Unknown error"),
+                    )
         except Exception as e:
             logger.warning(f"Telegram connection test failed: {e}")
-            return False
+            return ChannelResult(
+                success=False,
+                channel_name=self.name,
+                error_message=str(e),
+            )

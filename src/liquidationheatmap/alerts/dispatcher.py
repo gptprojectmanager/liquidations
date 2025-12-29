@@ -45,8 +45,8 @@ class AlertDispatcher:
         Args:
             channels: List of notification channels
             timeout: Per-channel timeout in seconds
-            severity_filters: Optional dict mapping channel names to allowed severity levels
-                            e.g., {"email": ["critical"], "discord": ["critical", "warning", "info"]}
+            severity_filters: Optional dict mapping channel names to allowed
+                severity levels, e.g. {"email": ["critical"]}
         """
         self.channels = channels
         self.timeout = timeout

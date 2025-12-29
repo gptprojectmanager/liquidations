@@ -192,7 +192,8 @@ class CooldownManager:
             # Update or insert cooldown record
             cursor.execute(
                 """
-                INSERT INTO alert_cooldowns (zone_key, last_alert_time, alert_count_today, last_reset_date)
+                INSERT INTO alert_cooldowns
+                    (zone_key, last_alert_time, alert_count_today, last_reset_date)
                 VALUES (?, ?, 1, ?)
                 ON CONFLICT (zone_key) DO UPDATE SET
                     last_alert_time = excluded.last_alert_time,
@@ -221,7 +222,8 @@ class CooldownManager:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO alert_cooldowns (zone_key, last_alert_time, alert_count_today, last_reset_date)
+                INSERT INTO alert_cooldowns
+                    (zone_key, last_alert_time, alert_count_today, last_reset_date)
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT (zone_key) DO UPDATE SET
                     last_alert_time = excluded.last_alert_time,

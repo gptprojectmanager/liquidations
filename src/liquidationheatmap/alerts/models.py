@@ -184,7 +184,7 @@ class AlertCooldown:
     zone_key: str
     last_alert_time: datetime
     alert_count_today: int = 0
-    last_reset_date: date = field(default_factory=lambda: date.today())
+    last_reset_date: date = field(default_factory=lambda: datetime.now(timezone.utc).date())
 
     def is_on_cooldown(self, cooldown_minutes: int) -> bool:
         """Check if zone is still on cooldown.

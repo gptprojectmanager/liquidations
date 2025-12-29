@@ -7,8 +7,14 @@ Supported channels:
 """
 
 from .base import BaseChannel, ChannelResult
+from .discord import DiscordChannel
+from .email import EmailChannel
+from .telegram import TelegramChannel
 
 __all__ = [
     "BaseChannel",
     "ChannelResult",
+    "DiscordChannel",
+    "EmailChannel",
+    "TelegramChannel",
 ]

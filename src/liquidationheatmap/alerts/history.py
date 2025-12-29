@@ -142,10 +142,10 @@ class AlertHistoryStore:
                 [limit],
             ).fetchall()
 
+            from decimal import Decimal
+
             alerts = []
             for row in results:
-                from decimal import Decimal
-
                 alerts.append(
                     Alert(
                         id=row[0],
@@ -180,10 +180,10 @@ class AlertHistoryStore:
         try:
             cursor = conn.cursor()
 
-            # Get cutoff date
-            cutoff = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
             from datetime import timedelta
 
+            # Get cutoff date
+            cutoff = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
             cutoff = cutoff - timedelta(days=self.retention_days)
 
             # Count before delete

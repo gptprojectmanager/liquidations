@@ -1,6 +1,7 @@
 """Email SMTP notification channel.
 
 Sends alerts via SMTP with HTML formatting.
+Uses run_in_executor to avoid blocking the event loop.
 """
 
 import logging
@@ -52,8 +53,26 @@ class EmailChannel(BaseChannel):
         """Return channel name."""
         return "email"
 
+    def _send_sync(self, msg: MIMEMultipart) -> None:
+        """Synchronous email sending (runs in thread pool).
+
+        Args:
+            msg: The email message to send
+        """
+        with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+            if self.use_tls:
+                server.starttls()
+
+            if self.username and self.password:
+                server.login(self.username, self.password)
+
+            server.send_message(msg)
+
     async def send(self, alert: Alert) -> ChannelResult:
         """Send an alert via email.
+
+        Uses run_in_executor to avoid blocking the event loop during
+        synchronous SMTP operations.
 
         Args:
             alert: The alert to send
@@ -61,6 +80,8 @@ class EmailChannel(BaseChannel):
         Returns:
             ChannelResult with success status
         """
+        import asyncio
+
         try:
             subject, html_body = format_email_html(alert)
 
@@ -73,15 +94,9 @@ class EmailChannel(BaseChannel):
             html_part = MIMEText(html_body, "html")
             msg.attach(html_part)
 
-            # Send email
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                if self.use_tls:
-                    server.starttls()
-
-                if self.username and self.password:
-                    server.login(self.username, self.password)
-
-                server.send_message(msg)
+            # Run synchronous SMTP in thread pool to avoid blocking event loop
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, self._send_sync, msg)
 
             logger.info(f"Email alert sent successfully to {len(self.recipients)} recipients")
             return ChannelResult(success=True, channel_name=self.name)
@@ -96,16 +111,29 @@ class EmailChannel(BaseChannel):
             logger.error(error_msg)
             return ChannelResult(success=False, channel_name=self.name, error_message=str(e))
 
-    async def test_connection(self) -> bool:
+    def _test_connection_sync(self) -> None:
+        """Synchronous connection test (runs in thread pool)."""
+        with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=10) as server:
+            server.noop()
+
+    async def test_connection(self) -> ChannelResult:
         """Test SMTP connectivity.
 
+        Uses run_in_executor to avoid blocking the event loop.
+
         Returns:
-            True if SMTP server is reachable
+            ChannelResult indicating if connection is valid
         """
+        import asyncio
+
         try:
-            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=10) as server:
-                server.noop()
-                return True
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, self._test_connection_sync)
+            return ChannelResult(success=True, channel_name=self.name)
         except Exception as e:
             logger.warning(f"Email connection test failed: {e}")
-            return False
+            return ChannelResult(
+                success=False,
+                channel_name=self.name,
+                error_message=str(e),
+            )

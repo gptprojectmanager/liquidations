@@ -140,7 +140,8 @@ class PriceFetcher:
                 # Build URL with symbol if not already included
                 url = self.endpoint
                 if "symbol=" not in url:
-                    url = f"{url}?symbol={symbol}"
+                    separator = "&" if "?" in url else "?"
+                    url = f"{url}{separator}symbol={symbol}"
 
                 logger.debug(f"Fetching price from {url}")
                 response = await client.get(url)
