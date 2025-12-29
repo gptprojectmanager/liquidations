@@ -143,7 +143,7 @@
 
 **Purpose**: Documentation, cleanup, final validation
 
-- [ ] T035 Update README.md with signal architecture diagram (SKIPPED - per CLAUDE.md)
+- [X] T035 SKIPPED - Per CLAUDE.md: only add docs when requested
 - [X] T036 [P] Add signal configuration to .env.example
 - [X] T037 [P] Create SIGNALS_ENABLED feature flag in src/liquidationheatmap/signals/config.py
 - [X] T038 Run full test suite via `uv run pytest -v` (451 passed, 23 skipped)
