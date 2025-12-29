@@ -39,7 +39,7 @@ Current implementation is Binance-only with **77.8% hit rate validation**. To pr
 **P1 - Should Have**:
 - [ ] **Per-Exchange Toggle**: Users can filter by exchange
 - [ ] **Exchange Health Check**: Monitor API status
-- [ ] **Correlation Analysis**: Compare exchange liquidation patterns
+- [ ] **Correlation Analysis**: Compare exchange liquidation patterns `[DEFERRED - Post-MVP]`
 
 **P2 - Nice to Have**:
 - [ ] **Arbitrage Detection**: Identify cross-exchange liquidation spreads
@@ -83,15 +83,20 @@ Current implementation is Binance-only with **77.8% hit rate validation**. To pr
 
 **File**: `src/exchanges/base.py`
 
+**Design Decision**: Use `pydantic.dataclasses.dataclass` (not stdlib `dataclass`) for automatic validation of incoming exchange data. This provides type coercion and validation without changing the dataclass API.
+
 ```python
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass  # Pydantic for validation
 from datetime import datetime
 from typing import AsyncIterator, Optional
 
 @dataclass
 class NormalizedLiquidation:
-    """Normalized liquidation event across all exchanges."""
+    """Normalized liquidation event across all exchanges.
+
+    Uses Pydantic dataclass for automatic validation of exchange data.
+    """
 
     # Common fields
     exchange: str                # "binance" | "bybit" | "hyperliquid" | "okx"
@@ -108,8 +113,11 @@ class NormalizedLiquidation:
     leverage: Optional[float] = None  # If available
 
     # Validation flags
-    is_validated: bool = False   # Passed schema validation
-    confidence: float = 1.0      # 0.0-1.0, lower for uncertain data
+    is_validated: bool = False   # True after Pydantic schema parse succeeds
+    confidence: float = 1.0      # 0.0-1.0 quality score:
+                                 #   1.0 = complete data (Binance)
+                                 #   0.9 = missing timestamp (Hyperliquid)
+                                 #   0.8 = inferred data (future: Bybit heuristic)
 
 
 @dataclass
@@ -343,7 +351,7 @@ class BinanceAdapter(ExchangeAdapter):
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import AsyncIterator, Optional
 
 import websockets
@@ -428,7 +436,7 @@ class HyperliquidAdapter(ExchangeAdapter):
                         quantity=float(trade["sz"]),
                         value_usd=float(trade["px"]) * float(trade["sz"]),
                         side="long" if trade["side"] == "A" else "short",
-                        timestamp=datetime.now(),  # HL doesn't provide timestamp
+                        timestamp=datetime.now(timezone.utc),  # HL doesn't provide timestamp - use UTC
                         raw_data=trade,
                         liquidation_type="forced",
                         is_validated=True,
@@ -742,7 +750,10 @@ async def exchange_health():
 - `src/exchanges/binance.py`
 - `src/exchanges/hyperliquid.py`
 - `src/exchanges/bybit.py`
-- `tests/test_exchanges/test_adapters.py`
+- `tests/test_exchanges/test_base.py`
+- `tests/test_exchanges/test_binance.py`
+- `tests/test_exchanges/test_hyperliquid.py`
+- `tests/test_exchanges/test_bybit.py`
 
 **Success Criteria**:
 - All adapters pass schema validation

@@ -1,123 +1,105 @@
-# Implementation Plan: Real-time WebSocket Streaming
+# Implementation Plan: [FEATURE]
 
-**Branch**: `011-realtime-streaming` | **Date**: 2025-12-29 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/011-realtime-streaming/spec.md`
+**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
+**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
+
+**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
 
 ## Summary
 
-Add real-time WebSocket streaming to push heatmap updates to connected clients without polling. Uses FastAPI's native WebSocket support with in-memory broadcast (MVP) and optional Redis pub/sub for horizontal scaling.
+[Extract from feature spec: primary requirement + technical approach from research]
 
 ## Technical Context
 
-**Language/Version**: Python 3.11
-**Primary Dependencies**: FastAPI (existing), websockets (existing), asyncio (stdlib)
-**Storage**: In-memory dict for connections; Redis pub/sub for multi-server (Phase 3)
-**Testing**: pytest + pytest-asyncio (existing)
-**Target Platform**: Linux server (Docker-ready)
-**Project Type**: Single project (backend API extension + frontend client)
-**Performance Goals**: <500ms p95 latency, 1000+ concurrent connections per server
-**Constraints**: <2GB memory per server, no polling fallback during active WebSocket
-**Scale/Scope**: 1000 concurrent clients (MVP), 2000+ with Redis (Phase 3)
+<!--
+  ACTION REQUIRED: Replace the content in this section with the technical details
+  for the project. The structure here is presented in advisory capacity to guide
+  the iteration process.
+-->
+
+**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
+**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
+**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
+**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
+**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
+**Project Type**: [single/web/mobile - determines source structure]  
+**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
+**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
+**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-| Principle | Status | Evidence |
-|-----------|--------|----------|
-| **Mathematical Correctness** | N/A | No financial calculations (streaming only) |
-| **Test-Driven Development** | MUST | All tasks include TDD steps (RED→GREEN→REFACTOR) |
-| **Exchange Compatibility** | MUST | Reuses existing heatmap calculation logic |
-| **Performance Efficiency** | SHOULD | <500ms p95 latency target, load tests planned (T056, T057) |
-| **Data Integrity** | N/A | Read-only streaming, no data modification |
-| **Graceful Degradation** | SHOULD | Slow consumer handling (T042-T049), polling fallback (T051) |
-| **Progressive Enhancement** | SHOULD | 8-phase rollout: Setup → MVP → Production → Redis scaling |
-| **Documentation Completeness** | MUST | API docs (T060), architecture (T061), troubleshooting (T062) |
-
-**All gates pass** - No violations requiring justification.
+[Gates determined based on constitution file]
 
 ## Project Structure
 
 ### Documentation (this feature)
 
 ```
-specs/011-realtime-streaming/
-├── plan.md              # This file
-├── research.md          # Phase 0 output
-├── data-model.md        # Phase 1 output
-├── quickstart.md        # Phase 1 output
-├── contracts/           # Phase 1 output (WebSocket message schemas)
-├── spec.md              # Feature specification
-├── tasks.md             # Implementation tasks (79 tasks)
-├── ARCHITECTURE_DIAGRAM.md
-├── README.md
-└── SUMMARY.md
+specs/[###-feature]/
+├── plan.md              # This file (/speckit.plan command output)
+├── research.md          # Phase 0 output (/speckit.plan command)
+├── data-model.md        # Phase 1 output (/speckit.plan command)
+├── quickstart.md        # Phase 1 output (/speckit.plan command)
+├── contracts/           # Phase 1 output (/speckit.plan command)
+└── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
 ```
 
 ### Source Code (repository root)
+<!--
+  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
+  for this feature. Delete unused options and expand the chosen structure with
+  real paths (e.g., apps/admin, packages/something). The delivered plan must
+  not include Option labels.
+-->
 
 ```
-src/liquidationheatmap/
-├── api/
-│   ├── main.py              # Edit: Add WS endpoint, startup/shutdown hooks
-│   ├── websocket.py         # NEW: ConnectionManager class
-│   ├── websocket_background.py  # NEW: Background update generator
-│   └── redis_pubsub.py      # NEW (Phase 3): Redis pub/sub integration
-└── streaming/
-    └── __init__.py          # Existing (may extend)
-
-frontend/
-├── js/
-│   └── websocket-client.js  # NEW: JavaScript WS client library
-└── coinglass_heatmap.html   # Edit: Integrate WS client
+# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
+src/
+├── models/
+├── services/
+├── cli/
+└── lib/
 
 tests/
-├── test_ws/
-│   ├── test_connection_manager.py  # NEW: Unit tests
-│   ├── test_update_generator.py    # NEW: Background task tests
-│   └── test_snapshot_helper.py     # NEW: Snapshot helper tests
+├── contract/
 ├── integration/
-│   ├── test_ws_endpoint.py         # NEW: E2E WebSocket tests
-│   └── test_ws_lifecycle.py        # NEW: Startup/shutdown tests
-└── load/
-    └── ws_load_test.js             # NEW: k6 load test script
+└── unit/
+
+# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
+backend/
+├── src/
+│   ├── models/
+│   ├── services/
+│   └── api/
+└── tests/
+
+frontend/
+├── src/
+│   ├── components/
+│   ├── pages/
+│   └── services/
+└── tests/
+
+# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
+api/
+└── [same as backend above]
+
+ios/ or android/
+└── [platform-specific structure: feature modules, UI flows, platform tests]
 ```
 
-**Structure Decision**: Single project extension - adds WebSocket layer to existing FastAPI API without new packages or major reorganization.
+**Structure Decision**: [Document the selected structure and reference the real
+directories captured above]
 
 ## Complexity Tracking
 
-*No violations requiring justification - design follows KISS principles:*
+*Fill ONLY if Constitution Check has violations that must be justified*
 
-- In-memory broadcast for MVP (no Redis dependency initially)
-- Re-uses existing heatmap calculation logic
-- Standard WebSocket protocol (JSON messages)
-- Progressive enhancement to Redis only when multi-server needed
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+|-----------|------------|-------------------------------------|
+| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
+| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
 
-## Phase Summary
-
-| Phase | Description | Tasks | Duration |
-|-------|-------------|-------|----------|
-| 1-2 | Setup + Foundational | T001-T009 | ~1 day |
-| 3 | US1 MVP (Single-server) | T010-T032 | ~5 days |
-| 4 | US2 Multi-Symbol | T033-T041 | ~2 days |
-| 5 | US3 Graceful Degradation | T042-T052 | ~2 days |
-| 6 | Production Readiness | T053-T059 | ~2 days |
-| 7 | Documentation | T060-T065 | ~1 day |
-| 8 | Redis Scaling (Optional) | T066-T079 | ~3 days |
-
-**Total**: 79 tasks, ~16 working days (excluding optional Phase 8)
-
-## Key Design Decisions
-
-1. **In-memory first**: No Redis for MVP - simpler deployment, faster iteration
-2. **Backpressure via timeout**: 1s send timeout, warn slow consumers, don't block fast ones
-3. **Symbol-based subscriptions**: Reduce bandwidth, clients subscribe to what they need
-4. **Hash-based change detection**: Only broadcast when data actually changes
-5. **Polling fallback**: Frontend auto-falls back after 3 WebSocket failures
-
-## References
-
-- [FastAPI WebSocket Docs](https://fastapi.tiangolo.com/advanced/websockets/)
-- [Redis Pub/Sub Pattern](https://redis.io/docs/manual/pubsub/)
-- [k6 WebSocket Testing](https://k6.io/docs/using-k6/protocols/websockets/)
