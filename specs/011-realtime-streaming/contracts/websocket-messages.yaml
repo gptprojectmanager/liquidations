@@ -1,0 +1,239 @@
+# WebSocket Message Contracts
+# Feature: 011-realtime-streaming
+# Protocol: JSON over WebSocket
+
+---
+
+# Client → Server Messages
+client_messages:
+
+  subscribe:
+    description: Subscribe to heatmap updates for specified symbols
+    schema:
+      type: object
+      required:
+        - action
+        - symbols
+      properties:
+        action:
+          type: string
+          const: subscribe
+        symbols:
+          type: array
+          items:
+            type: string
+            enum: [BTCUSDT, ETHUSDT]
+          minItems: 1
+          maxItems: 10
+        update_interval:
+          type: integer
+          minimum: 1
+          maximum: 60
+          default: 5
+          description: Seconds between updates
+    example:
+      action: subscribe
+      symbols: [BTCUSDT, ETHUSDT]
+      update_interval: 5
+
+  unsubscribe:
+    description: Unsubscribe from heatmap updates
+    schema:
+      type: object
+      required:
+        - action
+        - symbols
+      properties:
+        action:
+          type: string
+          const: unsubscribe
+        symbols:
+          type: array
+          items:
+            type: string
+          minItems: 1
+    example:
+      action: unsubscribe
+      symbols: [ETHUSDT]
+
+  ping:
+    description: Keepalive ping (server responds with pong)
+    schema:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          const: ping
+    example:
+      action: ping
+
+---
+
+# Server → Client Messages
+server_messages:
+
+  snapshot:
+    description: Heatmap snapshot update
+    schema:
+      type: object
+      required:
+        - type
+        - symbol
+        - timestamp
+        - data
+      properties:
+        type:
+          type: string
+          const: snapshot
+        symbol:
+          type: string
+          description: Trading pair (e.g., BTCUSDT)
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp (UTC)
+        data:
+          type: object
+          required:
+            - levels
+            - current_price
+          properties:
+            levels:
+              type: array
+              items:
+                type: object
+                required:
+                  - price
+                  - long_density
+                  - short_density
+                properties:
+                  price:
+                    type: number
+                    description: Price level
+                  long_density:
+                    type: number
+                    description: Long liquidation volume (USD)
+                  short_density:
+                    type: number
+                    description: Short liquidation volume (USD)
+            current_price:
+              type: number
+              description: Current market price
+            positions_created:
+              type: integer
+              default: 0
+              description: New positions since last snapshot
+            positions_consumed:
+              type: integer
+              default: 0
+              description: Liquidated positions since last snapshot
+    example:
+      type: snapshot
+      symbol: BTCUSDT
+      timestamp: "2025-12-29T10:00:00Z"
+      data:
+        levels:
+          - price: 98000
+            long_density: 1500000
+            short_density: 200000
+          - price: 99000
+            long_density: 2300000
+            short_density: 150000
+        current_price: 98450
+        positions_created: 450
+        positions_consumed: 120
+
+  error:
+    description: Error response
+    schema:
+      type: object
+      required:
+        - type
+        - code
+        - message
+      properties:
+        type:
+          type: string
+          const: error
+        code:
+          type: string
+          enum:
+            - INVALID_SYMBOL
+            - INVALID_ACTION
+            - INVALID_MESSAGE
+            - RATE_LIMITED
+            - SERVER_ERROR
+        message:
+          type: string
+          description: Human-readable error description
+    example:
+      type: error
+      code: INVALID_SYMBOL
+      message: "Symbol 'XYZUSDT' not supported. Valid: BTCUSDT, ETHUSDT"
+
+  warning:
+    description: Warning message (non-fatal)
+    schema:
+      type: object
+      required:
+        - type
+        - code
+        - message
+      properties:
+        type:
+          type: string
+          const: warning
+        code:
+          type: string
+          enum:
+            - SLOW_CONSUMER
+            - CONNECTION_UNSTABLE
+        message:
+          type: string
+          description: Human-readable warning
+        dropped_messages:
+          type: integer
+          description: Number of messages dropped (for SLOW_CONSUMER)
+    example:
+      type: warning
+      code: SLOW_CONSUMER
+      message: "Your connection is slow. Consider reducing subscriptions."
+      dropped_messages: 3
+
+  pong:
+    description: Response to ping keepalive
+    schema:
+      type: object
+      required:
+        - type
+        - timestamp
+      properties:
+        type:
+          type: string
+          const: pong
+        timestamp:
+          type: string
+          format: date-time
+          description: Server timestamp (UTC)
+    example:
+      type: pong
+      timestamp: "2025-12-29T10:00:00Z"
+
+---
+
+# Connection Lifecycle
+connection:
+  endpoint: ws://localhost:8000/ws/heatmap
+  protocol: WebSocket (RFC 6455)
+  format: JSON
+  keepalive:
+    client_ping_interval: 30s
+    server_timeout: 60s
+  reconnection:
+    strategy: exponential_backoff
+    initial_delay: 2s
+    max_delay: 32s
+    max_attempts: 5
+    fallback: polling_rest_api

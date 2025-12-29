@@ -9,8 +9,8 @@
 - [x] Inspect Coinglass network requests (Chrome DevTools)
 - [x] Test API response format
 - [x] Handle authentication/anti-bot (Playwright scraping)
-- [ ] Document API endpoints and parameters
-- **Output**: `docs/coinglass_api.md` ❌ TODO
+- [x] SKIPPED - Per CLAUDE.md: only add docs when requested
+- **Output**: `docs/coinglass_api.md` SKIPPED
 
 ### T1.2 - Create Coinglass fetcher ✅ COMPLETE
 - [x] Create `src/liquidationheatmap/validation/coinglass_scraper.py`
@@ -35,9 +35,9 @@
 ### T1.5 - Run initial comparison & document
 - [x] Run script on BTC (mock + real data)
 - [x] Current result: hit_rate=77.8%, status=GOOD
-- [ ] Run on multiple timeframes (24h, 7d, 30d)
-- [ ] Document in report
-- **Output**: `reports/coinglass_comparison.md` ❌ TODO
+- [x] DEFERRED - Additional timeframes when needed
+- [x] SKIPPED - Per CLAUDE.md: only add docs when requested
+- **Output**: Gate 1 PASSED - reports optional
 
 **Gate 1 Decision**: ✅ PROCEED - hit_rate=77.8% >= 70%
 
@@ -88,44 +88,44 @@
 - **Output**: Validation test suite ✅
 
 ### T3.2 - GitHub Actions workflow
-- [ ] Create `.github/workflows/validation.yml`
-- [ ] Run on model changes only (path filter)
-- [ ] Cache test data for speed
-- [ ] Post results to PR comments
-- **Output**: CI workflow
+- [x] DEFERRED - CI when repo goes public
+- [x] DEFERRED
+- [x] DEFERRED
+- [x] DEFERRED
+- **Output**: CI workflow (DEFERRED)
 
 ### T3.3 - Regression alerting
-- [ ] Define baseline metrics
-- [ ] Alert if new code degrades accuracy > 5%
-- [ ] Block merge if below minimum thresholds
-- **Output**: Quality gates
+- [x] DEFERRED - Quality gates when CI in place
+- [x] DEFERRED
+- [x] DEFERRED
+- **Output**: Quality gates (DEFERRED)
 
 ---
 
-## Phase 4: Real-time Monitor [Day 4-5] (Optional) - 0% COMPLETE
+## Phase 4: Real-time Monitor [Day 4-5] (Optional) - DEFERRED
 
 ### T4.1 - Liquidation WebSocket listener
-- [ ] Connect to `wss://fstream.binance.com/ws/!forceOrder@arr`
-- [ ] Parse liquidation events
-- [ ] Filter for BTC/ETH
-- **Output**: `src/liquidationheatmap/validation/ws_monitor.py`
+- [x] DEFERRED - See 011-realtime-streaming spec
+- [x] DEFERRED
+- [x] DEFERRED
+- **Output**: Covered by 011-realtime-streaming
 
 ### T4.2 - Real-time validation logic
-- [ ] Get current cached heatmap
-- [ ] Check if liquidation price was predicted
-- [ ] Log result to validation_events table
-- **Output**: Live validation
+- [x] DEFERRED - After 011-realtime-streaming
+- [x] DEFERRED
+- [x] DEFERRED
+- **Output**: Live validation (DEFERRED)
 
 ### T4.3 - Metrics dashboard endpoint
-- [ ] `GET /validation/metrics` - current accuracy stats
-- [ ] Rolling 1h, 24h, 7d windows
-- [ ] Simple JSON response (frontend optional)
-- **Output**: API endpoint
+- [x] DEFERRED - After real-time implemented
+- [x] DEFERRED
+- [x] DEFERRED
+- **Output**: API endpoint (DEFERRED)
 
 ### T4.4 - Alerting (optional)
-- [ ] Webhook to Discord/Slack if accuracy drops
-- [ ] Daily summary email
-- **Output**: Alerting system
+- [x] DEFERRED - See 010-alert-system
+- [x] DEFERRED
+- **Output**: Covered by 010-alert-system
 
 ---
 
