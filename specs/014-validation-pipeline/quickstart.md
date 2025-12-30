@@ -56,28 +56,37 @@ print(conn.execute('SELECT * FROM validation_backtest_results ORDER BY created_a
 "
 ```
 
-### 3. Run Full Pipeline (After Implementation)
+### 3. Run Full Pipeline
 
 ```bash
-# Run validation pipeline with all types
+# Run validation pipeline with default settings
+uv run python scripts/run_validation_pipeline.py --symbol BTCUSDT
+
+# Run with tolerance sweep (0.5%, 1%, 2%)
+uv run python scripts/run_validation_pipeline.py --sweep-tolerance
+
+# Run with JSON output for CI
 uv run python scripts/run_validation_pipeline.py \
     --symbol BTCUSDT \
-    --validation-types backtest \
-    --output reports/validation_result.json
+    --output reports/validation_result.json \
+    --ci  # Exit code 1 on Gate 2 FAIL
 
 # Check gate status
-jq '.gate_2_decision' reports/validation_result.json
+jq '.gate_2_passed' reports/validation_result.json
 ```
 
-### 4. View Dashboard (After Implementation)
+### 4. View Dashboard
 
 ```bash
 # Start API server
-uv run uvicorn src.api.validation_app:app --reload --port 8001
+uv run uvicorn src.api.validation_app:app --reload --port 8000
 
-# Open dashboard
-open http://localhost:8001/docs  # API documentation
-open frontend/validation_dashboard.html  # Dashboard UI (after implementation)
+# Open in browser
+# API docs: http://localhost:8000/docs
+# Dashboard: Open frontend/validation_dashboard.html in browser
+
+# Or test API directly
+curl http://localhost:8000/api/validation/dashboard?symbol=BTCUSDT
 ```
 
 ---
@@ -100,11 +109,14 @@ open frontend/validation_dashboard.html  # Dashboard UI (after implementation)
 
 | File | Purpose |
 |------|---------|
+| `scripts/run_validation_pipeline.py` | **Unified CLI** for pipeline |
 | `scripts/run_backtest.py` | Run historical backtest |
 | `scripts/validate_vs_coinglass.py` | Run Coinglass comparison |
-| `src/liquidationheatmap/validation/backtest.py` | Backtest implementation |
-| `src/liquidationheatmap/validation/zone_comparator.py` | Zone comparison logic |
-| `reports/backtest_2024.md` | Latest backtest report |
+| `src/validation/pipeline/orchestrator.py` | Pipeline orchestrator |
+| `src/validation/pipeline/models.py` | Data models & gate logic |
+| `src/api/endpoints/dashboard.py` | Dashboard API endpoints |
+| `frontend/validation_dashboard.html` | Dashboard UI |
+| `.github/workflows/validation.yml` | CI workflow |
 
 ---
 
@@ -158,25 +170,44 @@ After running validation:
 
 ---
 
-## CI Integration (After Implementation)
+## CI Integration
 
 ```bash
-# Trigger validation manually
+# Trigger validation manually via GitHub CLI
 gh workflow run validation.yml -f symbol=BTCUSDT
 
 # View workflow results
 gh run list --workflow=validation.yml
+
+# The workflow runs:
+# - Weekly on Monday 6am UTC
+# - On model changes (src/liquidationheatmap/models/**)
+# - Manual dispatch via GitHub UI or CLI
 ```
 
 ---
 
-## API Endpoints (After Implementation)
+## API Endpoints
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/validation/dashboard` | GET | Dashboard metrics |
+| `/api/validation/dashboard` | GET | Dashboard metrics (F1, trends, alerts) |
 | `/api/validation/pipeline/run` | POST | Trigger pipeline run |
 | `/api/validation/pipeline/status/{run_id}` | GET | Check run status |
-| `/api/validation/history` | GET | Validation history |
+| `/api/validation/history` | GET | Validation history (paginated) |
 
-See `specs/014-validation-pipeline/contracts/dashboard_api.json` for full API documentation.
+**Example API Calls**:
+```bash
+# Get dashboard metrics
+curl "http://localhost:8000/api/validation/dashboard?symbol=BTCUSDT&days=30"
+
+# Trigger pipeline run
+curl -X POST "http://localhost:8000/api/validation/pipeline/run" \
+  -H "Content-Type: application/json" \
+  -d '{"symbol": "BTCUSDT", "validation_types": ["backtest"]}'
+
+# Check status
+curl "http://localhost:8000/api/validation/pipeline/status/{run_id}"
+```
+
+See `specs/014-validation-pipeline/contracts/dashboard_api.json` for OpenAPI specification.
