@@ -69,6 +69,79 @@ curl -X POST "http://localhost:8000/api/margin/batch" \
   }'
 ```
 
+## Exchange Filtering
+
+### List Supported Exchanges
+
+```bash
+curl "http://localhost:8000/exchanges"
+```
+
+**Response**:
+```json
+{
+  "binance": {"status": "active", "type": "REST", "features": ["historical", "realtime"]},
+  "hyperliquid": {"status": "active", "type": "WebSocket", "features": ["realtime"]},
+  "bybit": {"status": "stub", "type": "REST", "features": []}
+}
+```
+
+### Get Exchange Health
+
+```bash
+curl "http://localhost:8000/exchanges/health"
+```
+
+**Response**:
+```json
+{
+  "binance": {
+    "is_connected": true,
+    "last_heartbeat": "2024-12-29T10:00:00Z",
+    "error_count": 0
+  },
+  "hyperliquid": {
+    "is_connected": true,
+    "last_heartbeat": "2024-12-29T10:00:01Z",
+    "error_count": 0
+  }
+}
+```
+
+### Filter Heatmap by Exchange
+
+```bash
+# Single exchange
+curl "http://localhost:8000/liquidations/heatmap-timeseries?symbol=BTCUSDT&exchanges=binance"
+
+# Multiple exchanges
+curl "http://localhost:8000/liquidations/heatmap-timeseries?symbol=BTCUSDT&exchanges=binance,hyperliquid"
+
+# All exchanges (default)
+curl "http://localhost:8000/liquidations/heatmap-timeseries?symbol=BTCUSDT"
+```
+
+**Response with exchange breakdown**:
+```json
+{
+  "symbol": "BTCUSDT",
+  "data": [
+    {
+      "time": "2024-12-29T10:00:00Z",
+      "price_bucket": 43000,
+      "density": 0.85,
+      "exchange": "binance"
+    },
+    {
+      "time": "2024-12-29T10:00:00Z",
+      "price_bucket": 43000,
+      "density": 0.15,
+      "exchange": "hyperliquid"
+    }
+  ]
+}
+```
+
 ## API Reference
 
 ### Endpoints
@@ -78,6 +151,9 @@ curl -X POST "http://localhost:8000/api/margin/batch" \
 | POST | `/api/margin/calculate` | Calculate margin for position |
 | POST | `/api/margin/batch` | Batch margin calculations |
 | GET | `/api/margin/tiers/{symbol}` | Get tier information |
+| GET | `/exchanges` | List supported exchanges |
+| GET | `/exchanges/health` | Exchange connection health |
+| GET | `/liquidations/heatmap-timeseries` | Heatmap with optional exchange filter |
 | GET | `/health` | Health check |
 
 ### Error Codes
