@@ -1,195 +1,246 @@
-# ULTIMATUM Tasks: Validation Pipeline
+# Tasks: 014-validation-pipeline
 
-**Last Updated**: 2025-12-28
-**Gate 1 Status**: ✅ PASSED (hit_rate=77.8% > 70%)
+**Input**: Design documents from `/specs/014-validation-pipeline/`
+**Prerequisites**: plan.md ✅, spec.md ✅, research.md ✅, data-model.md ✅, contracts/ ✅
 
-## Phase 1: Coinglass Benchmark [Day 1-2] - 80% COMPLETE
+**Status Summary**:
+- **Gate 1 (Coinglass)**: ✅ PASSED (hit_rate=77.8% > 70%)
+- **Gate 2 (Backtest)**: ✅ PASSED (F1=80.93% ≥ 60%)
+- **Phase 5 (CI)**: ✅ COMPLETE - Pipeline orchestrator, CLI, GitHub Actions workflow
+- **Remaining**: Dashboard API endpoints (T040-T055), Polish (T056-T059)
 
-### T1.1 - Reverse-engineer Coinglass API
-- [x] Inspect Coinglass network requests (Chrome DevTools)
-- [x] Test API response format
-- [x] Handle authentication/anti-bot (Playwright scraping)
-- [x] SKIPPED - Per CLAUDE.md: only add docs when requested
-- **Output**: `docs/coinglass_api.md` SKIPPED
-
-### T1.2 - Create Coinglass fetcher ✅ COMPLETE
-- [x] Create `src/liquidationheatmap/validation/coinglass_scraper.py`
-- [x] Implement scraping via Playwright
-- [x] Add Hyperliquid API alternative
-- [x] Cache responses to JSONL
-- **Output**: Working Coinglass client ✅
-
-### T1.3 - Implement comparison metrics ✅ COMPLETE
-- [x] Price level hit rate calculation
-- [x] Long/short breakdown
-- [x] Zone matching algorithm
-- **Output**: Metrics in `scripts/validate_vs_coinglass.py` ✅
-
-### T1.4 - Create comparison script ✅ COMPLETE
-- [x] Fetch both heatmaps (ours + Coinglass/Hyperliquid)
-- [x] Normalize to same price buckets
-- [x] Calculate hit rate metrics
-- [x] Generate JSON results
-- **Output**: `scripts/validate_vs_coinglass.py` (640 lines) ✅
-
-### T1.5 - Run initial comparison & document
-- [x] Run script on BTC (mock + real data)
-- [x] Current result: hit_rate=77.8%, status=GOOD
-- [x] DEFERRED - Additional timeframes when needed
-- [x] SKIPPED - Per CLAUDE.md: only add docs when requested
-- **Output**: Gate 1 PASSED - reports optional
-
-**Gate 1 Decision**: ✅ PROCEED - hit_rate=77.8% >= 70%
+## Format: `[ID] [P?] [Story] Description`
+- **[P]**: Can run in parallel (different files, no dependencies)
+- **[Story]**: Which user story this task belongs to (US1=Coinglass, US2=Backtest, US3=CI, US4=Dashboard)
+- Include exact file paths in descriptions
 
 ---
 
-## Phase 2: Historical Backtest [Day 2-3] - ✅ COMPLETE
+## Phase 1: Setup (Shared Infrastructure)
 
-### T2.1 - Extract liquidation events ✅ COMPLETE
-- [x] DuckDB tables exist: `liquidation_levels`, `liquidation_snapshots`
-- [x] `position_events` table available
-- [x] Uses `liquidation_snapshots` for predictions (864k+ rows)
-- **Output**: Historical liquidation dataset ✅
+**Purpose**: Project initialization and basic structure - **ALREADY COMPLETE**
 
-### T2.2 - Build backtest framework ✅ COMPLETE
-- [x] `scripts/backtest_models.py` exists
-- [x] Create `src/liquidationheatmap/validation/backtest.py`
-- [x] `get_predicted_zones()` - get heatmap at timestamp
-- [x] `match_predictions_to_actuals()` - compare vs price range
-- **Output**: Reusable backtest framework ✅
-
-### T2.3 - Define evaluation metrics ✅ COMPLETE
-- [x] True Positive: Predicted zone hit by price movement
-- [x] False Positive: Predicted zone not hit
-- [x] False Negative: Not measured (no ground truth)
-- [x] Calculate: Precision, Recall, F1
-- **Output**: `calculate_metrics()` function ✅
-
-### T2.4 - Run backtest on available data ✅ COMPLETE
-- [x] Period: 2025-11-10 to 2025-12-24 (data available)
-- [x] Run backtest with tolerance levels (0.5%, 1%, 2%)
-- [x] Best result: **F1=80.93%** at 2% tolerance
-- **Output**: `reports/backtest_2024.json` ✅
-
-### T2.5 - Generate backtest report ✅ COMPLETE
-- [x] Summary statistics (TP=1396, FN=658)
-- [x] Precision: 100%, Recall: 68%
-- [x] Gate 2 Status: **VALIDATED** (F1=80.93% ≥ 60%)
-- **Output**: `reports/backtest_2024.md` ✅
+- [x] T001 Project structure exists per implementation plan
+- [x] T002 Python 3.11 project with FastAPI, DuckDB, pytest dependencies
+- [x] T003 [P] Linting and formatting configured (ruff)
 
 ---
 
-## Phase 3: CI Integration [Day 3-4] - 60% COMPLETE
+## Phase 2: Foundational (Blocking Prerequisites)
 
-### T3.1 - Create validation test suite ✅ COMPLETE
-- [x] 26 validation test files exist in `tests/validation/`
-- [x] Tests cover: metrics, comparison, accuracy, security
-- [x] Pytest fixtures in place
-- **Output**: Validation test suite ✅
+**Purpose**: Core infrastructure - **ALREADY COMPLETE**
 
-### T3.2 - GitHub Actions workflow
-- [x] DEFERRED - CI when repo goes public
-- [x] DEFERRED
-- [x] DEFERRED
-- [x] DEFERRED
-- **Output**: CI workflow (DEFERRED)
+- [x] T004 DuckDB database initialized with `liquidation_snapshots` table
+- [x] T005 [P] Existing backtest module in `src/liquidationheatmap/validation/backtest.py`
+- [x] T006 [P] Zone comparator in `src/liquidationheatmap/validation/zone_comparator.py`
+- [x] T007 [P] OCR extractor in `src/liquidationheatmap/validation/ocr_extractor.py`
+- [x] T008 Validation storage framework in `src/validation/storage.py`
 
-### T3.3 - Regression alerting
-- [x] DEFERRED - Quality gates when CI in place
-- [x] DEFERRED
-- [x] DEFERRED
-- **Output**: Quality gates (DEFERRED)
+**Checkpoint**: Foundation ready ✅
 
 ---
 
-## Phase 4: Real-time Monitor [Day 4-5] (Optional) - DEFERRED
+## Phase 3: User Story 1 - Coinglass Benchmark (Priority: P0) ✅ COMPLETE
 
-### T4.1 - Liquidation WebSocket listener
-- [x] DEFERRED - See 011-realtime-streaming spec
-- [x] DEFERRED
-- [x] DEFERRED
-- **Output**: Covered by 011-realtime-streaming
+**Goal**: Compare our liquidation predictions against Coinglass industry standard
 
-### T4.2 - Real-time validation logic
-- [x] DEFERRED - After 011-realtime-streaming
-- [x] DEFERRED
-- [x] DEFERRED
-- **Output**: Live validation (DEFERRED)
+**Independent Test**: Run `uv run python scripts/validate_vs_coinglass.py --mock` → hit_rate ≥ 70%
 
-### T4.3 - Metrics dashboard endpoint
-- [x] DEFERRED - After real-time implemented
-- [x] DEFERRED
-- [x] DEFERRED
-- **Output**: API endpoint (DEFERRED)
+### Implementation for User Story 1 - ✅ ALL COMPLETE
 
-### T4.4 - Alerting (optional)
-- [x] DEFERRED - See 010-alert-system
-- [x] DEFERRED
-- **Output**: Covered by 010-alert-system
+- [x] T009 [US1] Create Coinglass scraper in `src/liquidationheatmap/validation/coinglass_scraper.py`
+- [x] T010 [US1] Implement Playwright-based scraping with retry logic
+- [x] T011 [US1] Add Hyperliquid API alternative fetcher
+- [x] T012 [US1] Implement price level comparison in `scripts/validate_vs_coinglass.py`
+- [x] T013 [US1] Add hit_rate, zone_overlap, long/short breakdown metrics
+- [x] T014 [US1] Create validation CLI with `--mock` and `--summary` options
+- [x] T015 [US1] Run Gate 1 validation → **PASSED** (hit_rate=77.8%)
+
+**Checkpoint**: User Story 1 COMPLETE ✅ → Gate 1 PASSED
 
 ---
 
-## Decision Gates
+## Phase 4: User Story 2 - Historical Backtest (Priority: P0) ✅ COMPLETE
 
-### Gate 1: After Phase 1 ✅ PASSED
-```
-hit_rate = 0.778 >= 0.70 → PROCEED to Phase 2
-```
+**Goal**: Validate model accuracy against historical price movements
 
-### Gate 2: After Phase 2 ✅ PASSED
-```
-IF backtest_f1 >= 0.6:
-    MODEL VALIDATED - Proceed to ETH expansion  ← CURRENT (F1=80.93%)
-ELIF backtest_f1 >= 0.4:
-    ACCEPTABLE - Document limitations, proceed
-ELSE:
-    STOP - Model rework required
+**Independent Test**: Run `uv run python scripts/run_backtest.py --symbol BTCUSDT` → F1 ≥ 60%
 
-Result: F1=80.93% at 2% tolerance → VALIDATED ✅
-Methodology: Recall-focused ("Did we cover the important price levels?")
-- Precision: 100% (predictions near actual levels are always correct)
-- Recall: 68% (we cover 68% of important levels reached)
-```
+### Implementation for User Story 2 - ✅ ALL COMPLETE
+
+- [x] T016 [US2] Create backtest framework in `src/liquidationheatmap/validation/backtest.py`
+- [x] T017 [US2] Implement `BacktestConfig` and `BacktestResult` dataclasses
+- [x] T018 [US2] Implement `get_predicted_zones()` to query liquidation_snapshots
+- [x] T019 [US2] Implement `get_actual_liquidations()` for price extremes
+- [x] T020 [US2] Implement `match_predictions_to_actuals()` with tolerance matching
+- [x] T021 [US2] Add `calculate_metrics()` for Precision, Recall, F1
+- [x] T022 [US2] Create `run_backtest()` orchestrator function
+- [x] T023 [US2] Add `generate_backtest_report()` markdown output
+- [x] T024 [US2] Create CLI in `scripts/run_backtest.py`
+- [x] T025 [US2] Run Gate 2 validation → **PASSED** (F1=80.93%, Precision=100%, Recall=68%)
+
+**Checkpoint**: User Story 2 COMPLETE ✅ → Gate 2 PASSED
 
 ---
 
-## Quick Start Commands
+## Phase 5: User Story 3 - CI Integration (Priority: P1) 🎯 MVP
+
+**Goal**: Automate validation on model changes with GitHub Actions
+
+**Independent Test**: `gh workflow run validation.yml` completes successfully
+
+### Implementation for User Story 3
+
+- [x] T026 [P] [US3] Validation tests exist in `tests/validation/` (26 files)
+- [x] T027 [P] [US3] Create data models in `src/validation/pipeline/models.py` per data-model.md
+- [x] T028 [US3] Create pipeline orchestrator in `src/validation/pipeline/orchestrator.py`
+- [x] T029 [US3] Add `run_pipeline()` to coordinate backtest + optional Coinglass
+- [x] T030 [US3] Implement Gate 2 evaluation logic in orchestrator
+- [x] T031 [US3] Create metrics aggregator in `src/validation/pipeline/metrics_aggregator.py`
+- [x] T032 [US3] Add `compute_overall_grade()` (A/B/C/F based on F1)
+- [x] T033 [US3] Create CI runner entrypoint in `src/validation/pipeline/ci_runner.py`
+- [x] T034 [US3] Create unified CLI in `scripts/run_validation_pipeline.py`
+- [x] T035 [US3] Create GitHub Actions workflow in `.github/workflows/validation.yml`
+- [x] T036 [US3] Configure weekly schedule (cron: Monday 6am UTC)
+- [x] T037 [US3] Add model change trigger (`src/liquidationheatmap/models/**`)
+- [x] T038 [US3] Configure self-hosted runner requirement
+- [x] T039 [US3] Add workflow artifact upload for reports
+
+**Checkpoint**: CI pipeline runs on schedule and model changes
+
+---
+
+## Phase 6: User Story 4 - Real-time Dashboard (Priority: P2)
+
+**Goal**: Display validation metrics in a monitoring dashboard
+
+**Independent Test**: Open `http://localhost:8000/api/validation/dashboard` → shows metrics
+
+### Implementation for User Story 4
+
+- [ ] T040 [P] [US4] Create DuckDB schema migration for `validation_pipeline_runs` table
+- [ ] T041 [P] [US4] Create DuckDB schema migration for `validation_backtest_results` table
+- [ ] T042 [P] [US4] Create DuckDB schema migration for `validation_metrics_history` table
+- [ ] T043 [US4] Extend `src/validation/storage.py` with new table operations
+- [x] T044 [US4] Create `DashboardMetrics` dataclass in `src/validation/pipeline/models.py`
+- [x] T045 [US4] Add `get_dashboard_metrics()` to metrics_aggregator
+- [ ] T046 [US4] Create API endpoint in `src/api/endpoints/dashboard.py`
+- [ ] T047 [US4] Implement `GET /api/validation/dashboard` per OpenAPI contract
+- [ ] T048 [US4] Implement `POST /api/validation/pipeline/run` per OpenAPI contract
+- [ ] T049 [US4] Implement `GET /api/validation/pipeline/status/{run_id}` per OpenAPI contract
+- [ ] T050 [US4] Implement `GET /api/validation/history` per OpenAPI contract
+- [ ] T051 [US4] Register dashboard router in FastAPI app
+- [ ] T052 [US4] Create frontend dashboard in `frontend/validation_dashboard.html`
+- [ ] T053 [US4] Add Plotly.js trend chart visualization
+- [ ] T054 [US4] Add status indicator (healthy/warning/critical)
+- [ ] T055 [US4] Add alert display section
+
+**Checkpoint**: Dashboard shows live validation metrics with trend chart
+
+---
+
+## Phase 7: Polish & Cross-Cutting Concerns
+
+**Purpose**: Improvements that affect multiple user stories
+
+- [ ] T056 [P] Update `specs/014-validation-pipeline/quickstart.md` with final commands
+- [ ] T057 Code cleanup - remove debug prints, unused imports
+- [ ] T058 Performance validation - ensure <5min pipeline, <100ms API
+- [ ] T059 Run full quickstart.md validation end-to-end
+
+---
+
+## Dependencies & Execution Order
+
+### Phase Dependencies
+
+- **Setup (Phase 1)**: ✅ Complete
+- **Foundational (Phase 2)**: ✅ Complete
+- **US1 Coinglass (Phase 3)**: ✅ Complete (Gate 1 PASSED)
+- **US2 Backtest (Phase 4)**: ✅ Complete (Gate 2 PASSED)
+- **US3 CI (Phase 5)**: Ready to start - depends on Phase 2, 4
+- **US4 Dashboard (Phase 6)**: Ready to start - depends on Phase 2, 4
+- **Polish (Phase 7)**: Depends on Phase 5, 6
+
+### User Story Dependencies
+
+| Story | Dependencies | Can Parallel? |
+|-------|--------------|---------------|
+| US1 (Coinglass) | Foundational | ✅ (Complete) |
+| US2 (Backtest) | Foundational | ✅ (Complete) |
+| US3 (CI) | US2 (backtest module) | ✅ Start now |
+| US4 (Dashboard) | US2 (backtest module) | ✅ Start now |
+
+### Within User Story 3 (CI)
+
+1. T027 Models → T028-T033 Orchestrator → T034 CLI → T035-T39 GitHub Actions
+
+### Within User Story 4 (Dashboard)
+
+1. T040-T42 Schema → T043 Storage → T044-T45 Metrics → T046-T51 API → T52-T55 Frontend
+
+### Parallel Opportunities
 
 ```bash
-# Phase 1: Coinglass comparison
-uv run python scripts/validate_vs_coinglass.py --mock      # Test with mock data
-uv run python scripts/validate_vs_coinglass.py             # Real Playwright scrape
-uv run python scripts/validate_vs_coinglass.py --summary   # View historical results
-
-# Phase 2: Backtest
-uv run python scripts/backtest_models.py  # Existing script
-
-# Phase 3: Run validation tests
-uv run pytest tests/validation/ -v --tb=short
-
-# Phase 4: Start monitor (TODO)
-# uv run python -m src.liquidationheatmap.validation.ws_monitor
+# Phase 5 + Phase 6 can run in parallel (different concerns):
+# Developer A: US3 CI Integration (T027-T039)
+# Developer B: US4 Dashboard (T040-T055)
 ```
 
 ---
 
-## Remaining Work Summary
+## Parallel Example: User Story 3 (CI)
 
-| Task | Priority | Effort | Blocker? |
-|------|----------|--------|----------|
-| T1.5 - Comparison report | P1 | 1h | No |
-| T2.2-T2.5 - Backtest framework | P0 | 4-6h | Gate 2 |
-| T3.2 - GitHub Actions | P2 | 2h | No |
-| T4.* - Real-time monitor | P3 | 4h | Optional |
+```bash
+# Launch model creation in parallel with test review:
+Task: "Create data models in src/validation/pipeline/models.py"
+Task: "Review existing tests in tests/validation/"
 
-**Next Action**: Complete Phase 2 backtest to pass Gate 2 → unlock ETH expansion
+# Then sequentially:
+Task: "Create pipeline orchestrator in src/validation/pipeline/orchestrator.py"
+Task: "Create CI runner entrypoint in src/validation/pipeline/ci_runner.py"
+Task: "Create GitHub Actions workflow in .github/workflows/validation.yml"
+```
 
 ---
 
-## Success = Green Light for ETH
+## Implementation Strategy
 
-After validation passes:
-1. Copy validation framework for ETH
-2. Run same tests on ETH data
-3. If passes → Ship multi-symbol support
-4. If fails → ETH-specific tuning needed
+### Current Status (Post-Phase 5)
+
+1. ✅ Phase 1-4 Complete (Setup + Foundation + US1 + US2)
+2. ✅ Gate 1 PASSED (Coinglass hit_rate=77.8%)
+3. ✅ Gate 2 PASSED (Backtest F1=80.93%)
+4. ✅ Phase 5 COMPLETE (CI Integration) - Orchestrator, CLI, GitHub Actions
+5. 🎯 **Next**: Phase 6 (Dashboard) - 14 tasks remaining
+6. **Finally**: Phase 7 (Polish) - 4 tasks remaining
+
+### MVP Recommendation
+
+For **minimal viable pipeline**:
+1. Complete T027-T034 (Orchestrator + CLI) - enables unified validation
+2. Defer T035-T039 (GitHub Actions) until repo goes public
+3. Defer T040-T055 (Dashboard) until real-time needed
+
+### Task Counts
+
+| Phase | Total | Complete | Remaining |
+|-------|-------|----------|-----------|
+| Setup | 3 | 3 | 0 |
+| Foundational | 5 | 5 | 0 |
+| US1 Coinglass | 7 | 7 | 0 |
+| US2 Backtest | 10 | 10 | 0 |
+| US3 CI | 14 | 14 | 0 |
+| US4 Dashboard | 16 | 2 | 14 |
+| Polish | 4 | 0 | 4 |
+| **TOTAL** | **59** | **41** | **18** |
+
+---
+
+## Notes
+
+- [P] tasks = different files, no dependencies
+- [Story] label maps task to specific user story for traceability
+- Gates already passed - remaining work is infrastructure (CI, Dashboard)
+- Commit after each task or logical group
+- Test validation: `uv run pytest tests/validation/ -v`

@@ -1,0 +1,479 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Validation Dashboard API",
+    "description": "API endpoints for the validation monitoring dashboard",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Development server"
+    }
+  ],
+  "paths": {
+    "/api/validation/dashboard": {
+      "get": {
+        "summary": "Get dashboard metrics",
+        "description": "Returns aggregated validation metrics for the dashboard display",
+        "operationId": "getDashboardMetrics",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "description": "Trading symbol to filter by",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "BTCUSDT",
+              "pattern": "^[A-Z]{3,10}USDT$"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Number of days for trend data",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 30,
+              "minimum": 1,
+              "maximum": 90
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard metrics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardResponse"
+                },
+                "example": {
+                  "status": "healthy",
+                  "last_validation": {
+                    "timestamp": "2025-12-28T21:26:29Z",
+                    "grade": "A",
+                    "f1_score": 0.8093,
+                    "precision": 1.0,
+                    "recall": 0.6796
+                  },
+                  "backtest_coverage": {
+                    "snapshots": 1029,
+                    "period_days": 44
+                  },
+                  "trend": [
+                    {"date": "2025-12-27", "f1_score": 0.78},
+                    {"date": "2025-12-28", "f1_score": 0.81}
+                  ],
+                  "alerts": []
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No validation data found for symbol",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/validation/pipeline/run": {
+      "post": {
+        "summary": "Trigger a validation pipeline run",
+        "description": "Initiates a new validation pipeline run (backtest + optional Coinglass)",
+        "operationId": "triggerPipelineRun",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineRunRequest"
+              },
+              "example": {
+                "symbol": "BTCUSDT",
+                "validation_types": ["backtest"],
+                "triggered_by": "user@example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Pipeline run accepted and queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineRunResponse"
+                },
+                "example": {
+                  "run_id": "550e8400-e29b-41d4-a716-446655440000",
+                  "status": "pending",
+                  "message": "Pipeline run queued for execution",
+                  "estimated_duration_seconds": 300
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/validation/pipeline/status/{run_id}": {
+      "get": {
+        "summary": "Get pipeline run status",
+        "description": "Check the status and results of a pipeline run",
+        "operationId": "getPipelineStatus",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "description": "UUID of the pipeline run",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pipeline run status retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineStatusResponse"
+                },
+                "example": {
+                  "run_id": "550e8400-e29b-41d4-a716-446655440000",
+                  "status": "completed",
+                  "started_at": "2025-12-28T21:20:00Z",
+                  "completed_at": "2025-12-28T21:26:29Z",
+                  "duration_seconds": 389,
+                  "symbol": "BTCUSDT",
+                  "gate_2_decision": "pass",
+                  "overall_grade": "A",
+                  "overall_score": 80.93,
+                  "results": {
+                    "backtest": {
+                      "f1_score": 0.8093,
+                      "precision": 1.0,
+                      "recall": 0.6796,
+                      "snapshots_analyzed": 1029
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pipeline run not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/validation/history": {
+      "get": {
+        "summary": "Get validation history",
+        "description": "Returns historical validation runs with pagination",
+        "operationId": "getValidationHistory",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "BTCUSDT"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Validation history retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationHistoryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DashboardResponse": {
+        "type": "object",
+        "required": ["status", "last_validation", "trend", "alerts"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["healthy", "warning", "critical"],
+            "description": "Overall system health status"
+          },
+          "last_validation": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "grade": {
+                "type": "string",
+                "enum": ["A", "B", "C", "F"]
+              },
+              "f1_score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "precision": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "recall": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "backtest_coverage": {
+            "type": "object",
+            "properties": {
+              "snapshots": {
+                "type": "integer"
+              },
+              "period_days": {
+                "type": "integer"
+              }
+            }
+          },
+          "trend": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "f1_score": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "alerts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "string",
+                  "enum": ["info", "warning", "error"]
+                },
+                "message": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PipelineRunRequest": {
+        "type": "object",
+        "required": ["symbol"],
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "pattern": "^[A-Z]{3,10}USDT$",
+            "description": "Trading symbol (e.g., BTCUSDT)"
+          },
+          "validation_types": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["backtest", "coinglass", "realtime"]
+            },
+            "default": ["backtest"],
+            "description": "Types of validation to run"
+          },
+          "triggered_by": {
+            "type": "string",
+            "default": "api",
+            "description": "Identifier for who triggered the run"
+          },
+          "backtest_config": {
+            "type": "object",
+            "properties": {
+              "start_date": {
+                "type": "string",
+                "format": "date"
+              },
+              "end_date": {
+                "type": "string",
+                "format": "date"
+              },
+              "tolerance_pct": {
+                "type": "number",
+                "default": 2.0
+              }
+            }
+          }
+        }
+      },
+      "PipelineRunResponse": {
+        "type": "object",
+        "required": ["run_id", "status", "message"],
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running"]
+          },
+          "message": {
+            "type": "string"
+          },
+          "estimated_duration_seconds": {
+            "type": "integer"
+          }
+        }
+      },
+      "PipelineStatusResponse": {
+        "type": "object",
+        "required": ["run_id", "status", "symbol"],
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "completed", "failed", "cancelled"]
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duration_seconds": {
+            "type": "integer"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "gate_2_decision": {
+            "type": "string",
+            "enum": ["pass", "acceptable", "fail", "skip"]
+          },
+          "overall_grade": {
+            "type": "string",
+            "enum": ["A", "B", "C", "F"]
+          },
+          "overall_score": {
+            "type": "number"
+          },
+          "results": {
+            "type": "object",
+            "properties": {
+              "backtest": {
+                "type": "object"
+              },
+              "coinglass": {
+                "type": "object"
+              }
+            }
+          },
+          "error_message": {
+            "type": "string"
+          }
+        }
+      },
+      "ValidationHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineStatusResponse"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["detail"],
+        "properties": {
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,151 @@
+# CI Workflow Contract: Validation Pipeline
+#
+# This defines the GitHub Actions workflow structure for automated validation.
+# Actual workflow file: .github/workflows/validation.yml
+
+name: Model Validation Pipeline
+
+on:
+  # Weekly scheduled run
+  schedule:
+    - cron: '0 6 * * 1'  # Monday 6:00 AM UTC
+
+  # Manual trigger via GitHub UI
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: 'Trading symbol to validate'
+        required: true
+        default: 'BTCUSDT'
+        type: string
+      validation_types:
+        description: 'Validation types to run (comma-separated)'
+        required: false
+        default: 'backtest'
+        type: string
+      tolerance_pct:
+        description: 'Price tolerance percentage for backtest'
+        required: false
+        default: '2.0'
+        type: string
+
+  # Trigger on model changes
+  push:
+    paths:
+      - 'src/liquidationheatmap/models/**'
+      - 'src/liquidationheatmap/validation/**'
+    branches:
+      - master
+      - main
+
+env:
+  PYTHON_VERSION: '3.11'
+  DUCKDB_PATH: 'data/processed/liquidations.duckdb'
+
+jobs:
+  validation:
+    name: Run Validation Pipeline
+    runs-on: self-hosted  # Requires database access
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install UV
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Check database exists
+        id: db_check
+        run: |
+          if [ -f "${{ env.DUCKDB_PATH }}" ]; then
+            echo "db_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "db_exists=false" >> $GITHUB_OUTPUT
+            echo "::warning::Database not found at ${{ env.DUCKDB_PATH }}"
+          fi
+
+      - name: Run backtest validation
+        if: steps.db_check.outputs.db_exists == 'true'
+        id: backtest
+        run: |
+          uv run python scripts/run_validation_pipeline.py \
+            --symbol ${{ github.event.inputs.symbol || 'BTCUSDT' }} \
+            --validation-types ${{ github.event.inputs.validation_types || 'backtest' }} \
+            --tolerance-pct ${{ github.event.inputs.tolerance_pct || '2.0' }} \
+            --output reports/validation_ci_result.json
+
+          # Extract F1 score for gate check
+          F1=$(jq -r '.results.backtest.f1_score // 0' reports/validation_ci_result.json)
+          echo "f1_score=$F1" >> $GITHUB_OUTPUT
+
+      - name: Gate 2 Check
+        if: steps.db_check.outputs.db_exists == 'true'
+        run: |
+          F1=${{ steps.backtest.outputs.f1_score }}
+          echo "F1 Score: $F1"
+
+          # Gate thresholds
+          if (( $(echo "$F1 >= 0.6" | bc -l) )); then
+            echo "✅ Gate 2 PASSED: F1=$F1 >= 0.6"
+            echo "## ✅ Validation PASSED" >> $GITHUB_STEP_SUMMARY
+            echo "- **F1 Score**: $F1" >> $GITHUB_STEP_SUMMARY
+            echo "- **Gate Decision**: PASS (F1 >= 60%)" >> $GITHUB_STEP_SUMMARY
+          elif (( $(echo "$F1 >= 0.4" | bc -l) )); then
+            echo "⚠️ Gate 2 ACCEPTABLE: F1=$F1 (40-60%)"
+            echo "## ⚠️ Validation ACCEPTABLE" >> $GITHUB_STEP_SUMMARY
+            echo "- **F1 Score**: $F1" >> $GITHUB_STEP_SUMMARY
+            echo "- **Gate Decision**: ACCEPTABLE (document limitations)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Gate 2 FAILED: F1=$F1 < 0.4"
+            echo "## ❌ Validation FAILED" >> $GITHUB_STEP_SUMMARY
+            echo "- **F1 Score**: $F1" >> $GITHUB_STEP_SUMMARY
+            echo "- **Gate Decision**: FAIL (model rework required)" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Upload validation report
+        if: always() && steps.db_check.outputs.db_exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report-${{ github.run_id }}
+          path: |
+            reports/validation_ci_result.json
+            reports/backtest_*.md
+          retention-days: 30
+
+      - name: Post summary
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "**Run**: \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Symbol**: \`${{ github.event.inputs.symbol || 'BTCUSDT' }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger**: \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: Notify on Failure
+    needs: validation
+    if: failure()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create issue on failure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Validation Pipeline Failed - ${new Date().toISOString().split('T')[0]}`,
+              body: `## Validation Pipeline Failure\n\n**Run ID**: ${context.runId}\n**Trigger**: ${context.eventName}\n\nCheck the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.`,
+              labels: ['validation', 'automated', 'bug']
+            });
