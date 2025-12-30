@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Initialize DuckDB database with schema from data-model.md.
 
-Creates 5 tables:
-- liquidation_levels: Calculated liquidation prices
-- heatmap_cache: Pre-aggregated heatmap buckets
+Creates 6 tables:
+- liquidation_levels: Calculated liquidation prices (with exchange column)
+- heatmap_cache: Pre-aggregated heatmap buckets (with exchange column)
 - open_interest_history: Binance Open Interest data
 - funding_rate_history: 8-hour funding rates
-- liquidation_history: Actual liquidation events (for backtesting)
+- aggtrades_history: Actual trade events (for backtesting)
+- exchange_health: Exchange adapter connection status
 """
 
 import sys
@@ -20,7 +21,7 @@ DB_PATH = "data/processed/liquidations.duckdb"
 def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """Create all tables and indexes."""
 
-    # Table 1: liquidation_levels
+    # Table 1: liquidation_levels (with exchange column for multi-exchange support)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS liquidation_levels (
             id BIGINT PRIMARY KEY,
@@ -32,6 +33,7 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             leverage_tier VARCHAR(10),
             side VARCHAR(10) NOT NULL,
             confidence DECIMAL(3, 2) NOT NULL,
+            exchange VARCHAR(50) DEFAULT 'binance',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
@@ -51,9 +53,14 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
         ON liquidation_levels(price_level);
     """)
 
-    print("✅ Created table: liquidation_levels (with 3 indexes)")
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_liquidation_levels_exchange
+        ON liquidation_levels(exchange);
+    """)
 
-    # Table 2: heatmap_cache
+    print("✅ Created table: liquidation_levels (with 4 indexes)")
+
+    # Table 2: heatmap_cache (with exchange column for multi-exchange support)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS heatmap_cache (
             id BIGINT PRIMARY KEY,
@@ -63,6 +70,7 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
             model VARCHAR(50) NOT NULL,
             density BIGINT NOT NULL,
             volume DECIMAL(18, 8) NOT NULL,
+            exchange VARCHAR(50) DEFAULT 'binance',
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)
@@ -77,7 +85,12 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
         ON heatmap_cache(symbol, model);
     """)
 
-    print("✅ Created table: heatmap_cache (with 2 indexes)")
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_heatmap_cache_exchange
+        ON heatmap_cache(exchange);
+    """)
+
+    print("✅ Created table: heatmap_cache (with 3 indexes)")
 
     # Table 3: open_interest_history
     conn.execute("""
@@ -136,6 +149,29 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
 
     print("✅ Created table: aggtrades_history (with 1 index)")
 
+    # Table 6: exchange_health (T049 - monitor exchange adapter status)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS exchange_health (
+            id BIGINT PRIMARY KEY,
+            exchange VARCHAR(50) NOT NULL UNIQUE,
+            is_connected BOOLEAN NOT NULL DEFAULT false,
+            last_heartbeat TIMESTAMP,
+            message_count BIGINT NOT NULL DEFAULT 0,
+            error_count BIGINT NOT NULL DEFAULT 0,
+            uptime_percent DECIMAL(5, 2) DEFAULT 0.0,
+            last_error VARCHAR(500),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_exchange_health_exchange
+        ON exchange_health(exchange);
+    """)
+
+    print("✅ Created table: exchange_health (with 1 index)")
+
 
 def verify_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """Verify all tables exist."""
@@ -147,6 +183,8 @@ def verify_schema(conn: duckdb.DuckDBPyConnection) -> None:
         "heatmap_cache",
         "open_interest_history",
         "funding_rate_history",
+        "aggtrades_history",
+        "exchange_health",
     ]
 
     print("\n📊 Database Schema:")

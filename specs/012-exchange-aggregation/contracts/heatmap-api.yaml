@@ -1,0 +1,182 @@
+openapi: 3.1.0
+info:
+  title: LiquidationHeatmap - Exchange Aggregation API
+  version: 2.0.0
+  description: Multi-exchange liquidation heatmap API endpoints
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+
+paths:
+  /liquidations/heatmap:
+    get:
+      summary: Get aggregated liquidation heatmap
+      description: |
+        Returns liquidation heatmap data aggregated from multiple exchanges.
+        Supports filtering by specific exchanges.
+      operationId: getHeatmap
+      parameters:
+        - name: symbol
+          in: query
+          description: Trading pair symbol
+          schema:
+            type: string
+            default: BTCUSDT
+            example: BTCUSDT
+        - name: timeframe
+          in: query
+          description: Time window for data
+          schema:
+            type: string
+            enum: [24h, 7d, 30d]
+            default: 24h
+        - name: exchanges
+          in: query
+          description: |
+            Comma-separated list of exchanges to include.
+            If omitted, all active exchanges are included.
+          schema:
+            type: string
+            example: binance,hyperliquid
+          required: false
+      responses:
+        '200':
+          description: Successful response with heatmap data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeatmapResponse'
+              example:
+                symbol: BTCUSDT
+                timeframe: 24h
+                current_price: 95234.56
+                exchanges:
+                  - binance
+                  - hyperliquid
+                zones:
+                  - price_low: 94000
+                    price_high: 94500
+                    total_density: 1234.5
+                    side: long
+                    exchange_breakdown:
+                      binance: 1100.0
+                      hyperliquid: 134.5
+                per_exchange:
+                  binance:
+                    zone_count: 15
+                    total_volume: 50000000
+                  hyperliquid:
+                    zone_count: 3
+                    total_volume: 2500000
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Unknown exchanges: ['invalid']"
+        '503':
+          description: All exchanges unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "No exchanges available"
+
+components:
+  schemas:
+    HeatmapResponse:
+      type: object
+      required:
+        - symbol
+        - timeframe
+        - current_price
+        - exchanges
+        - zones
+        - per_exchange
+      properties:
+        symbol:
+          type: string
+          description: Trading pair
+          example: BTCUSDT
+        timeframe:
+          type: string
+          description: Data time window
+          example: 24h
+        current_price:
+          type: number
+          format: double
+          description: Current market price
+          example: 95234.56
+        exchanges:
+          type: array
+          items:
+            type: string
+          description: Exchanges included in this response
+          example: [binance, hyperliquid]
+        zones:
+          type: array
+          items:
+            $ref: '#/components/schemas/HeatmapZone'
+        per_exchange:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ExchangeStats'
+
+    HeatmapZone:
+      type: object
+      required:
+        - price_low
+        - price_high
+        - total_density
+        - side
+        - exchange_breakdown
+      properties:
+        price_low:
+          type: number
+          format: double
+          description: Lower price bound of zone
+        price_high:
+          type: number
+          format: double
+          description: Upper price bound of zone
+        total_density:
+          type: number
+          format: double
+          description: Aggregated liquidation density
+        side:
+          type: string
+          enum: [long, short]
+          description: Position side being liquidated
+        exchange_breakdown:
+          type: object
+          description: Per-exchange contribution to this zone
+          additionalProperties:
+            type: number
+            format: double
+
+    ExchangeStats:
+      type: object
+      required:
+        - zone_count
+        - total_volume
+      properties:
+        zone_count:
+          type: integer
+          description: Number of zones with data from this exchange
+        total_volume:
+          type: number
+          format: double
+          description: Total liquidation volume in USD
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Error message

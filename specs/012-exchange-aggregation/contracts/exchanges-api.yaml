@@ -1,0 +1,180 @@
+openapi: 3.1.0
+info:
+  title: LiquidationHeatmap - Exchange Management API
+  version: 1.0.0
+  description: API endpoints for exchange health monitoring and listing
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+
+paths:
+  /exchanges:
+    get:
+      summary: List supported exchanges
+      description: Returns list of all supported exchanges with their status and capabilities
+      operationId: listExchanges
+      responses:
+        '200':
+          description: Successful response with exchange list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeListResponse'
+              example:
+                exchanges:
+                  - name: binance
+                    display_name: Binance Futures
+                    status: active
+                    features:
+                      real_time: true
+                      historical: true
+                      websocket: false
+                  - name: hyperliquid
+                    display_name: Hyperliquid
+                    status: active
+                    features:
+                      real_time: true
+                      historical: false
+                      websocket: true
+                  - name: bybit
+                    display_name: Bybit
+                    status: unavailable
+                    features:
+                      real_time: false
+                      historical: false
+                      websocket: false
+
+  /exchanges/health:
+    get:
+      summary: Get exchange health status
+      description: |
+        Returns real-time health status for all configured exchanges.
+        Response is cached for 10 seconds.
+      operationId: getExchangeHealth
+      responses:
+        '200':
+          description: Successful response with health data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                timestamp: "2025-12-28T12:34:56Z"
+                exchanges:
+                  binance:
+                    exchange: binance
+                    is_connected: true
+                    last_heartbeat: "2025-12-28T12:34:50Z"
+                    message_count: 1234
+                    error_count: 2
+                    uptime_percent: 99.8
+                  hyperliquid:
+                    exchange: hyperliquid
+                    is_connected: true
+                    last_heartbeat: "2025-12-28T12:34:55Z"
+                    message_count: 45
+                    error_count: 0
+                    uptime_percent: 100.0
+
+components:
+  schemas:
+    ExchangeListResponse:
+      type: object
+      required:
+        - exchanges
+      properties:
+        exchanges:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExchangeInfo'
+
+    ExchangeInfo:
+      type: object
+      required:
+        - name
+        - display_name
+        - status
+        - features
+      properties:
+        name:
+          type: string
+          description: Internal exchange identifier (lowercase)
+          example: binance
+        display_name:
+          type: string
+          description: Human-readable exchange name
+          example: Binance Futures
+        status:
+          type: string
+          enum: [active, unavailable, planned]
+          description: Current operational status
+        features:
+          $ref: '#/components/schemas/ExchangeFeatures'
+
+    ExchangeFeatures:
+      type: object
+      required:
+        - real_time
+        - historical
+        - websocket
+      properties:
+        real_time:
+          type: boolean
+          description: Supports real-time liquidation streaming
+        historical:
+          type: boolean
+          description: Supports historical data fetch
+        websocket:
+          type: boolean
+          description: Uses WebSocket (vs REST polling)
+
+    HealthResponse:
+      type: object
+      required:
+        - timestamp
+        - exchanges
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Time of health check
+        exchanges:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ExchangeHealthDetail'
+
+    ExchangeHealthDetail:
+      type: object
+      required:
+        - exchange
+        - is_connected
+        - last_heartbeat
+        - message_count
+        - error_count
+        - uptime_percent
+      properties:
+        exchange:
+          type: string
+          description: Exchange identifier
+        is_connected:
+          type: boolean
+          description: Current connection status
+        last_heartbeat:
+          type: string
+          format: date-time
+          description: Last successful communication
+        message_count:
+          type: integer
+          description: Messages received in last 60 seconds
+          minimum: 0
+        error_count:
+          type: integer
+          description: Errors in last 60 seconds
+          minimum: 0
+        uptime_percent:
+          type: number
+          format: double
+          description: Uptime percentage over last 24 hours
+          minimum: 0
+          maximum: 100

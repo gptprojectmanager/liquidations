@@ -241,6 +241,40 @@ SUPPORTED_SYMBOLS = {
 }
 
 # =============================================================================
+# EXCHANGE CONFIGURATION (Feature 012 - Exchange Aggregation)
+# =============================================================================
+
+# Supported exchanges for multi-exchange aggregation
+SUPPORTED_EXCHANGES = {
+    "binance": {
+        "name": "binance",
+        "display_name": "Binance Futures",
+        "status": "active",
+        "features": ["liquidations", "open_interest", "funding_rate"],
+        "data_source": "REST polling (5s)",
+    },
+    "hyperliquid": {
+        "name": "hyperliquid",
+        "display_name": "Hyperliquid",
+        "status": "active",
+        "features": ["liquidations"],
+        "data_source": "WebSocket",
+    },
+    "bybit": {
+        "name": "bybit",
+        "display_name": "Bybit",
+        "status": "stub",
+        "features": [],
+        "data_source": "Not implemented",
+    },
+}
+
+# Exchange health cache (10s TTL per T066)
+_exchange_health_cache: dict = {}
+_exchange_health_cache_time: float = 0.0
+EXCHANGE_HEALTH_CACHE_TTL = 10.0  # seconds
+
+# =============================================================================
 # TIME WINDOW CONFIGURATION - Extended Timeframes
 # =============================================================================
 # Each time window auto-selects optimal klines interval for ~100-365 candles
@@ -311,6 +345,159 @@ async def health_check():
         dict: Status of the API
     """
     return {"status": "ok", "service": "liquidation-heatmap"}
+
+
+# =============================================================================
+# EXCHANGE ENDPOINTS (Feature 012 - T065-T067)
+# =============================================================================
+
+
+def validate_exchanges(exchanges_str: Optional[str]) -> list[str]:
+    """Validate and parse comma-separated exchange list.
+
+    T061: Validate exchange names against supported list
+
+    Args:
+        exchanges_str: Comma-separated exchange names or None
+
+    Returns:
+        List of validated exchange names
+
+    Raises:
+        HTTPException: If any exchange name is invalid
+    """
+    if not exchanges_str:
+        return list(SUPPORTED_EXCHANGES.keys())
+
+    # Filter out empty strings from splitting (handles "binance,", ",hyperliquid", "a,,b")
+    exchanges = [e.strip().lower() for e in exchanges_str.split(",") if e.strip()]
+
+    # Handle case where all entries were empty (e.g., ",,,")
+    if not exchanges:
+        return list(SUPPORTED_EXCHANGES.keys())
+
+    invalid = [e for e in exchanges if e not in SUPPORTED_EXCHANGES]
+
+    if invalid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid exchange(s): {invalid}. Supported: {list(SUPPORTED_EXCHANGES.keys())}",
+        )
+
+    return exchanges
+
+
+async def get_exchange_health() -> dict:
+    """Get health status for all exchanges with 10s caching.
+
+    T066: Add 10s caching to health endpoint
+
+    Returns:
+        Dict of exchange name to health status
+    """
+    global _exchange_health_cache, _exchange_health_cache_time
+
+    # Check cache validity
+    now = time.time()
+    if _exchange_health_cache and (now - _exchange_health_cache_time) < EXCHANGE_HEALTH_CACHE_TTL:
+        return _exchange_health_cache
+
+    # Build health status from database or adapters
+    health_status = {}
+    db = DuckDBService(read_only=True)
+
+    try:
+        # Try to get health from exchange_health table
+        try:
+            result = db.conn.execute("""
+                SELECT exchange, is_connected, last_heartbeat, message_count,
+                       error_count, uptime_percent, last_error
+                FROM exchange_health
+            """).fetchall()
+
+            for row in result:
+                health_status[row[0]] = {
+                    "exchange": row[0],
+                    "is_connected": row[1],
+                    "last_heartbeat": row[2].isoformat() if row[2] else None,
+                    "message_count": row[3],
+                    "error_count": row[4],
+                    "uptime_percent": float(row[5]) if row[5] else 0.0,
+                    "last_error": row[6],
+                }
+        except Exception as e:
+            logger.debug(f"exchange_health table not available: {e}")
+
+        # Fill in missing exchanges with default status
+        for exchange_name, exchange_info in SUPPORTED_EXCHANGES.items():
+            if exchange_name not in health_status:
+                health_status[exchange_name] = {
+                    "exchange": exchange_name,
+                    "is_connected": exchange_info["status"] == "active",
+                    "last_heartbeat": None,
+                    "message_count": 0,
+                    "error_count": 0,
+                    "uptime_percent": 100.0 if exchange_info["status"] == "active" else 0.0,
+                    "last_error": None if exchange_info["status"] != "stub" else "Not implemented",
+                }
+
+    finally:
+        db.close()
+
+    # Update cache
+    _exchange_health_cache = health_status
+    _exchange_health_cache_time = now
+
+    return health_status
+
+
+@app.get("/exchanges")
+async def list_exchanges():
+    """List all supported exchanges with their status.
+
+    T067: Add GET /exchanges list endpoint
+
+    Returns:
+        List of exchanges with display names, status, and features
+    """
+    exchanges = []
+    for name, info in SUPPORTED_EXCHANGES.items():
+        exchanges.append(
+            {
+                "name": name,
+                "display_name": info["display_name"],
+                "status": info["status"],
+                "features": info["features"],
+                "data_source": info["data_source"],
+            }
+        )
+
+    return {
+        "exchanges": exchanges,
+        "count": len(exchanges),
+        "active_count": sum(1 for e in exchanges if e["status"] == "active"),
+    }
+
+
+@app.get("/exchanges/health")
+async def get_exchanges_health():
+    """Get health status for all exchange adapters.
+
+    T065: Add GET /exchanges/health endpoint
+    T066: Add 10s caching to health endpoint
+
+    Returns health metrics including connection status, message counts,
+    error rates, and uptime percentage.
+
+    Returns:
+        Dict of exchange name to health metrics
+    """
+    health = await get_exchange_health()
+    return {
+        "exchanges": health,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "cache_ttl_seconds": EXCHANGE_HEALTH_CACHE_TTL,
+    }
 
 
 @app.post("/api/v1/prepare-for-ingestion")
@@ -1333,6 +1520,11 @@ async def get_heatmap_timeseries(
         None,
         description="Custom leverage weights: '5:15,10:30,25:25,50:20,100:10'",
     ),
+    exchanges: Optional[str] = Query(
+        None,
+        description="Comma-separated list of exchanges to include (e.g., 'binance,hyperliquid'). "
+        "Default: all exchanges. T059-T061",
+    ),
 ):
     """Get time-evolving liquidation heatmap.
 
@@ -1354,6 +1546,7 @@ async def get_heatmap_timeseries(
         interval: Time interval for snapshots (auto-selected if time_window used)
         price_bin_size: Price bucket size in USD for aggregation
         leverage_weights: Custom leverage distribution weights
+        exchanges: Comma-separated list of exchanges to filter (default: all)
 
     Returns:
         HeatmapTimeseriesResponse with snapshots and metadata
@@ -1362,6 +1555,13 @@ async def get_heatmap_timeseries(
     from datetime import datetime, timedelta
 
     from ..models.time_evolving_heatmap import calculate_time_evolving_heatmap
+
+    # T059-T061: Validate and parse exchanges parameter
+    try:
+        validated_exchanges = validate_exchanges(exchanges)
+    except HTTPException:
+        raise
+    logger.debug(f"Using exchanges: {validated_exchanges}")
 
     # Resolve time_window to start_time and interval if provided
     effective_interval = interval
