@@ -32,13 +32,19 @@ class FeedbackDBService:
     Provides persistence layer for TradeFeedback records.
     """
 
-    def __init__(self, conn: duckdb.DuckDBPyConnection | None = None):
+    def __init__(
+        self,
+        conn: duckdb.DuckDBPyConnection | None = None,
+        read_only: bool = False,
+    ):
         """Initialize FeedbackDBService.
 
         Args:
             conn: DuckDB connection (creates in-memory if None)
+            read_only: If True, open database in read-only mode (no write lock)
         """
         self._conn = conn
+        self._read_only = read_only
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
@@ -48,7 +54,7 @@ class FeedbackDBService:
             import os
 
             db_path = os.getenv("FEEDBACK_DB_PATH", "data/processed/liquidations.duckdb")
-            self._conn = duckdb.connect(db_path)
+            self._conn = duckdb.connect(db_path, read_only=self._read_only)
         return self._conn
 
     def store_feedback(self, feedback: TradeFeedback) -> bool:

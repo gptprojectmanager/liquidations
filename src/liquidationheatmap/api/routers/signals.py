@@ -43,11 +43,11 @@ async def get_signal_status():
     redis_client = get_redis_client()
     connected = redis_client.is_connected
 
-    # Get feedback count from DuckDB
+    # Get feedback count from DuckDB (read_only to avoid lock conflicts with ingestion)
     feedback_24h = 0
     db_service = None
     try:
-        db_service = FeedbackDBService()
+        db_service = FeedbackDBService(read_only=True)
         metrics = db_service.get_rolling_metrics("BTCUSDT", hours=24)
         feedback_24h = metrics.get("total", 0)
     except Exception as e:
@@ -105,7 +105,7 @@ async def get_signal_metrics(
 
     db_service = None
     try:
-        db_service = FeedbackDBService()
+        db_service = FeedbackDBService(read_only=True)
         metrics = db_service.get_rolling_metrics(symbol, hours=hours)
 
         return SignalMetrics(
