@@ -10,7 +10,7 @@ MODE="$3"
 
 PROJECT_DIR="/workspace/1TB/LiquidationHeatmap"
 DB_PATH="${PROJECT_DIR}/data/processed/liquidations.duckdb"
-API_URL="http://host.docker.internal:8765"
+API_URL="http://host.docker.internal:8000"
 
 cd "$PROJECT_DIR"
 
