@@ -4,6 +4,7 @@ Defines entities for pipeline runs, gate decisions, and dashboard metrics
 per specs/014-validation-pipeline/data-model.md.
 """
 
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
@@ -251,15 +252,30 @@ class DashboardMetrics:
     backtest_period_days: int = 0
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to JSON-serializable dict for API response."""
+        """Convert to JSON-serializable dict for API response.
+
+        B3/B6 fix: Sanitizes NaN/None to 0.0 for JSON compatibility.
+        """
+
+        def _safe_float(val: float | None, default: float = 0.0) -> float:
+            """Convert to JSON-safe float (NaN/None → default)."""
+            if val is None:
+                return default
+            try:
+                if math.isnan(val) or math.isinf(val):
+                    return default
+            except TypeError:
+                return default
+            return val
+
         return {
             "status": self.status,
             "last_validation": {
                 "timestamp": self.last_validation_timestamp.isoformat(),
                 "grade": self.last_validation_grade,
-                "f1_score": self.f1_score,
-                "precision": self.precision,
-                "recall": self.recall,
+                "f1_score": _safe_float(self.f1_score),
+                "precision": _safe_float(self.precision),
+                "recall": _safe_float(self.recall),
             },
             "backtest_coverage": {
                 "snapshots": self.backtest_coverage,

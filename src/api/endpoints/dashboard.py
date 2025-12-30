@@ -7,6 +7,8 @@ Per specs/014-validation-pipeline/contracts/dashboard_api.json
 """
 
 import re
+import threading
+from collections import OrderedDict
 from datetime import datetime
 from typing import Any
 
@@ -137,8 +139,6 @@ class ValidationHistoryResponse(BaseModel):
 # In-memory storage for active runs (demo - use DB in production)
 # ============================================================================
 # Thread-safe storage with size limit to prevent memory leaks
-import threading
-from collections import OrderedDict
 
 _MAX_STORED_RUNS = 1000  # Limit stored runs to prevent memory exhaustion
 _active_runs: OrderedDict[str, ValidationPipelineRun] = OrderedDict()
@@ -155,15 +155,56 @@ def _store_run(run_id: str, run: ValidationPipelineRun) -> None:
 
 
 def _get_run(run_id: str) -> ValidationPipelineRun | None:
-    """Thread-safe get."""
+    """Thread-safe get - returns reference for internal use."""
     with _runs_lock:
         return _active_runs.get(run_id)
 
 
-def _get_runs_by_symbol(symbol: str) -> list[ValidationPipelineRun]:
-    """Thread-safe get runs filtered by symbol."""
+def _get_run_snapshot(run_id: str) -> dict[str, Any] | None:
+    """
+    Thread-safe snapshot for API responses (B8/B9 fix).
+
+    Returns a dict snapshot of run state to prevent race conditions
+    where readers see partially-updated state during background mutations.
+    """
     with _runs_lock:
-        return [r for r in _active_runs.values() if r.symbol == symbol]
+        run = _active_runs.get(run_id)
+        if run is None:
+            return None
+        # Capture all fields atomically while holding the lock
+        return {
+            "run_id": run.run_id,
+            "status": run.status,
+            "started_at": run.started_at,
+            "completed_at": run.completed_at,
+            "duration_seconds": run.duration_seconds,
+            "symbol": run.symbol,
+            "gate_2_decision": run.gate_2_decision,
+            "overall_grade": run.overall_grade,
+            "overall_score": run.overall_score,
+            "backtest_result_id": run.backtest_result_id,
+            "coinglass_result_id": run.coinglass_result_id,
+            "error_message": run.error_message,
+        }
+
+
+def _get_runs_by_symbol(symbol: str) -> list[dict[str, Any]]:
+    """Thread-safe get runs filtered by symbol - returns snapshots."""
+    with _runs_lock:
+        return [
+            {
+                "run_id": r.run_id,
+                "status": r.status,
+                "started_at": r.started_at,
+                "completed_at": r.completed_at,
+                "symbol": r.symbol,
+                "gate_2_decision": r.gate_2_decision,
+                "overall_grade": r.overall_grade,
+                "overall_score": r.overall_score,
+            }
+            for r in _active_runs.values()
+            if r.symbol == symbol
+        ]
 
 
 # ============================================================================
@@ -254,6 +295,15 @@ async def trigger_pipeline(
         tolerance_pct = 2.0
 
         if request.backtest_config:
+            # B7: Validate allowed keys to prevent arbitrary data injection
+            allowed_keys = {"start_date", "end_date", "tolerance_pct"}
+            invalid_keys = set(request.backtest_config.keys()) - allowed_keys
+            if invalid_keys:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Invalid keys in backtest_config: {invalid_keys}. "
+                    f"Allowed: {allowed_keys}",
+                )
             try:
                 if "start_date" in request.backtest_config:
                     start_date = datetime.fromisoformat(request.backtest_config["start_date"])
@@ -262,9 +312,20 @@ async def trigger_pipeline(
             except (ValueError, TypeError) as e:
                 raise HTTPException(
                     status_code=422,
-                    detail=f"Invalid date format in backtest_config: {e}. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS).",
+                    detail=f"Invalid date format in backtest_config: {e}. "
+                    f"Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS).",
                 )
-            tolerance_pct = request.backtest_config.get("tolerance_pct", 2.0)
+            raw_tolerance = request.backtest_config.get("tolerance_pct", 2.0)
+            # Validate tolerance_pct (B4: prevent negative, NaN, out-of-range)
+            try:
+                tolerance_pct = float(raw_tolerance)
+                if not (0.1 <= tolerance_pct <= 10.0):
+                    raise ValueError("out of range")
+            except (ValueError, TypeError):
+                raise HTTPException(
+                    status_code=422,
+                    detail="tolerance_pct must be a number between 0.1 and 10.0",
+                )
 
         # Create initial run record
         from uuid import uuid4
@@ -333,33 +394,34 @@ async def get_pipeline_status(
     """
     logger.debug(f"Status request for run: {run_id}")
 
-    # Check in-memory storage first (thread-safe)
-    run = _get_run(run_id)
+    # Get thread-safe snapshot to prevent race conditions (B8/B9 fix)
+    snapshot = _get_run_snapshot(run_id)
 
-    if run is None:
+    if snapshot is None:
         # TODO: Query from database if not in memory
         raise HTTPException(
             status_code=404,
             detail=f"Pipeline run {run_id} not found",
         )
 
+    s = snapshot  # Alias for readability
     return PipelineStatusResponse(
-        run_id=run.run_id,
-        status=run.status.value,
-        started_at=run.started_at.isoformat(),
-        completed_at=run.completed_at.isoformat() if run.completed_at else None,
-        duration_seconds=run.duration_seconds,
-        symbol=run.symbol,
-        gate_2_decision=run.gate_2_decision.value if run.gate_2_decision else None,
-        overall_grade=run.overall_grade,
-        overall_score=float(run.overall_score) if run.overall_score else None,
+        run_id=s["run_id"],
+        status=s["status"].value,
+        started_at=s["started_at"].isoformat(),
+        completed_at=s["completed_at"].isoformat() if s["completed_at"] else None,
+        duration_seconds=s["duration_seconds"],
+        symbol=s["symbol"],
+        gate_2_decision=s["gate_2_decision"].value if s["gate_2_decision"] else None,
+        overall_grade=s["overall_grade"],
+        overall_score=float(s["overall_score"]) if s["overall_score"] else None,
         results={
-            "backtest": {"result_id": run.backtest_result_id} if run.backtest_result_id else None,
-            "coinglass": {"result_id": run.coinglass_result_id}
-            if run.coinglass_result_id
+            "backtest": {"result_id": s["backtest_result_id"]} if s["backtest_result_id"] else None,
+            "coinglass": {"result_id": s["coinglass_result_id"]}
+            if s["coinglass_result_id"]
             else None,
         },
-        error_message=run.error_message,
+        error_message=s["error_message"],
     )
 
 
@@ -381,29 +443,29 @@ async def get_validation_history(
     """
     logger.debug(f"History request: symbol={symbol}, limit={limit}, offset={offset}")
 
-    # Get runs from in-memory storage (thread-safe, filtered by symbol)
-    runs = _get_runs_by_symbol(symbol)
+    # Get thread-safe snapshots (B8/B9 fix)
+    snapshots = _get_runs_by_symbol(symbol)
 
     # Sort by started_at descending
-    runs.sort(key=lambda r: r.started_at, reverse=True)
+    snapshots.sort(key=lambda r: r["started_at"], reverse=True)
 
     # Total count before pagination
-    total = len(runs)
+    total = len(snapshots)
 
     # Apply pagination
-    paginated = runs[offset : offset + limit]
+    paginated = snapshots[offset : offset + limit]
 
     return ValidationHistoryResponse(
         runs=[
             ValidationHistoryItem(
-                run_id=r.run_id,
-                symbol=r.symbol,
-                started_at=r.started_at.isoformat(),
-                completed_at=r.completed_at.isoformat() if r.completed_at else None,
-                status=r.status.value,
-                gate_2_decision=r.gate_2_decision.value if r.gate_2_decision else None,
-                overall_grade=r.overall_grade,
-                overall_score=float(r.overall_score) if r.overall_score else None,
+                run_id=r["run_id"],
+                symbol=r["symbol"],
+                started_at=r["started_at"].isoformat(),
+                completed_at=r["completed_at"].isoformat() if r["completed_at"] else None,
+                status=r["status"].value,
+                gate_2_decision=r["gate_2_decision"].value if r["gate_2_decision"] else None,
+                overall_grade=r["overall_grade"],
+                overall_score=float(r["overall_score"]) if r["overall_score"] else None,
             )
             for r in paginated
         ],
