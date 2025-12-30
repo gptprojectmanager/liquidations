@@ -279,6 +279,9 @@ def evaluate_gate_2(f1_score: float) -> tuple[GateDecision, str]:
     Returns:
         Tuple of (decision, reason)
     """
+    # Clamp f1_score to valid range [0, 1] for safety
+    f1_score = max(0.0, min(1.0, f1_score))
+
     if f1_score >= 0.6:
         return GateDecision.PASS, f"F1={f1_score:.2%} >= 60% threshold"
     elif f1_score >= 0.4:
@@ -296,6 +299,9 @@ def compute_overall_grade(f1_score: float) -> str:
     Returns:
         Grade letter: 'A', 'B', 'C', or 'F'
     """
+    # Clamp f1_score to valid range [0, 1] for safety
+    f1_score = max(0.0, min(1.0, f1_score))
+
     if f1_score >= 0.8:
         return "A"
     elif f1_score >= 0.7:
@@ -313,8 +319,10 @@ def compute_overall_score(f1_score: float) -> Decimal:
         f1_score: F1 score between 0 and 1
 
     Returns:
-        Score on 0-100 scale
+        Score on 0-100 scale (clamped to 0-100)
     """
+    # Clamp f1_score to valid range [0, 1] for safety
+    f1_score = max(0.0, min(1.0, f1_score))
     return Decimal(str(round(f1_score * 100, 2)))
 
 
@@ -322,12 +330,16 @@ def determine_dashboard_status(f1_score: float, days_since_validation: int) -> s
     """Determine dashboard status based on metrics.
 
     Args:
-        f1_score: Latest F1 score
-        days_since_validation: Days since last validation run
+        f1_score: Latest F1 score (between 0 and 1)
+        days_since_validation: Days since last validation run (non-negative)
 
     Returns:
         Status: 'healthy', 'warning', or 'critical'
     """
+    # Clamp inputs to valid ranges for safety
+    f1_score = max(0.0, min(1.0, f1_score))
+    days_since_validation = max(0, days_since_validation)
+
     # Critical if validation is stale (>14 days) or F1 < 40%
     if days_since_validation > 14 or f1_score < 0.4:
         return "critical"

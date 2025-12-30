@@ -337,26 +337,20 @@ class MetricsAggregator:
             recall: Recall
             run_id: Optional pipeline run ID
         """
-        # Ensure table exists
+        # Ensure table exists with composite primary key
+        # Note: Using composite PK instead of separate id + unique index
+        # to avoid DuckDB's "multiple unique constraints" conflict
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS validation_metrics_history (
-                id INTEGER PRIMARY KEY,
                 date DATE NOT NULL,
                 symbol VARCHAR(20) NOT NULL,
                 metric_type VARCHAR(20) NOT NULL,
                 value DECIMAL(5,4) NOT NULL,
                 source_run_id VARCHAR(36),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (date, symbol, metric_type)
             )
-            """
-        )
-
-        # Create unique index if not exists
-        conn.execute(
-            """
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_metrics_unique
-            ON validation_metrics_history(date, symbol, metric_type)
             """
         )
 
