@@ -46,20 +46,18 @@ class HyperliquidValidator:
 
         await self.adapter.connect()
 
-        start_time = datetime.now(timezone.utc)
-        end_time = start_time.timestamp() + duration_seconds
-
-        try:
+        async def _collect():
             async for liq in self.adapter.stream_liquidations():
                 self.collected.append(liq)
-
-                if datetime.now(timezone.utc).timestamp() > end_time:
-                    break
-
                 # Log progress every 100 events
                 if len(self.collected) % 100 == 0:
                     logger.info(f"Collected {len(self.collected)} liquidations")
 
+        try:
+            # Use asyncio.wait_for to enforce timeout even with no events
+            await asyncio.wait_for(_collect(), timeout=duration_seconds)
+        except asyncio.TimeoutError:
+            logger.info(f"Collection timeout after {duration_seconds}s")
         except asyncio.CancelledError:
             logger.info("Collection cancelled")
         finally:
@@ -89,7 +87,13 @@ class HyperliquidValidator:
             Dict with hit rate metrics
         """
         if not self.collected:
-            return {"hit_rate": 0.0, "hits": 0, "misses": 0, "total": 0}
+            return {
+                "hit_rate": 0.0,
+                "hits": 0,
+                "misses": 0,
+                "total": 0,
+                "zone_count": len(self.predicted_zones),
+            }
 
         hits = 0
         misses = 0
