@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.endpoints import trends, validation
+from src.api.endpoints import dashboard, trends, validation
 from src.validation.logger import logger
 from src.validation.middleware import RateLimiterMiddleware, SecurityHeadersMiddleware
 from src.validation.security_config import get_security_settings
@@ -58,6 +58,7 @@ app.add_middleware(RateLimiterMiddleware)
 # Include validation routers
 app.include_router(validation.router)
 app.include_router(trends.router)
+app.include_router(dashboard.router)
 
 
 # Health check endpoint

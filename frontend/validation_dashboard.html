@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validation Dashboard - Liquidation Heatmap</title>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .status-card {
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+            background: #161b22;
+        }
+        .status-card h3 {
+            color: #58a6ff;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-healthy { background: #3fb950; }
+        .status-warning { background: #f0b90b; }
+        .status-critical { background: #f85149; }
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: #f0b90b;
+        }
+        .metric-label {
+            color: #8b949e;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+        .grade-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 1.5rem;
+        }
+        .grade-A { background: #238636; color: #fff; }
+        .grade-B { background: #1f6feb; color: #fff; }
+        .grade-C { background: #f0b90b; color: #0d1117; }
+        .grade-F { background: #f85149; color: #fff; }
+        .alert-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .alert-item {
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 6px;
+            border-left: 4px solid;
+        }
+        .alert-error {
+            background: rgba(248, 81, 73, 0.1);
+            border-left-color: #f85149;
+        }
+        .alert-warning {
+            background: rgba(240, 185, 11, 0.1);
+            border-left-color: #f0b90b;
+        }
+        .alert-info {
+            background: rgba(88, 166, 255, 0.1);
+            border-left-color: #58a6ff;
+        }
+        .trend-chart {
+            height: 300px;
+            margin-top: 20px;
+        }
+        .coverage-stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+        }
+        .coverage-stat {
+            text-align: center;
+        }
+        .coverage-stat .value {
+            font-size: 1.5rem;
+            color: #58a6ff;
+            font-weight: 600;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            justify-content: center;
+        }
+        .button-secondary {
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+        }
+        .button-secondary:hover {
+            background: #30363d;
+            transform: none;
+            box-shadow: none;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #8b949e;
+        }
+        .loading::after {
+            content: '';
+            animation: dots 1.5s infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Validation Dashboard</h1>
+
+    <div class="controls">
+        <label for="symbol">Symbol:</label>
+        <select id="symbol" onchange="loadDashboard()">
+            <option value="BTCUSDT" selected>BTC/USDT</option>
+            <option value="ETHUSDT">ETH/USDT</option>
+        </select>
+        <label for="days" style="margin-left: 20px;">History:</label>
+        <select id="days" onchange="loadDashboard()">
+            <option value="7">7 days</option>
+            <option value="14">14 days</option>
+            <option value="30" selected>30 days</option>
+            <option value="90">90 days</option>
+        </select>
+    </div>
+
+    <div class="action-buttons">
+        <button onclick="loadDashboard()">Refresh Dashboard</button>
+        <button class="button-secondary" onclick="triggerPipeline()">Run Validation</button>
+    </div>
+
+    <div id="content">
+        <div class="loading">Loading dashboard<span></span></div>
+    </div>
+
+    <div id="trend-chart" class="trend-chart"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+
+        async function loadDashboard() {
+            const symbol = document.getElementById('symbol').value;
+            const days = document.getElementById('days').value;
+
+            try {
+                const response = await fetch(
+                    `${API_BASE}/api/validation/dashboard?symbol=${symbol}&days=${days}`
+                );
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        showNoData(symbol);
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                renderDashboard(data);
+                renderTrendChart(data.trend);
+            } catch (error) {
+                console.error('Dashboard error:', error);
+                showError(error.message);
+            }
+        }
+
+        function renderDashboard(data) {
+            const content = document.getElementById('content');
+            const lv = data.last_validation;
+            const bc = data.backtest_coverage;
+
+            content.innerHTML = `
+                <div class="dashboard-grid">
+                    <!-- Status Card -->
+                    <div class="status-card">
+                        <h3>System Status</h3>
+                        <div>
+                            <span class="status-indicator status-${data.status}"></span>
+                            <span style="font-size: 1.2rem; text-transform: capitalize;">
+                                ${data.status}
+                            </span>
+                        </div>
+                        <p class="metric-label">
+                            Last validation: ${formatDateTime(lv.timestamp)}
+                        </p>
+                    </div>
+
+                    <!-- Grade Card -->
+                    <div class="status-card">
+                        <h3>Model Grade</h3>
+                        <span class="grade-badge grade-${lv.grade}">${lv.grade}</span>
+                        <p class="metric-label">
+                            Based on F1 Score performance
+                        </p>
+                    </div>
+
+                    <!-- F1 Score Card -->
+                    <div class="status-card">
+                        <h3>F1 Score</h3>
+                        <div class="metric-value">${(lv.f1_score * 100).toFixed(1)}%</div>
+                        <p class="metric-label">
+                            Precision: ${(lv.precision * 100).toFixed(1)}% |
+                            Recall: ${(lv.recall * 100).toFixed(1)}%
+                        </p>
+                    </div>
+
+                    <!-- Coverage Card -->
+                    <div class="status-card">
+                        <h3>Backtest Coverage</h3>
+                        <div class="coverage-stats">
+                            <div class="coverage-stat">
+                                <div class="value">${bc.snapshots.toLocaleString()}</div>
+                                <div class="metric-label">Snapshots</div>
+                            </div>
+                            <div class="coverage-stat">
+                                <div class="value">${bc.period_days}</div>
+                                <div class="metric-label">Days</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alerts Section -->
+                ${renderAlerts(data.alerts)}
+            `;
+        }
+
+        function renderAlerts(alerts) {
+            if (!alerts || alerts.length === 0) {
+                return `
+                    <div class="status-card" style="margin-top: 20px;">
+                        <h3>Alerts</h3>
+                        <p style="color: #3fb950;">No active alerts</p>
+                    </div>
+                `;
+            }
+
+            const alertsHtml = alerts.map(alert => `
+                <li class="alert-item alert-${alert.level}">
+                    <strong>${alert.level.toUpperCase()}</strong>: ${alert.message}
+                    ${alert.timestamp ? `<br><small>${formatDateTime(alert.timestamp)}</small>` : ''}
+                </li>
+            `).join('');
+
+            return `
+                <div class="status-card" style="margin-top: 20px;">
+                    <h3>Alerts (${alerts.length})</h3>
+                    <ul class="alert-list">${alertsHtml}</ul>
+                </div>
+            `;
+        }
+
+        function renderTrendChart(trend) {
+            if (!trend || trend.length === 0) {
+                Plotly.purge('trend-chart');
+                return;
+            }
+
+            const dates = trend.map(t => t.date);
+            const f1Scores = trend.map(t => t.f1_score * 100);
+            const precision = trend.map(t => t.precision ? t.precision * 100 : null);
+            const recall = trend.map(t => t.recall ? t.recall * 100 : null);
+
+            const traces = [
+                {
+                    x: dates,
+                    y: f1Scores,
+                    name: 'F1 Score',
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: '#f0b90b', width: 2 },
+                    marker: { size: 6 }
+                }
+            ];
+
+            if (precision.some(p => p !== null)) {
+                traces.push({
+                    x: dates,
+                    y: precision,
+                    name: 'Precision',
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#3fb950', width: 1, dash: 'dot' }
+                });
+            }
+
+            if (recall.some(r => r !== null)) {
+                traces.push({
+                    x: dates,
+                    y: recall,
+                    name: 'Recall',
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#58a6ff', width: 1, dash: 'dot' }
+                });
+            }
+
+            // Threshold lines
+            traces.push({
+                x: [dates[0], dates[dates.length - 1]],
+                y: [60, 60],
+                name: 'Pass Threshold (60%)',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#3fb950', width: 1, dash: 'dash' }
+            });
+
+            traces.push({
+                x: [dates[0], dates[dates.length - 1]],
+                y: [40, 40],
+                name: 'Fail Threshold (40%)',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#f85149', width: 1, dash: 'dash' }
+            });
+
+            const layout = {
+                title: {
+                    text: 'Validation Metrics Trend',
+                    font: { color: '#c9d1d9' }
+                },
+                paper_bgcolor: '#0d1117',
+                plot_bgcolor: '#161b22',
+                font: { color: '#c9d1d9' },
+                xaxis: {
+                    title: 'Date',
+                    gridcolor: '#30363d',
+                    tickformat: '%Y-%m-%d'
+                },
+                yaxis: {
+                    title: 'Score (%)',
+                    gridcolor: '#30363d',
+                    range: [0, 105]
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.2
+                },
+                margin: { t: 50, b: 80 }
+            };
+
+            Plotly.newPlot('trend-chart', traces, layout, { responsive: true });
+        }
+
+        async function triggerPipeline() {
+            const symbol = document.getElementById('symbol').value;
+
+            if (!confirm(`Run validation pipeline for ${symbol}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/validation/pipeline/run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        validation_types: ['backtest'],
+                        triggered_by: 'dashboard'
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                alert(`Pipeline started!\nRun ID: ${result.run_id}\nStatus: ${result.status}`);
+
+                // Poll for completion
+                pollPipelineStatus(result.run_id);
+            } catch (error) {
+                console.error('Pipeline trigger error:', error);
+                alert(`Failed to start pipeline: ${error.message}`);
+            }
+        }
+
+        async function pollPipelineStatus(runId) {
+            const maxAttempts = 60; // 5 minutes max
+            let attempts = 0;
+
+            const poll = async () => {
+                try {
+                    const response = await fetch(
+                        `${API_BASE}/api/validation/pipeline/status/${runId}`
+                    );
+
+                    if (!response.ok) {
+                        console.error('Status check failed');
+                        return;
+                    }
+
+                    const status = await response.json();
+
+                    if (status.status === 'completed') {
+                        alert(`Pipeline completed!\nGrade: ${status.overall_grade}\nGate 2: ${status.gate_2_decision}`);
+                        loadDashboard();
+                        return;
+                    }
+
+                    if (status.status === 'failed') {
+                        alert(`Pipeline failed: ${status.error_message || 'Unknown error'}`);
+                        return;
+                    }
+
+                    attempts++;
+                    if (attempts < maxAttempts) {
+                        setTimeout(poll, 5000); // Poll every 5 seconds
+                    }
+                } catch (error) {
+                    console.error('Status poll error:', error);
+                }
+            };
+
+            setTimeout(poll, 2000); // Start polling after 2 seconds
+        }
+
+        function formatDateTime(isoString) {
+            if (!isoString) return 'N/A';
+            const date = new Date(isoString);
+            return date.toLocaleString();
+        }
+
+        function showNoData(symbol) {
+            document.getElementById('content').innerHTML = `
+                <div class="status-card" style="text-align: center; padding: 40px;">
+                    <h3>No Validation Data</h3>
+                    <p>No validation results found for ${symbol}.</p>
+                    <p style="margin-top: 20px;">
+                        <button onclick="triggerPipeline()">Run First Validation</button>
+                    </p>
+                </div>
+            `;
+            Plotly.purge('trend-chart');
+        }
+
+        function showError(message) {
+            document.getElementById('content').innerHTML = `
+                <div class="status-card alert-error" style="text-align: center; padding: 40px;">
+                    <h3>Error Loading Dashboard</h3>
+                    <p>${message}</p>
+                    <p style="margin-top: 20px;">
+                        <button onclick="loadDashboard()">Retry</button>
+                    </p>
+                </div>
+            `;
+            Plotly.purge('trend-chart');
+        }
+
+        // Load dashboard on page load
+        document.addEventListener('DOMContentLoaded', loadDashboard);
+    </script>
+</body>
+</html>

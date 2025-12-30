@@ -7,7 +7,8 @@
 - **Gate 1 (Coinglass)**: ✅ PASSED (hit_rate=77.8% > 70%)
 - **Gate 2 (Backtest)**: ✅ PASSED (F1=80.93% ≥ 60%)
 - **Phase 5 (CI)**: ✅ COMPLETE - Pipeline orchestrator, CLI, GitHub Actions workflow
-- **Remaining**: Dashboard API endpoints (T040-T055), Polish (T056-T059)
+- **Phase 6 (Dashboard)**: ✅ COMPLETE - API endpoints, frontend dashboard with Plotly.js
+- **Remaining**: Polish (T056-T059)
 
 ## Format: `[ID] [P?] [Story] Description`
 - **[P]**: Can run in parallel (different files, no dependencies)
@@ -118,22 +119,22 @@
 
 ### Implementation for User Story 4
 
-- [ ] T040 [P] [US4] Create DuckDB schema migration for `validation_pipeline_runs` table
-- [ ] T041 [P] [US4] Create DuckDB schema migration for `validation_backtest_results` table
-- [ ] T042 [P] [US4] Create DuckDB schema migration for `validation_metrics_history` table
-- [ ] T043 [US4] Extend `src/validation/storage.py` with new table operations
+- [x] T040 [P] [US4] Create DuckDB schema migration for `validation_pipeline_runs` table
+- [x] T041 [P] [US4] Create DuckDB schema migration for `validation_backtest_results` table
+- [x] T042 [P] [US4] Create DuckDB schema migration for `validation_metrics_history` table
+- [x] T043 [US4] Extend `src/validation/storage.py` with new table operations (via metrics_aggregator)
 - [x] T044 [US4] Create `DashboardMetrics` dataclass in `src/validation/pipeline/models.py`
 - [x] T045 [US4] Add `get_dashboard_metrics()` to metrics_aggregator
-- [ ] T046 [US4] Create API endpoint in `src/api/endpoints/dashboard.py`
-- [ ] T047 [US4] Implement `GET /api/validation/dashboard` per OpenAPI contract
-- [ ] T048 [US4] Implement `POST /api/validation/pipeline/run` per OpenAPI contract
-- [ ] T049 [US4] Implement `GET /api/validation/pipeline/status/{run_id}` per OpenAPI contract
-- [ ] T050 [US4] Implement `GET /api/validation/history` per OpenAPI contract
-- [ ] T051 [US4] Register dashboard router in FastAPI app
-- [ ] T052 [US4] Create frontend dashboard in `frontend/validation_dashboard.html`
-- [ ] T053 [US4] Add Plotly.js trend chart visualization
-- [ ] T054 [US4] Add status indicator (healthy/warning/critical)
-- [ ] T055 [US4] Add alert display section
+- [x] T046 [US4] Create API endpoint in `src/api/endpoints/dashboard.py`
+- [x] T047 [US4] Implement `GET /api/validation/dashboard` per OpenAPI contract
+- [x] T048 [US4] Implement `POST /api/validation/pipeline/run` per OpenAPI contract
+- [x] T049 [US4] Implement `GET /api/validation/pipeline/status/{run_id}` per OpenAPI contract
+- [x] T050 [US4] Implement `GET /api/validation/history` per OpenAPI contract
+- [x] T051 [US4] Register dashboard router in FastAPI app
+- [x] T052 [US4] Create frontend dashboard in `frontend/validation_dashboard.html`
+- [x] T053 [US4] Add Plotly.js trend chart visualization
+- [x] T054 [US4] Add status indicator (healthy/warning/critical)
+- [x] T055 [US4] Add alert display section
 
 **Checkpoint**: Dashboard shows live validation metrics with trend chart
 
@@ -231,9 +232,9 @@ For **minimal viable pipeline**:
 | US1 Coinglass | 7 | 7 | 0 |
 | US2 Backtest | 10 | 10 | 0 |
 | US3 CI | 14 | 14 | 0 |
-| US4 Dashboard | 16 | 2 | 14 |
+| US4 Dashboard | 16 | 16 | 0 |
 | Polish | 4 | 0 | 4 |
-| **TOTAL** | **59** | **41** | **18** |
+| **TOTAL** | **59** | **55** | **4** |
 
 ---
 
