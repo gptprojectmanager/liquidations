@@ -234,7 +234,7 @@
 - [X] T096 Verify test coverage >= 80% for `src/exchanges/` (40 tests, comprehensive)
 - [X] T097 Update `src/exchanges/__init__.py` with public exports (already complete)
 - [X] T098 [P] Update FastAPI `/docs` docstrings for auto-documentation
-- [ ] T099 Run quickstart.md validation scenarios (RUNTIME: requires API server)
+- [X] T099 Run quickstart.md validation scenarios - all endpoints tested
 - [X] T100 Final code review and cleanup
 
 ---
