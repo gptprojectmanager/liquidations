@@ -433,7 +433,12 @@ async def _execute_pipeline_background(
     Updates the in-memory run record with results.
     Note: Run object is mutable, so updates are visible to readers.
     The lock protects dict access, not run object mutations.
+
+    Uses asyncio.to_thread() to run the blocking pipeline in a thread pool,
+    preventing event loop blocking.
     """
+    import asyncio
+
     logger.info(f"Starting background pipeline: {run_id}")
 
     run = _get_run(run_id)
@@ -445,8 +450,9 @@ async def _execute_pipeline_background(
         # Update status to running
         run.status = PipelineStatus.RUNNING
 
-        # Execute the pipeline
-        result = run_pipeline(
+        # Execute the blocking pipeline in a thread pool to avoid blocking event loop
+        result = await asyncio.to_thread(
+            run_pipeline,
             symbol=symbol,
             validation_types=validation_types,
             trigger_type="api",

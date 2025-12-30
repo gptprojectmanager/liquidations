@@ -68,26 +68,30 @@ class CompleteIngestionOrchestrator:
         try:
             # Check if table exists
             result = self.conn.execute("""
-                SELECT COUNT(*) FROM information_schema.tables 
+                SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_name = 'aggtrades_history'
             """).fetchone()
 
             if result[0] == 0:
                 print("⚠️  Table does not exist - creating schema...")
 
-                # Create table with PRIMARY KEY
+                # Create table with COMPOSITE PRIMARY KEY (agg_trade_id, symbol, exchange)
                 self.conn.execute("""
                     CREATE TABLE aggtrades_history (
-                        agg_trade_id BIGINT PRIMARY KEY,
+                        agg_trade_id BIGINT NOT NULL,
                         timestamp TIMESTAMP NOT NULL,
-                        symbol VARCHAR NOT NULL,
+                        symbol VARCHAR(20) NOT NULL,
+                        exchange VARCHAR(20) NOT NULL DEFAULT 'binance',
                         price DECIMAL(18, 8) NOT NULL,
                         quantity DECIMAL(18, 8) NOT NULL,
-                        side VARCHAR NOT NULL,
-                        gross_value DOUBLE NOT NULL
+                        side VARCHAR(4) NOT NULL,
+                        gross_value DOUBLE NOT NULL,
+                        PRIMARY KEY (agg_trade_id, symbol, exchange)
                     )
                 """)
-                print("✅ Table created with PRIMARY KEY on agg_trade_id")
+                print(
+                    "✅ Table created with COMPOSITE PRIMARY KEY (agg_trade_id, symbol, exchange)"
+                )
 
                 # Create indexes
                 self.conn.execute(
@@ -96,20 +100,29 @@ class CompleteIngestionOrchestrator:
                 self.conn.execute(
                     "CREATE INDEX idx_aggtrades_timestamp ON aggtrades_history(timestamp)"
                 )
-                print("✅ Indexes created")
+                self.conn.execute("CREATE INDEX idx_aggtrades_symbol ON aggtrades_history(symbol)")
+                self.conn.execute(
+                    "CREATE INDEX idx_aggtrades_exchange ON aggtrades_history(exchange)"
+                )
+                print("✅ Indexes created (4 indexes)")
             else:
-                # Verify PRIMARY KEY exists
+                # Verify COMPOSITE PRIMARY KEY exists with symbol column
                 pk_check = self.conn.execute("""
-                    SELECT constraint_type 
-                    FROM information_schema.table_constraints 
-                    WHERE table_name = 'aggtrades_history' AND constraint_type = 'PRIMARY KEY'
+                    SELECT column_name
+                    FROM information_schema.key_column_usage
+                    WHERE table_name = 'aggtrades_history'
                 """).fetchall()
 
-                if pk_check:
-                    print("✅ Schema validated (PRIMARY KEY exists)")
+                pk_columns = [row[0] for row in pk_check]
+                if "symbol" in pk_columns and "exchange" in pk_columns:
+                    print("✅ Schema validated (COMPOSITE PRIMARY KEY exists)")
+                elif pk_columns:
+                    print("⚠️  WARNING: Table has OLD PRIMARY KEY (agg_trade_id only)!")
+                    print("   PK columns:", pk_columns)
+                    print("   Delete database and re-run to fix schema!")
+                    return False
                 else:
                     print("⚠️  WARNING: Table exists but has NO PRIMARY KEY!")
-                    print("   Run /tmp/rebuild_db_with_pk_auto.py to fix this!")
                     return False
 
         except Exception as e:

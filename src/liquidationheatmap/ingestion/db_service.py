@@ -524,10 +524,11 @@ class DuckDBService:
         # Try to query from DB first
         try:
             # Build query with temporal filters - use ALL trades (no sampling)
+            # Default exchange to 'binance' for backward compatibility
             query_parts = [
                 "SELECT timestamp, price, quantity, side, gross_value",
                 "FROM aggtrades_history",
-                "WHERE symbol = ? AND gross_value >= ?",
+                "WHERE symbol = ? AND exchange = 'binance' AND gross_value >= ?",
             ]
             params = [symbol, float(min_gross_value)]
 
@@ -556,35 +557,42 @@ class DuckDBService:
         csv_path = f"/media/sam/3TB-WDC/binance-history-data-downloader/data/{symbol}/aggTrades/{symbol}-aggTrades-2025-10-*.csv"
         logger.info(f"CSV pattern: {csv_path}")
 
-        # Create table
+        # Create table with correct COMPOSITE PRIMARY KEY (agg_trade_id, symbol, exchange)
         try:
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS aggtrades_history (
-                    timestamp TIMESTAMP,
-                    symbol VARCHAR,
-                    price DOUBLE,
-                    quantity DOUBLE,
-                    side VARCHAR,
-                    gross_value DOUBLE
+                    agg_trade_id BIGINT NOT NULL,
+                    timestamp TIMESTAMP NOT NULL,
+                    symbol VARCHAR(20) NOT NULL,
+                    exchange VARCHAR(20) NOT NULL DEFAULT 'binance',
+                    price DECIMAL(18, 8) NOT NULL,
+                    quantity DECIMAL(18, 8) NOT NULL,
+                    side VARCHAR(4) NOT NULL,
+                    gross_value DOUBLE NOT NULL,
+                    PRIMARY KEY (agg_trade_id, symbol, exchange)
                 )
             """)
         except Exception as e:
             logger.debug(f"Table creation skipped (may exist): {e}")
 
         # Load data using DOUBLE to avoid DECIMAL overflow
+        # Updated INSERT with composite PK columns (agg_trade_id, symbol, exchange)
         try:
             logger.info(f"Loading CSV files matching: {csv_path}")
             self.conn.execute(f"""
-                INSERT INTO aggtrades_history
+                INSERT OR IGNORE INTO aggtrades_history
+                (agg_trade_id, timestamp, symbol, exchange, price, quantity, side, gross_value)
                 SELECT
-                    epoch_ms(transact_time) as timestamp,
+                    agg_trade_id,
+                    to_timestamp(transact_time / 1000) as timestamp,
                     '{symbol}' as symbol,
-                    price::DOUBLE as price,
-                    quantity::DOUBLE as quantity,
+                    'binance' as exchange,
+                    CAST(price AS DECIMAL(18, 8)) as price,
+                    CAST(quantity AS DECIMAL(18, 8)) as quantity,
                     CASE WHEN is_buyer_maker THEN 'sell' ELSE 'buy' END as side,
-                    (price::DOUBLE * quantity::DOUBLE) as gross_value
+                    price * quantity as gross_value
                 FROM read_csv_auto('{csv_path}')
-                WHERE (price::DOUBLE * quantity::DOUBLE) >= {float(min_gross_value)}
+                WHERE (price * quantity) >= {float(min_gross_value)}
                 LIMIT 10000
             """)
 
@@ -593,7 +601,7 @@ class DuckDBService:
                 """
                 SELECT timestamp, price, quantity, side, gross_value
                 FROM aggtrades_history
-                WHERE symbol = ? AND gross_value >= ?
+                WHERE symbol = ? AND exchange = 'binance' AND gross_value >= ?
                 ORDER BY timestamp DESC
                 LIMIT 10000
             """,
@@ -663,6 +671,7 @@ class DuckDBService:
             FROM aggtrades_history t
             CROSS JOIN leverage_tiers l
             WHERE t.symbol = ?
+              AND t.exchange = 'binance'
               AND t.gross_value >= ?
         """
 

@@ -155,15 +155,26 @@ LiquidationHeatmap/
 
 **Database Schema**:
 ```sql
--- Raw aggregate trades
-CREATE TABLE aggtrades (
-    agg_trade_id BIGINT,
-    timestamp BIGINT,
-    price DECIMAL(18,8),
-    quantity DECIMAL(18,8),
-    side VARCHAR(4),  -- 'buy' or 'sell'
-    gross_value DECIMAL(18,8)
+-- Raw aggregate trades (COMPOSITE PRIMARY KEY for multi-symbol/exchange support)
+-- agg_trade_id is unique only within a symbol - NOT globally unique!
+-- This composite PK prevents the critical bug where ETHUSDT data was rejected
+-- as duplicates because BTCUSDT had overlapping agg_trade_ids.
+CREATE TABLE aggtrades_history (
+    agg_trade_id BIGINT NOT NULL,
+    timestamp TIMESTAMP NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    exchange VARCHAR(20) NOT NULL DEFAULT 'binance',
+    price DECIMAL(18, 8) NOT NULL,
+    quantity DECIMAL(18, 8) NOT NULL,
+    side VARCHAR(4) NOT NULL,  -- 'buy' or 'sell'
+    gross_value DOUBLE NOT NULL,
+    PRIMARY KEY (agg_trade_id, symbol, exchange)
 );
+-- Indexes for efficient queries
+CREATE INDEX idx_aggtrades_timestamp_symbol ON aggtrades_history(timestamp, symbol);
+CREATE INDEX idx_aggtrades_timestamp ON aggtrades_history(timestamp);
+CREATE INDEX idx_aggtrades_symbol ON aggtrades_history(symbol);
+CREATE INDEX idx_aggtrades_exchange ON aggtrades_history(exchange);
 
 -- Pre-aggregated volume profile (cache)
 CREATE TABLE volume_profile_daily (

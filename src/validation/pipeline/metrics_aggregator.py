@@ -53,6 +53,8 @@ class MetricsAggregator:
         Returns:
             DashboardMetrics or None if no data
         """
+        import math
+
         if not Path(self.db_path).exists():
             return None
 
@@ -81,10 +83,15 @@ class MetricsAggregator:
             # Determine status
             status = determine_dashboard_status(latest["f1_score"], days_since)
 
+            # Sanitize f1_score for grade computation - replace NaN/None with 0.0
+            f1_for_grade = latest["f1_score"]
+            if f1_for_grade is None or math.isnan(f1_for_grade) or math.isinf(f1_for_grade):
+                f1_for_grade = 0.0
+
             return DashboardMetrics(
                 status=status,
                 last_validation_timestamp=latest["timestamp"],
-                last_validation_grade=compute_overall_grade(latest["f1_score"]),
+                last_validation_grade=compute_overall_grade(f1_for_grade),
                 f1_score=latest["f1_score"],
                 precision=latest["precision"],
                 recall=latest["recall"],
@@ -291,8 +298,21 @@ class MetricsAggregator:
             )
 
         # Check F1 score thresholds
+        import math
+
         f1 = latest["f1_score"]
-        if f1 < 0.4:
+
+        # Handle invalid f1 values (NaN, None, infinite) as critical
+        if f1 is None or math.isnan(f1) or math.isinf(f1):
+            alerts.append(
+                Alert(
+                    level="error",
+                    message="F1 score is invalid (missing or corrupt data). "
+                    "Check validation pipeline and data sources.",
+                    timestamp=now,
+                )
+            )
+        elif f1 < 0.4:
             alerts.append(
                 Alert(
                     level="error",
@@ -314,14 +334,17 @@ class MetricsAggregator:
         # Check for declining trend
         if len(trend) >= 3:
             recent_f1 = [t.f1_score for t in trend[-3:]]
-            if all(recent_f1[i] > recent_f1[i + 1] for i in range(len(recent_f1) - 1)):
-                alerts.append(
-                    Alert(
-                        level="warning",
-                        message="F1 score has declined for 3 consecutive measurements.",
-                        timestamp=now,
+            # Filter out NaN values for trend analysis
+            valid_f1 = [f for f in recent_f1 if f is not None and not math.isnan(f)]
+            if len(valid_f1) >= 3:
+                if all(valid_f1[i] > valid_f1[i + 1] for i in range(len(valid_f1) - 1)):
+                    alerts.append(
+                        Alert(
+                            level="warning",
+                            message="F1 score has declined for 3 consecutive measurements.",
+                            timestamp=now,
+                        )
                     )
-                )
 
         return alerts
 

@@ -129,16 +129,18 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
 
     print("✅ Created table: funding_rate_history (with 1 index)")
 
-    # Table 5: aggtrades_history
+    # Table 5: aggtrades_history (COMPOSITE PK for multi-symbol/exchange support)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS aggtrades_history (
-            id BIGINT PRIMARY KEY,
+            agg_trade_id BIGINT NOT NULL,
             timestamp TIMESTAMP NOT NULL,
             symbol VARCHAR(20) NOT NULL,
+            exchange VARCHAR(20) NOT NULL DEFAULT 'binance',
             price DECIMAL(18, 8) NOT NULL,
             quantity DECIMAL(18, 8) NOT NULL,
             side VARCHAR(4) NOT NULL,
-            gross_value DOUBLE NOT NULL
+            gross_value DOUBLE NOT NULL,
+            PRIMARY KEY (agg_trade_id, symbol, exchange)
         );
     """)
 
@@ -146,8 +148,16 @@ def create_schema(conn: duckdb.DuckDBPyConnection) -> None:
         CREATE INDEX IF NOT EXISTS idx_aggtrades_timestamp_symbol
         ON aggtrades_history(timestamp, symbol);
     """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_aggtrades_symbol
+        ON aggtrades_history(symbol);
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_aggtrades_exchange
+        ON aggtrades_history(exchange);
+    """)
 
-    print("✅ Created table: aggtrades_history (with 1 index)")
+    print("✅ Created table: aggtrades_history (with 3 indexes + composite PK)")
 
     # Table 6: exchange_health (T049 - monitor exchange adapter status)
     conn.execute("""

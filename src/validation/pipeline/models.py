@@ -278,7 +278,20 @@ def evaluate_gate_2(f1_score: float) -> tuple[GateDecision, str]:
 
     Returns:
         Tuple of (decision, reason)
+
+    Raises:
+        ValueError: If f1_score is None, NaN, or infinite
     """
+    import math
+
+    # Validate input - reject None, NaN, and infinite values
+    if f1_score is None:
+        raise ValueError("f1_score cannot be None")
+    if math.isnan(f1_score):
+        raise ValueError("f1_score cannot be NaN - indicates corrupt/missing data")
+    if math.isinf(f1_score):
+        raise ValueError("f1_score cannot be infinite")
+
     # Clamp f1_score to valid range [0, 1] for safety
     f1_score = max(0.0, min(1.0, f1_score))
 
@@ -298,7 +311,20 @@ def compute_overall_grade(f1_score: float) -> str:
 
     Returns:
         Grade letter: 'A', 'B', 'C', or 'F'
+
+    Raises:
+        ValueError: If f1_score is None, NaN, or infinite
     """
+    import math
+
+    # Validate input - reject None, NaN, and infinite values
+    if f1_score is None:
+        raise ValueError("f1_score cannot be None")
+    if math.isnan(f1_score):
+        raise ValueError("f1_score cannot be NaN - indicates corrupt/missing data")
+    if math.isinf(f1_score):
+        raise ValueError("f1_score cannot be infinite")
+
     # Clamp f1_score to valid range [0, 1] for safety
     f1_score = max(0.0, min(1.0, f1_score))
 
@@ -320,7 +346,20 @@ def compute_overall_score(f1_score: float) -> Decimal:
 
     Returns:
         Score on 0-100 scale (clamped to 0-100)
+
+    Raises:
+        ValueError: If f1_score is None, NaN, or infinite
     """
+    import math
+
+    # Validate input - reject None, NaN, and infinite values
+    if f1_score is None:
+        raise ValueError("f1_score cannot be None")
+    if math.isnan(f1_score):
+        raise ValueError("f1_score cannot be NaN - indicates corrupt/missing data")
+    if math.isinf(f1_score):
+        raise ValueError("f1_score cannot be infinite")
+
     # Clamp f1_score to valid range [0, 1] for safety
     f1_score = max(0.0, min(1.0, f1_score))
     return Decimal(str(round(f1_score * 100, 2)))
@@ -335,7 +374,16 @@ def determine_dashboard_status(f1_score: float, days_since_validation: int) -> s
 
     Returns:
         Status: 'healthy', 'warning', or 'critical'
+
+    Note:
+        Returns 'critical' for invalid f1_score (None, NaN, infinite)
     """
+    import math
+
+    # Handle invalid f1_score gracefully - return critical status
+    if f1_score is None or math.isnan(f1_score) or math.isinf(f1_score):
+        return "critical"
+
     # Clamp inputs to valid ranges for safety
     f1_score = max(0.0, min(1.0, f1_score))
     days_since_validation = max(0, days_since_validation)

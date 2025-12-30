@@ -174,11 +174,12 @@ def load_aggtrades_streaming(conn, data_dir, symbol, start_date, end_date, throt
 
                 conn.execute(f"""
                     INSERT OR IGNORE INTO aggtrades_history
-                    (agg_trade_id, timestamp, symbol, price, quantity, side, gross_value)
+                    (agg_trade_id, timestamp, symbol, exchange, price, quantity, side, gross_value)
                     SELECT
                         agg_trade_id,
                         to_timestamp(transact_time / 1000) AS timestamp,
                         '{symbol}' AS symbol,
+                        'binance' AS exchange,
                         CAST(price AS DECIMAL(18, 8)) AS price,
                         CAST(quantity AS DECIMAL(18, 8)) AS quantity,
                         CASE WHEN is_buyer_maker THEN 'sell' ELSE 'buy' END AS side,
@@ -201,11 +202,12 @@ def load_aggtrades_streaming(conn, data_dir, symbol, start_date, end_date, throt
 
                     conn.execute(f"""
                         INSERT OR IGNORE INTO aggtrades_history
-                        (agg_trade_id, timestamp, symbol, price, quantity, side, gross_value)
+                        (agg_trade_id, timestamp, symbol, exchange, price, quantity, side, gross_value)
                         SELECT
                             CAST(column0 AS BIGINT) AS agg_trade_id,
                             to_timestamp(column5 / 1000) AS timestamp,
                             '{symbol}' AS symbol,
+                            'binance' AS exchange,
                             CAST(column1 AS DECIMAL(18, 8)) AS price,
                             CAST(column2 AS DECIMAL(18, 8)) AS quantity,
                             CASE WHEN column6 = 'true' THEN 'sell' ELSE 'buy' END AS side,
