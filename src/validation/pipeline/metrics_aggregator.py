@@ -71,7 +71,12 @@ class MetricsAggregator:
             alerts = self._generate_alerts(latest, trend)
 
             # Calculate days since last validation
-            days_since = (datetime.now() - latest["timestamp"]).days
+            # Ensure timestamp is a datetime object (DuckDB may return date or datetime)
+            timestamp = latest["timestamp"]
+            if hasattr(timestamp, "date") and not hasattr(timestamp, "hour"):
+                # It's a date, convert to datetime
+                timestamp = datetime.combine(timestamp, datetime.min.time())
+            days_since = (datetime.now() - timestamp).days
 
             # Determine status
             status = determine_dashboard_status(latest["f1_score"], days_since)
@@ -262,7 +267,11 @@ class MetricsAggregator:
         now = datetime.now()
 
         # Check for stale validation
-        days_since = (now - latest["timestamp"]).days
+        # Ensure timestamp is a datetime object (DuckDB may return date or datetime)
+        timestamp = latest["timestamp"]
+        if hasattr(timestamp, "date") and not hasattr(timestamp, "hour"):
+            timestamp = datetime.combine(timestamp, datetime.min.time())
+        days_since = (now - timestamp).days
         if days_since > 14:
             alerts.append(
                 Alert(

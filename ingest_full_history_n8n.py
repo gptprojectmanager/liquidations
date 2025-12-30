@@ -137,9 +137,10 @@ class CompleteIngestionOrchestrator:
         print("\n🔍 Phase 2: Gap Detection")
 
         try:
-            result = self.conn.execute("""
+            result = self.conn.execute(f"""
                 SELECT MIN(DATE(timestamp)), MAX(DATE(timestamp))
                 FROM aggtrades_history
+                WHERE symbol = '{self.symbol}'
             """).fetchone()
 
             if not result[0]:
@@ -159,6 +160,7 @@ class CompleteIngestionOrchestrator:
                 actual_dates AS (
                     SELECT DISTINCT DATE(timestamp) as actual_date
                     FROM aggtrades_history
+                    WHERE symbol = '{self.symbol}'
                 )
                 SELECT d.expected_date
                 FROM date_series d
@@ -175,32 +177,52 @@ class CompleteIngestionOrchestrator:
 
             gaps = self._consolidate_gaps(missing_dates)
             print(f"⚠️  Found {len(gaps)} gap(s):")
-            for start, end in gaps:
-                days = (end - start).days + 1
+            for gap in gaps:
+                start, end, days = gap[0], gap[1], gap[2]
                 print(f"   • {start} → {end} ({days} days)")
 
-            return gaps
+            # Return only (start, end) tuples for compatibility with fill_gaps
+            return [(g[0], g[1]) for g in gaps]
 
         except Exception as e:
             logger.error(f"Gap detection failed: {e}")
             return []
 
-    def _consolidate_gaps(self, missing_dates: List) -> List[Tuple[str, str]]:
-        """Consolidate consecutive missing dates into ranges."""
+    def _consolidate_gaps(self, missing_dates: List) -> List[Tuple]:
+        """Consolidate consecutive missing dates into ranges.
+
+        Returns list of tuples: (start_date, end_date, days_count)
+        Dates are Python date objects for calculation, converted to strings later.
+        """
         if not missing_dates:
             return []
 
-        gaps = []
-        range_start = missing_dates[0]
-        prev_date = missing_dates[0]
+        from datetime import date
 
-        for current_date in missing_dates[1:]:
+        # Ensure we have date objects
+        def to_date(d):
+            if isinstance(d, date):
+                return d
+            if isinstance(d, str):
+                return date.fromisoformat(d)
+            return d
+
+        dates = [to_date(d) for d in missing_dates]
+
+        gaps = []
+        range_start = dates[0]
+        prev_date = dates[0]
+
+        for current_date in dates[1:]:
             if (current_date - prev_date).days > 1:
-                gaps.append((str(range_start), str(prev_date)))
+                days = (prev_date - range_start).days + 1
+                gaps.append((str(range_start), str(prev_date), days))
                 range_start = current_date
             prev_date = current_date
 
-        gaps.append((str(range_start), str(prev_date)))
+        # Don't forget the last gap
+        days = (prev_date - range_start).days + 1
+        gaps.append((str(range_start), str(prev_date), days))
         return gaps
 
     def fill_gaps(self, gaps: List[Tuple[str, str]], max_retries: int = 3) -> bool:
@@ -245,7 +267,7 @@ class CompleteIngestionOrchestrator:
         """Phase 4: Generate final summary report."""
         print("\n📊 Phase 4: Final Report")
 
-        stats = self.conn.execute("""
+        stats = self.conn.execute(f"""
             SELECT
                 COUNT(*) as total_rows,
                 MIN(timestamp) as min_timestamp,
@@ -255,6 +277,7 @@ class CompleteIngestionOrchestrator:
                 MAX(price) as max_price,
                 SUM(gross_value) as total_volume
             FROM aggtrades_history
+            WHERE symbol = '{self.symbol}'
         """).fetchone()
 
         total_rows, min_ts, max_ts, days, min_price, max_price, volume = stats

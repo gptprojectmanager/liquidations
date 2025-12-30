@@ -77,6 +77,8 @@ class PipelineRunRequest(BaseModel):
     @classmethod
     def validate_types(cls, v: list[str]) -> list[str]:
         """Validate validation types."""
+        if not v:
+            raise ValueError("validation_types cannot be empty")
         valid_types = {"backtest", "coinglass", "realtime", "full"}
         for t in v:
             if t not in valid_types:
@@ -134,7 +136,34 @@ class ValidationHistoryResponse(BaseModel):
 # ============================================================================
 # In-memory storage for active runs (demo - use DB in production)
 # ============================================================================
-_active_runs: dict[str, ValidationPipelineRun] = {}
+# Thread-safe storage with size limit to prevent memory leaks
+import threading
+from collections import OrderedDict
+
+_MAX_STORED_RUNS = 1000  # Limit stored runs to prevent memory exhaustion
+_active_runs: OrderedDict[str, ValidationPipelineRun] = OrderedDict()
+_runs_lock = threading.Lock()
+
+
+def _store_run(run_id: str, run: ValidationPipelineRun) -> None:
+    """Thread-safe store with size limit."""
+    with _runs_lock:
+        _active_runs[run_id] = run
+        # Evict oldest entries if over limit
+        while len(_active_runs) > _MAX_STORED_RUNS:
+            _active_runs.popitem(last=False)
+
+
+def _get_run(run_id: str) -> ValidationPipelineRun | None:
+    """Thread-safe get."""
+    with _runs_lock:
+        return _active_runs.get(run_id)
+
+
+def _get_runs_by_symbol(symbol: str) -> list[ValidationPipelineRun]:
+    """Thread-safe get runs filtered by symbol."""
+    with _runs_lock:
+        return [r for r in _active_runs.values() if r.symbol == symbol]
 
 
 # ============================================================================
@@ -225,27 +254,37 @@ async def trigger_pipeline(
         tolerance_pct = 2.0
 
         if request.backtest_config:
-            if "start_date" in request.backtest_config:
-                start_date = datetime.fromisoformat(request.backtest_config["start_date"])
-            if "end_date" in request.backtest_config:
-                end_date = datetime.fromisoformat(request.backtest_config["end_date"])
+            try:
+                if "start_date" in request.backtest_config:
+                    start_date = datetime.fromisoformat(request.backtest_config["start_date"])
+                if "end_date" in request.backtest_config:
+                    end_date = datetime.fromisoformat(request.backtest_config["end_date"])
+            except (ValueError, TypeError) as e:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Invalid date format in backtest_config: {e}. Use ISO format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS).",
+                )
             tolerance_pct = request.backtest_config.get("tolerance_pct", 2.0)
 
         # Create initial run record
         from uuid import uuid4
 
         run_id = str(uuid4())
+        from src.validation.pipeline import TriggerType
+
         run = ValidationPipelineRun(
             run_id=run_id,
             started_at=datetime.now(),
-            trigger_type="api" if request.triggered_by != "system" else "scheduled",
+            trigger_type=TriggerType.API
+            if request.triggered_by != "system"
+            else TriggerType.SCHEDULED,
             triggered_by=request.triggered_by,
             symbol=request.symbol,
             status=PipelineStatus.PENDING,
         )
 
-        # Store for status lookup
-        _active_runs[run_id] = run
+        # Store for status lookup (thread-safe with size limit)
+        _store_run(run_id, run)
 
         # Queue background execution
         background_tasks.add_task(
@@ -294,8 +333,8 @@ async def get_pipeline_status(
     """
     logger.debug(f"Status request for run: {run_id}")
 
-    # Check in-memory storage first
-    run = _active_runs.get(run_id)
+    # Check in-memory storage first (thread-safe)
+    run = _get_run(run_id)
 
     if run is None:
         # TODO: Query from database if not in memory
@@ -326,7 +365,11 @@ async def get_pipeline_status(
 
 @router.get("/history", response_model=ValidationHistoryResponse)
 async def get_validation_history(
-    symbol: str = Query(default="BTCUSDT", description="Trading symbol"),
+    symbol: str = Query(
+        default="BTCUSDT",
+        pattern=r"^[A-Z]{3,10}USDT$",
+        description="Trading symbol",
+    ),
     limit: int = Query(default=20, ge=1, le=100, description="Max results"),
     offset: int = Query(default=0, ge=0, description="Result offset"),
 ) -> ValidationHistoryResponse:
@@ -338,8 +381,8 @@ async def get_validation_history(
     """
     logger.debug(f"History request: symbol={symbol}, limit={limit}, offset={offset}")
 
-    # Get runs from in-memory storage (filtered by symbol)
-    runs = [r for r in _active_runs.values() if r.symbol == symbol]
+    # Get runs from in-memory storage (thread-safe, filtered by symbol)
+    runs = _get_runs_by_symbol(symbol)
 
     # Sort by started_at descending
     runs.sort(key=lambda r: r.started_at, reverse=True)
@@ -388,10 +431,12 @@ async def _execute_pipeline_background(
     Execute pipeline run in background.
 
     Updates the in-memory run record with results.
+    Note: Run object is mutable, so updates are visible to readers.
+    The lock protects dict access, not run object mutations.
     """
     logger.info(f"Starting background pipeline: {run_id}")
 
-    run = _active_runs.get(run_id)
+    run = _get_run(run_id)
     if run is None:
         logger.error(f"Run not found in active runs: {run_id}")
         return
