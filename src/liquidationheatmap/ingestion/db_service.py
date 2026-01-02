@@ -186,7 +186,7 @@ class DuckDBService:
             logger.error(f"Failed to release ingestion lock: {e}")
             return False
 
-    def __new__(cls, db_path: str = "data/processed/liquidations.duckdb", read_only: bool = False):
+    def __new__(cls, db_path: str = "/media/sam/2TB-NVMe/liquidationheatmap_db/liquidations.duckdb", read_only: bool = False):
         """Singleton pattern per (db_path, read_only) - reuse existing connection.
 
         Thread-safe: Uses lock for concurrent singleton creation.
@@ -241,7 +241,7 @@ class DuckDBService:
             return False
 
     def __init__(
-        self, db_path: str = "data/processed/liquidations.duckdb", read_only: bool = False
+        self, db_path: str = "/media/sam/2TB-NVMe/liquidationheatmap_db/liquidations.duckdb", read_only: bool = False
     ):
         """Initialize DuckDB service (only once per singleton).
 

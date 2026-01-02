@@ -225,7 +225,7 @@ def main():
     parser.add_argument("--start-date", required=True, help="Start date (YYYY-MM-DD)")
     parser.add_argument("--end-date", required=True, help="End date (YYYY-MM-DD)")
     parser.add_argument("--data-dir", required=True, help="Data directory path")
-    parser.add_argument("--db", default="data/processed/liquidations.duckdb", help="Database path")
+    parser.add_argument("--db", default="/media/sam/2TB-NVMe/liquidationheatmap_db/liquidations.duckdb", help="Database path")
     parser.add_argument("--interval", default="15m", help="Kline interval (5m, 15m, 1m)")
     parser.add_argument("--throttle-ms", type=int, default=200, help="I/O throttle (ms)")
 
