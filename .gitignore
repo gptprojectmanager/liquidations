@@ -65,7 +65,7 @@ Thumbs.db
 # Claude Code session data
 .claude/context_bundles/
 .claude/stats/
-.claude/settings.local.json
+.claude/settings.local*.json
 .claude/logs/
 .hypothesis/
 
