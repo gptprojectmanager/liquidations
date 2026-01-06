@@ -5,6 +5,7 @@ tools: Read, Write, Edit, Bash, Glob, Grep, WebFetch, mcp__context7__get-library
 model: opus
 color: cyan
 skills: github-workflow
+version: 1.2.0
 ---
 
 # Visualization Renderer
