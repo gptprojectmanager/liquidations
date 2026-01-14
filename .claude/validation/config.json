@@ -1,0 +1,21 @@
+{
+  "domain": "crypto-liquidations",
+  "anti_patterns": [
+    "hardcoded_api_keys",
+    "missing_error_handling",
+    "float_for_money"
+  ],
+  "research_keywords": {
+    "trigger": [
+      "liquidation",
+      "heatmap",
+      "binance",
+      "futures",
+      "leverage"
+    ],
+    "skip": [
+      "basic_python",
+      "simple_fix"
+    ]
+  }
+}
