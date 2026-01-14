@@ -8,6 +8,7 @@ metadata:
     backstage.io/techdocs-ref: dir:.
     grafana/dashboard-selector: "folder=trading"
     grafana/alert-label-selector: "category=trading"
+    backstage.io/slo-template: slo-template-trading
   tags:
     - crypto
     - liquidations
