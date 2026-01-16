@@ -5,7 +5,7 @@ metadata:
   description: liquidation_heatmap repository
   annotations:
     backstage.io/techdocs-ref: dir:.
-    github.com/project-slug: gptcompany/liquidations
+    github.com/project-slug: gptcompany/LiquidationHeatmap
     github.com/workflows-folder: .github/workflows
   tags: []
 spec:
