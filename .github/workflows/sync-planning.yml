@@ -11,4 +11,4 @@ jobs:
     uses: gptcompany/.github/.github/workflows/_reusable-sync-planning.yml@main
     with:
       framework: 'auto'
-      create-project: true
+      create-project: false
