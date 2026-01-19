@@ -9,6 +9,7 @@ on:
 jobs:
   sync:
     uses: gptcompany/.github/.github/workflows/_reusable-sync-planning.yml@main
+    secrets: inherit
     with:
       framework: 'auto'
-      create-project: false
+      create-project: true
